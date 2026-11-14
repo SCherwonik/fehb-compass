@@ -72,7 +72,7 @@ function content() {
         h('li', {}, 'No provider networks: check that your doctors and hospitals are in network with the plan.'),
         h('li', {}, 'No formulary search: use each plan’s drug lookup link and record the tier you find.'),
         h('li', {}, 'Out-of-network care is counted at full cost, because OPM publishes no out-of-network cost sharing.'),
-        h('li', {}, 'OPM’s spreadsheet has a few errors; where a brochure disagrees, the brochure is followed and the difference is noted.'),
+        h('li', {}, 'OPM’s spreadsheet has a few errors. Where a brochure disagrees and the difference was checked by hand, the totals use the brochure value and mark it “Differs from OPM spreadsheet”: Sharp Health Plan Basic’s deductible ($4,800 per person, not $5,500) and 21 drug-tier prices in 10 plans. Differences that are only a pharmacy channel or tier numbering keep the spreadsheet value.'),
         h('li', {}, 'Estimates, not quotes. The plan brochure is the only contractual statement of coverage.'))),
   ];
 }

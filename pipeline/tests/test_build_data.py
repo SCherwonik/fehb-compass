@@ -439,3 +439,83 @@ def test_hdhp_label_disagreements_are_recorded():
         for p in _plans(year):
             disagrees = p["option_type"].upper() == "HDHP" and not p["hsa"]
             assert ("type_note" in p) == disagrees, (year, p["code"])
+
+
+# --------------------------------------------------------------------------- I5: brochure overrides
+
+def _entry(**over):
+    e = {
+        "deductible": {"self": 5500.0, "self_plus_one": 11000.0, "family": 11000.0},
+        "copays": {"rx_tier1": {"value": 15.0, "kind": "usd", "raw": "Preferred Generic - $15 Copayment"}},
+        "raw": {"Annual deductible (Self)": "$5,500", "Annual deductible (Self Plus One)": "$11,000",
+                "Annual deductible (Self & Family)": "$11,000", "Tier 1": "Preferred Generic - $15 Copayment"},
+    }
+    e.update(over)
+    return e
+
+
+def _spec(tmp_path, overrides):
+    p = tmp_path / "ov.json"
+    p.write_text(json.dumps({"overrides": overrides}), encoding="utf-8")
+    return p
+
+
+DED = {"year": 2027, "plan_code": "X1", "field": "deductible",
+       "raw_fields": ["Annual deductible (Self)", "Annual deductible (Self Plus One)", "Annual deductible (Self & Family)"],
+       "sheet": {"self": 5500, "self_plus_one": 11000, "family": 11000},
+       "brochure_value": {"self": 4800, "self_plus_one": 9600, "family": 9600},
+       "brochure": "73-937", "page": 24, "quote": "q", "reason": "r"}
+TIER = {"year": 2027, "plan_code": "X1", "field": "rx_tier1", "raw_fields": ["Tier 1"],
+        "sheet": "Preferred Generic - $15 Copayment", "brochure_value": {"kind": "pct", "value": 20, "cap": 400},
+        "brochure_text": "20% Coinsurance up to $400", "brochure": "b", "page": 9, "quote": "q2", "reason": "r2"}
+
+
+def test_apply_benefit_overrides_patches_engine_and_raw_fields_and_keeps_provenance(tmp_path):
+    b = {"2027": {"X1": _entry()}}
+    n = build_data.apply_benefit_overrides(b, _spec(tmp_path, [DED, TIER]))
+    e = b["2027"]["X1"]
+    assert n == 2
+    assert e["deductible"] == {"self": 4800.0, "self_plus_one": 9600.0, "family": 9600.0}
+    assert e["raw"]["Annual deductible (Self)"] == "$4,800"
+    assert e["raw"]["Annual deductible (Self & Family)"] == "$9,600"
+    assert e["copays"]["rx_tier1"] == {"value": 20.0, "kind": "pct", "raw": "20% Coinsurance up to $400", "cap": 400.0}
+    assert e["raw"]["Tier 1"] == "20% Coinsurance up to $400"
+    o = e["overrides"]["Annual deductible (Self)"]
+    assert o == {"field": "deductible", "sheet": "$5,500", "brochure": "73-937", "page": 24, "quote": "q", "reason": "r"}
+    assert e["overrides"]["Tier 1"]["sheet"] == "Preferred Generic - $15 Copayment"
+
+
+def test_apply_benefit_overrides_stops_when_the_spreadsheet_value_changed(tmp_path):
+    b = {"2027": {"X1": _entry(deductible={"self": 5000.0, "self_plus_one": 10000.0, "family": 10000.0})}}
+    with pytest.raises(ValueError, match="X1.*deductible"):
+        build_data.apply_benefit_overrides(b, _spec(tmp_path, [DED]))
+    b = {"2027": {"X1": _entry()}}
+    with pytest.raises(ValueError, match="X1.*rx_tier1"):
+        build_data.apply_benefit_overrides(b, _spec(tmp_path, [{**TIER, "sheet": "something else"}]))
+    with pytest.raises(ValueError, match="Z9"):
+        build_data.apply_benefit_overrides(b, _spec(tmp_path, [{**TIER, "plan_code": "Z9"}]))
+
+
+def test_tracked_overrides_file_is_complete():
+    spec = json.loads((PIPELINE / "benefit_overrides.json").read_text(encoding="utf-8"))
+    assert spec["overrides"]
+    for o in spec["overrides"]:
+        for k in ("year", "plan_code", "field", "raw_fields", "sheet", "brochure_value", "brochure", "page", "quote", "reason"):
+            assert k in o, (o.get("plan_code"), k)
+        assert o["field"] == "deductible" or o["field"].startswith("rx_tier")
+
+
+@needs_data
+def test_benefits_json_carries_the_brochure_values():
+    b = load("benefits.json")["2027"]
+    yj1 = b["YJ1"]
+    assert yj1["deductible"] == {"self": 4800.0, "self_plus_one": 9600.0, "family": 9600.0}
+    assert yj1["raw"]["Annual deductible (Self)"] == "$4,800"
+    assert yj1["overrides"]["Annual deductible (Self)"]["sheet"] == "$5,500"
+    assert b["634"]["copays"]["rx_tier1"]["value"] == 5.0
+    assert b["A84"]["copays"]["rx_tier1"]["value"] == 8.0
+    assert b["P84"]["copays"]["rx_tier5"] == {"value": 20.0, "kind": "pct",
+                                              "raw": "Preferred Generic Specialty - 20% Coinsurance up to $400", "cap": 400.0}
+    # channel difference, not an error: the spreadsheet's plan-pharmacy price is kept
+    assert b["L11"]["copays"]["rx_tier1"]["value"] == 10.0 and "overrides" not in b["L11"]
+    assert b["YJ4"]["deductible"]["self"] == 0.0 and "overrides" not in b["YJ4"]

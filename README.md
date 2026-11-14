@@ -106,8 +106,9 @@ over the wire. The app paints the input panel from the small files first and loa
   savings banner unless you opt in.
 - Care is priced at assumed amounts (shown in "See the math" and "How it works"); real prices vary.
 - Out-of-network care is counted at full cost, because OPM publishes no out-of-network cost sharing.
-- OPM's spreadsheet has a few errors; where a brochure disagrees, the brochure is followed and the difference
-  is noted.
+- OPM's spreadsheet has a few errors. Hand-checked brochure values replace them in `benefits.json` (listed with
+  page, quote and reason in `pipeline/benefit_overrides.json`, applied by `build_data.py`) and are marked
+  "Differs from OPM spreadsheet" in the app.
 - Dental costs use typical list fees, so they are more likely high than low; vision frame and contact
   allowances are not published by OPM and are not counted.
 - The Geist font loads from Google Fonts; the page falls back to system fonts if it is blocked.

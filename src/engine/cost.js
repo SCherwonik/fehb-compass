@@ -323,6 +323,8 @@ export function expectedOop(benefits, usage, assumptions = {}, drugs = []) {
       // Drug tiers silent about the deductible follow the plan default (HDHP: yes, others: no).
       dedPiece = useDed(isRx ? defaultDed : true);
       coinsPiece = (price - dedPiece) * rate;
+      // a per-fill cap from the plan brochure (pipeline/benefit_overrides.json), e.g. "20% up to $400"
+      if (Number.isFinite(c.cap)) coinsPiece = Math.min(coinsPiece, c.cap);
     } else if (c.kind === 'usd') {
       dedPiece = useDed(defaultDed);
       // Fixed only when the copay alone sets the cost: no deductible consumed, copay below the price.

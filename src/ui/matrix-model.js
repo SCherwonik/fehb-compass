@@ -303,6 +303,27 @@ function richCell(v) {
   };
 }
 
+/**
+ * "Differs from OPM spreadsheet" badge for a raw field that pipeline/benefit_overrides.json replaced with the
+ * plan brochure's value (benefits.overrides[field] = { field, sheet, brochure, page, quote, reason }).
+ * `field` is a raw field name or a RegExp over them. -> { kind, text, sheet, why, cite } or null.
+ */
+export function overrideBadge(benefits, field) {
+  const all = benefits?.overrides;
+  if (!all || typeof all !== 'object') return null;
+  const key = field instanceof RegExp ? Object.keys(all).find((k) => field.test(k)) : field;
+  const o = key != null && Object.prototype.hasOwnProperty.call(all, key) ? all[key] : null;
+  if (!o) return null;
+  const page = Number.isInteger(o.page) ? o.page : null;
+  return {
+    kind: 'differs',
+    text: 'Differs from OPM spreadsheet',
+    sheet: String(o.sheet ?? ''),
+    why: `OPM’s spreadsheet lists “${o.sheet}”. The plan brochure, the plan’s official statement of benefits, says otherwise${page ? ` on page ${page}` : ''}, so the brochure amount is shown and used.`,
+    cite: page ? { short: `p.${page}`, label: `Plan brochure ${o.brochure ?? ''}, page ${page}`.replace('  ', ' '), href: null, quote: o.quote ?? undefined } : undefined,
+  };
+}
+
 const oonCell = (code, v) => (Number.isFinite(v)
   ? { code, field: null, text: usdExact(v), kind: v === 0 ? 'nothing' : 'value', display: usdExact(v), value: v, unit: v === 0 ? 'zero' : 'usd' }
   : { code, field: null, text: null, kind: 'na', display: 'Not listed', value: null, unit: null });
@@ -337,7 +358,8 @@ export function buildMatrix(plans, { enrollment = 'self', status = 'active', ext
       const rawMap = p.benefits?.raw ?? {};
       const f = field && rawMap[field] != null ? field : (!field && rawMap[fallback] != null ? fallback : null);
       if (!f) return { code: p.code, field: null, ...parseCell(null) };
-      return { code: p.code, field: f, ...parseCell(rawMap[f]) };
+      const badge = overrideBadge(p.benefits, f);
+      return { code: p.code, field: f, ...parseCell(rawMap[f]), ...(badge ? { badge } : {}) };
     });
     if (cells.every((c) => c.kind === 'missing')) continue;
     const label = /^Tier \d+$/.test(base) ? base : LABELS[base] ?? sentenceCase(base);

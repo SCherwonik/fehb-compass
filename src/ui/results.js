@@ -15,6 +15,8 @@ import { MAX_COMPARE, safeStorage } from '../state.js';
 import { usd, usdExact, signedUsd, signedPct, costShareSummary, deltaTone } from './format.js';
 import { measure, reorder, tweenNumber, pop, nudge, reduceMotion, EASE_OUT } from './motion.js';
 import { createRxCard, updateRxCard } from './rx-card.js';
+import { badgeEl } from './rx-render.js';
+import { overrideBadge } from './matrix-model.js';
 
 const UI_KEY = 'fehb-compass:results-ui:v1';
 const ENROLLMENT_TEXT = { self: 'self only', self_plus_one: 'self plus one', family: 'family' };
@@ -326,6 +328,13 @@ export function createResults(main, { store, onRanked }) {
     }
     setText(r.deductible.v, usd(row.facts.deductible));
     setDelta(r.deductible.d, row.diff.deductibleChange);
+    // a deductible taken from the plan brochure instead of OPM's spreadsheet (pipeline/benefit_overrides.json)
+    const dedBadge = overrideBadge(row.benefits, /^Annual deductible/);
+    if (Boolean(dedBadge) !== Boolean(r.deductible.badge)) {
+      r.deductible.badge?.remove();
+      r.deductible.badge = dedBadge ? badgeEl(dedBadge) : null;
+      if (r.deductible.badge) r.deductible.box.querySelector('dd').append(r.deductible.badge);
+    }
     setText(r.oopMax.v, usd(row.facts.oopMax));
     setDelta(r.oopMax.d, row.diff.oopMaxChange);
     setText(r.share, costShareSummary(row.benefits, row.facts.coinsurance) || 'Cost sharing varies; see the plan brochure.');

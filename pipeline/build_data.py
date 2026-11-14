@@ -684,6 +684,65 @@ def apply_text_fixes(plans: list, benefits: dict) -> None:
                 p[k] = textfix.fix_spacing(p[k], vocab)
 
 
+OVERRIDES_PATH = Path(__file__).resolve().parent / "benefit_overrides.json"
+
+
+def _usd_text(v: float) -> str:
+    return f"${v:,.0f}" if float(v).is_integer() else f"${v:,.2f}"
+
+
+def apply_benefit_overrides(benefits: dict, path: Path = OVERRIDES_PATH) -> int:
+    """Patch benefits where a hand-checked 2027 brochure value replaces OPM's spreadsheet (I5).
+
+    Each entry of pipeline/benefit_overrides.json names a plan, an engine field ('deductible' or 'rx_tierN'),
+    the spreadsheet value it expects, the brochure value, and the raw fields that display it. The engine
+    field gets the brochure value, the raw fields show the brochure text, and entry["overrides"][raw field]
+    keeps the spreadsheet text, brochure number, page, quote and reason (the app's "Differs from OPM
+    spreadsheet" badge). A spreadsheet value that no longer matches stops the build: re-check the brochure.
+    Returns the number of entries applied.
+    """
+    if not Path(path).exists():
+        return 0
+    spec = json.loads(Path(path).read_text(encoding="utf-8"))
+    n = 0
+    for o in spec.get("overrides", []):
+        code, field, year = o["plan_code"], o["field"], str(o["year"])
+        e = benefits.get(year, {}).get(code)
+        if e is None:
+            raise ValueError(f"{Path(path).name}: plan {code!r} is not in the {year} benefits")
+        meta = {k: o[k] for k in ("brochure", "page", "quote", "reason") if k in o}
+        record = e.setdefault("overrides", {})
+        if field == "deductible":
+            want = {k: float(v) for k, v in o["sheet"].items()}
+            if e["deductible"] != want:
+                raise ValueError(f"{Path(path).name}: {code} deductible is {e['deductible']}, expected {want}: re-check")
+            e["deductible"] = {k: float(v) for k, v in o["brochure_value"].items()}
+            for f in o["raw_fields"]:
+                tier = next((k for k, suf in ENROLL_SUFFIX if f.endswith(suf)), None)
+                if tier is None or f not in e["raw"]:
+                    raise ValueError(f"{Path(path).name}: {code} has no raw field {f!r}")
+                record[f] = {"field": field, "sheet": e["raw"][f], **meta}
+                e["raw"][f] = _usd_text(e["deductible"][tier])
+        elif re.fullmatch(r"rx_tier[0-9]", field):
+            c = e["copays"].get(field) or {}
+            if c.get("raw") != o["sheet"]:
+                raise ValueError(f"{Path(path).name}: {code} {field} reads {c.get('raw')!r}, expected {o['sheet']!r}: re-check")
+            bv = o["brochure_value"]
+            new = {"value": float(bv["value"]), "kind": bv["kind"], "raw": o["brochure_text"]}
+            if bv.get("cap") is not None:
+                new["cap"] = float(bv["cap"])
+            e["copays"][field] = new
+            for f in o["raw_fields"]:
+                if f not in e["raw"]:
+                    raise ValueError(f"{Path(path).name}: {code} has no raw field {f!r}")
+                record[f] = {"field": field, "sheet": e["raw"][f], **meta}
+                e["raw"][f] = o["brochure_text"]
+        else:
+            raise ValueError(f"{Path(path).name}: {code}: unsupported field {field!r}")
+        n += 1
+    return n
+
+
 def write_json(name: str, obj) -> Path:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     p = DATA_DIR / name
@@ -696,6 +755,7 @@ def main() -> None:
     paths = fetch_opm.download_all()
     plans, rates, benefits, service, warnings = build_fehb(paths)
     apply_text_fixes(plans, benefits)
+    print(f"  {apply_benefit_overrides(benefits)} brochure overrides applied ({OVERRIDES_PATH.name})")
     write_json("plans.json", plans)
     write_json("rates.json", rates)
     write_json("benefits.json", benefits)
