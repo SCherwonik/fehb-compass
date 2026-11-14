@@ -13,10 +13,13 @@
 //   custom:          object[]                             custom usage lines (shape owned by a later task)
 //   dental:          boolean                              add FEDVIP dental/vision to totals
 //   selectedPlans:   string[]                             2027 enrollment codes pinned for comparison
+//   view:            'cards' | 'board'                    results layout (ranked cards or the horizontal compare board)
+//   group:           'top3' | 'carrier' | 'type' | 'account' | 'all'   which plans the board shows
+//   includeMine:     boolean                              always show the 2027 version of currentPlan2026 (pinned first)
 // }
 //
 // URL hash: URLSearchParams with compact keys, default values omitted, e.g.
-//   #s=r&e=f&st=VA&a=h&n=Aetna&n=Kaiser+Permanente&c=104&sc=w&d=1&p=104,224
+//   #s=r&e=f&st=VA&a=h&n=Aetna&n=Kaiser+Permanente&c=104&sc=w&d=1&p=104,224&v=b&g=c
 // Every field is validated independently; a malformed or unknown value falls back to its default.
 
 export const STORAGE_KEY = 'fehb-compass:state:v1';
@@ -32,6 +35,9 @@ export const DEFAULT_STATE = Object.freeze({
   custom: Object.freeze([]),
   dental: false,
   selectedPlans: Object.freeze([]),
+  view: 'cards',
+  group: 'top3',
+  includeMine: true,
 });
 
 export function defaultState() {
@@ -49,12 +55,16 @@ const STATUS = { active: 'a', retiree: 'r' };
 const ENROLLMENT = { self: 's', self_plus_one: '1', family: 'f' };
 const ACCOUNT = { any: 'n', hsa: 'h', hra: 'r' };
 const SCENARIO = { healthy: 'h', typical: 't', condition: 'c', worst: 'w' };
+const VIEW = { cards: 'c', board: 'b' };
+const GROUP = { top3: 't', carrier: 'c', type: 'p', account: 'a', all: 'x' };
 
 const invert = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [v, k]));
 const STATUS_IN = invert(STATUS);
 const ENROLLMENT_IN = invert(ENROLLMENT);
 const ACCOUNT_IN = invert(ACCOUNT);
 const SCENARIO_IN = invert(SCENARIO);
+const VIEW_IN = invert(VIEW);
+const GROUP_IN = invert(GROUP);
 
 const has = (o, k) => typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k);
 
@@ -127,6 +137,9 @@ export function sanitizeState(input) {
     custom: validCustom(s.custom),
     dental: s.dental === true,
     selectedPlans: validPlanList(s.selectedPlans),
+    view: pickEnum(s.view, VIEW, DEFAULT_STATE.view),
+    group: pickEnum(s.group, GROUP, DEFAULT_STATE.group),
+    includeMine: s.includeMine !== false,
   };
 }
 
@@ -176,6 +189,9 @@ export function encodeState(state) {
   if (s.custom.length) p.set('cu', JSON.stringify(s.custom));
   if (s.dental) p.set('d', '1');
   if (s.selectedPlans.length) p.set('p', s.selectedPlans.join(','));
+  if (s.view !== DEFAULT_STATE.view) p.set('v', VIEW[s.view]);
+  if (s.group !== DEFAULT_STATE.group) p.set('g', GROUP[s.group]);
+  if (!s.includeMine) p.set('m', '0');
   return p.toString();
 }
 
@@ -205,6 +221,9 @@ export function decodeState(hash) {
     custom,
     dental: one('d') === '1',
     selectedPlans: (one('p') ?? '').split(',').filter(Boolean),
+    view: has(VIEW_IN, one('v')) ? VIEW_IN[one('v')] : undefined,
+    group: has(GROUP_IN, one('g')) ? GROUP_IN[one('g')] : undefined,
+    includeMine: one('m') !== '0',
   });
 }
 

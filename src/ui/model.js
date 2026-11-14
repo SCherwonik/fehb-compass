@@ -4,6 +4,7 @@ import { planTotal } from '../engine/cost.js';
 import { SCENARIOS } from '../engine/scenarios.js';
 import { diffPlan, planFacts } from '../engine/diff.js';
 import { statesFromServiceArea } from '../data.js';
+import { groupPlans } from './grouping.js';
 
 const cents = (n) => Math.round(n * 100) / 100;
 
@@ -192,6 +193,52 @@ export function sortRows(rows, key = 'total') {
     return x == null ? Infinity : x;
   };
   return rows.slice().sort((a, b) => v(a) - v(b) || a.cost.total - b.cost.total || a.code.localeCompare(b.code));
+}
+
+/**
+ * "Include my plan (2027 version)": the 2027 plan with the same code as state.currentPlan2026 joins the
+ * compared set whatever the network / plan type / account / state filters say (it is what the user would
+ * get by staying put, so every alternative should be measured against it).
+ * -> { ranked, others, mine, mineStatus, notInState }
+ *   ranked:  rows (plus mine when the filters had dropped it) sorted by sortKey; each a copy with a 1-based `rank`
+ *   mine:    the user's 2027 row (in `ranked`, flagged isMine) or null; others: ranked minus mine
+ *   mineStatus: 'none' (no current plan) | 'off' (toggle off: behave as before) | 'ended' (no 2027 version)
+ *               | 'uncostable' (no rate for this enrollment) | 'included'
+ *   notInState: the 2027 service area does not list the chosen state (still included, flagged in the UI)
+ */
+export function rankWithMine(data, state, rows, sortKey = 'total') {
+  const code = state.currentPlan2026;
+  const rank = (list) => sortRows(list, sortKey).map((r, i) => ({ ...r, rank: i + 1 }));
+  const plain = (mineStatus) => {
+    const ranked = rank(rows);
+    return { ranked, others: ranked, mine: null, mineStatus, notInState: false };
+  };
+  if (!code) return plain('none');
+  if (state.includeMine === false) return plain('off');
+  if (!planMeta(data, 2027, code)) return plain('ended');
+  let list = rows;
+  if (!rows.some((r) => r.code === code)) {
+    const m = makeRow(data, state, code);
+    if (!m) return plain('uncostable');
+    list = [...rows, m];
+  }
+  const ranked = rank(list);
+  const at = ranked.findIndex((r) => r.code === code);
+  ranked[at] = { ...ranked[at], isMine: true };
+  return {
+    ranked,
+    mine: ranked[at],
+    others: ranked.filter((_, i) => i !== at),
+    mineStatus: 'included',
+    notInState: !servesState(data.serviceArea, code, state.location?.state ?? null),
+  };
+}
+
+/** Board segments: the user's plan pinned as its own first group (true rank kept), then state.group over the rest. */
+export function boardGroups(data, state, rows, n = 3) {
+  const res = rankWithMine(data, state, rows, 'total');
+  const groups = groupPlans(res.others, state.group, n);
+  return res.mine ? [{ key: 'mine', label: 'Your plan', rows: [res.mine], total: 1 }, ...groups] : groups;
 }
 
 /**

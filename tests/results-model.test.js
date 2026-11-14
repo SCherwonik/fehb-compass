@@ -192,3 +192,61 @@ test('real data: every eligible 2027 plan in every state yields finite totals an
     }
   }
 });
+
+// ---------- "include my plan (2027 version)" ----------
+import { rankWithMine, boardGroups } from '../src/ui/model.js';
+
+test('real data: plan 401 (FSBP High) is pinned first on the board with its true rank, even when filtered out', { skip: !real }, () => {
+  const base = { ...defaultState(), location: { state: 'VA', zip: null }, currentPlan2026: '401', group: 'top3' };
+  // network filter that excludes 401 (network_family "Other")
+  const s = { ...base, networks: ['Aetna'], includeMine: true };
+  const rows = computeRows(real, s);
+  assert.ok(!rows.some((r) => r.code === '401'), 'filter excludes 401');
+  const res = rankWithMine(real, s, rows);
+  assert.equal(res.mineStatus, 'included');
+  assert.equal(res.mine.code, '401');
+  assert.equal(res.mine.isMine, true);
+  const all = sortRows([...rows, res.mine], 'total');
+  assert.equal(res.mine.rank, all.findIndex((r) => r.code === '401') + 1, 'true rank among the compared set');
+  const groups = boardGroups(real, s, rows);
+  assert.equal(groups[0].key, 'mine');
+  assert.deepEqual(groups[0].rows.map((r) => r.code), ['401']);
+  assert.equal(groups[0].rows[0].rank, res.mine.rank);
+  const others = groups.slice(1).flatMap((g) => g.rows.map((r) => r.code));
+  assert.ok(!others.includes('401'), 'not double counted');
+  assert.equal(others.length, 3);
+
+  // toggle off: gone unless it ranks in the top 3 on its own
+  const off = { ...s, includeMine: false };
+  const offGroups = boardGroups(real, off, computeRows(real, off));
+  assert.ok(offGroups.every((g) => g.key !== 'mine'));
+  assert.ok(!offGroups.flatMap((g) => g.rows).some((r) => r.code === '401'));
+  const unfiltered = { ...base, includeMine: false };
+  const ranked = sortRows(computeRows(real, unfiltered), 'total');
+  const inTop3 = ranked.slice(0, 3).some((r) => r.code === '401');
+  const top = boardGroups(real, unfiltered, computeRows(real, unfiltered)).flatMap((g) => g.rows.map((r) => r.code));
+  assert.equal(top.includes('401'), inTop3);
+});
+
+test('rankWithMine: no plan, toggle off, ended plan, and not listed in the chosen state', { skip: !real }, () => {
+  const s = { ...defaultState(), location: { state: 'VA', zip: null } };
+  assert.equal(rankWithMine(real, s, computeRows(real, s)).mineStatus, 'none');
+  const off = { ...s, currentPlan2026: '401', includeMine: false };
+  assert.equal(rankWithMine(real, off, computeRows(real, off)).mineStatus, 'off');
+  const ended = real.plans.find((p) => p.year === 2026 && !real.plans.some((q) => q.year === 2027 && q.code === p.code));
+  const e = { ...s, currentPlan2026: ended.code };
+  const er = rankWithMine(real, e, computeRows(real, e));
+  assert.equal(er.mineStatus, 'ended');
+  assert.equal(er.mine, null);
+  // a regional 2027 plan that does not serve VA
+  const regional = real.plans.find((p) => p.year === 2027 && !p.nationwide && !(real.serviceArea[p.code]?.states ?? []).includes('VA')
+    && real.plans.some((q) => q.year === 2026 && q.code === p.code));
+  const r = { ...s, currentPlan2026: regional.code };
+  const rr = rankWithMine(real, r, computeRows(real, r));
+  assert.equal(rr.mineStatus, 'included');
+  assert.equal(rr.notInState, true);
+  assert.equal(rr.mine.code, regional.code);
+  // every rank is unique and 1..n
+  const ranks = rr.ranked.map((x) => x.rank).sort((a, b) => a - b);
+  assert.deepEqual(ranks, ranks.map((_, i) => i + 1));
+});

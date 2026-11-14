@@ -1,0 +1,356 @@
+// Compare Board content for medical plans: worst case, value score, best-in-row and the row
+// definitions the generic board renders. DOM-free (unit tested under node).
+//
+// A section is { key, label, rows: [rowDef] }. A rowDef is
+//   { key, label, hint?, best: 'min'|'max'|null, strict?, strong?, cell(row, ctx) -> Cell }
+// and a Cell is a plain descriptor the board turns into DOM with textContent only:
+//   { text, sub?, tone?: 'up'|'down'|'flat'|'new'|'warn'|'muted', title?, value?: number|null,
+//     meter?: 0..1, items?: string[], hook?: string }
+// `value` feeds best-in-row: `best` says which direction wins; `strict` skips the highlight when any
+// column has no comparable value (e.g. a $30 copay against 20% coinsurance).
+// The dental/vision board (Task 7) supplies its own sections and header in this same shape.
+import { usd, signedUsd, signedPct, shareText, deltaTone, DASH } from './format.js';
+import { appliesDeductible } from '../engine/cost.js';
+import { FLAG_TEXT } from '../engine/diff.js';
+
+const fin = (n) => typeof n === 'number' && Number.isFinite(n);
+const cents = (n) => Math.round(n * 100) / 100;
+
+const SCENARIO_TEXT = { healthy: 'healthy', typical: 'typical', condition: 'managing a condition', worst: 'worst case' };
+const TYPE_TEXT = { FFS: 'PPO / FFS', HMO: 'HMO', HDHP: 'HDHP' };
+
+/** Account money the plan puts in for this enrollment (0 when the plan has no HSA/HRA). */
+export function deposit(row, enrollment) {
+  if (!row.account) return 0;
+  const d = row.benefits?.account_contribution?.[enrollment];
+  return fin(d) && d > 0 ? d : 0;
+}
+
+/**
+ * Worst-case ceiling: the most this plan can cost you in a year of in-network care.
+ * annual premium + out-of-pocket max − account money, where the account money is capped the way the
+ * engine caps it: an HSA deposit is cash you keep (all of it counts); an HRA credit only pays for care,
+ * so it counts up to the OOP max. null when the plan lists no OOP max.
+ */
+export function worstCase(row, enrollment) {
+  const max = row.facts?.oopMax;
+  const prem = row.cost?.premium;
+  if (!fin(max) || !fin(prem)) return null;
+  const d = deposit(row, enrollment);
+  const offset = row.account === 'HRA' ? Math.min(d, max) : d;
+  return cents(prem + max - offset);
+}
+
+/**
+ * Value ("bang for buck") score, 0-100.
+ *   weighted = VALUE_WEIGHT × expected total + (1 − VALUE_WEIGHT) × worst-case ceiling
+ *   score    = round(100 × lowest weighted among the plans you can pick ÷ this plan's weighted)
+ * So the plan with the best blend of likely cost and worst-case risk scores 100, and a plan whose
+ * blend costs 25% more scores 80. It is measured against every plan that passes your filters (not
+ * just the board's current grouping), so a plan's score does not change when you switch "Show".
+ * A plan with no OOP max has no ceiling, so no score.
+ */
+export const VALUE_WEIGHT = 0.75;
+
+export function valueScores(rows, enrollment) {
+  const out = new Map();
+  let best = Infinity;
+  for (const r of rows ?? []) {
+    const ceiling = worstCase(r, enrollment);
+    const weighted = ceiling == null || !fin(r.cost?.total) ? null : VALUE_WEIGHT * r.cost.total + (1 - VALUE_WEIGHT) * ceiling;
+    const ok = weighted != null && weighted > 0;
+    out.set(r.code, { ceiling, weighted: ok ? weighted : null, score: null });
+    if (ok && weighted < best) best = weighted;
+  }
+  for (const v of out.values()) if (v.weighted != null) v.score = Math.round((100 * best) / v.weighted);
+  return out;
+}
+
+export const VALUE_HINT = `Value blends what you will likely pay (${VALUE_WEIGHT * 100}%) with your worst-case year (${100 - VALUE_WEIGHT * 100}%). `
+  + 'The best blend among the plans you can pick scores 100; a plan whose blend costs 25% more scores 80.';
+
+/** Indices of the winning values. Needs two or more numbers that are not all equal. */
+export function bestIndices(values, dir) {
+  const out = new Set();
+  if (dir !== 'min' && dir !== 'max') return out;
+  const nums = values.filter(fin);
+  if (nums.length < 2) return out;
+  const best = dir === 'min' ? Math.min(...nums) : Math.max(...nums);
+  if (nums.every((v) => Math.abs(v - best) < 0.5)) return out;
+  values.forEach((v, i) => { if (fin(v) && Math.abs(v - best) < 0.5) out.add(i); });
+  return out;
+}
+
+/** Best-in-row for one row definition over a group's cells (honors `strict`). */
+export function bestInRow(def, cells) {
+  const values = cells.map((c) => (fin(c.value) ? c.value : null));
+  if (def.strict && values.some((v) => v == null)) return new Set();
+  return bestIndices(values, def.best);
+}
+
+/** Shared context for cells: enrollment, scenario, value scores and the #1 total over every ranked row. */
+export function boardContext(rankedRows, state, mine = null) {
+  const rows = rankedRows ?? [];
+  const totals = rows.map((r) => r.cost?.total).filter(fin);
+  return {
+    enrollment: state?.enrollment ?? 'self',
+    scenario: state?.scenario ?? 'typical',
+    values: valueScores(rows, state?.enrollment ?? 'self'),
+    minTotal: totals.length ? Math.min(...totals) : null,
+    mine, // the user's 2027 plan row when "include my plan" is on: baseline for the "vs your plan" rows
+  };
+}
+
+/** Sections that apply to this context (a section with when(ctx) false is left out). */
+export const sectionsFor = (sections, ctx) => sections.filter((s) => !s.when || s.when(ctx));
+
+// ---------- cells ----------
+const money = (n, extra = {}) => ({ text: usd(n), value: fin(n) ? n : null, ...extra });
+
+function careCell(key) {
+  return (row) => {
+    const c = row.benefits?.copays?.[key];
+    const t = shareText(c);
+    if (!t) return { text: DASH, sub: c?.raw ? 'see plan brochure' : 'not listed', title: c?.raw || undefined, value: null, tone: 'muted' };
+    const free = c.kind === 'text';
+    const ded = appliesDeductible(c.raw, row.account === 'HSA');
+    const kind = free ? 'no charge' : c.kind === 'pct' ? 'coinsurance' : 'copay';
+    return {
+      text: t,
+      sub: ded ? `${kind} after deductible` : kind,
+      title: c.raw,
+      value: c.kind === 'pct' ? null : free ? 0 : c.value,
+    };
+  };
+}
+
+function changeCell(field, extra) {
+  return (row) => {
+    const d = row.diff ?? {};
+    if (d.status === 'new') return { text: 'New in 2027', tone: 'new', value: null };
+    const n = d[field];
+    if (!fin(n)) return { text: DASH, sub: 'no 2026 figure', value: null, tone: 'muted' };
+    const tone = deltaTone(n);
+    if (tone === 'flat') return { text: 'No change', tone: 'flat', value: 0 };
+    return { text: signedUsd(n), sub: extra?.(d), tone, value: n };
+  };
+}
+
+const ACCOUNT_TEXT = { HSA: 'Health savings account', HRA: 'Health reimbursement arrangement' };
+
+// "vs your plan": each column minus the user's own 2027 plan (negative = cheaper than staying put).
+function vsMineCell(get) {
+  return (row, ctx) => {
+    if (!ctx.mine) return { text: DASH, value: null, tone: 'muted' };
+    if (row.code === ctx.mine.code) return { text: 'Your plan', sub: 'the baseline', tone: 'muted', value: null };
+    const a = get(row);
+    const b = get(ctx.mine);
+    if (!fin(a) || !fin(b)) return { text: DASH, value: null, tone: 'muted' };
+    const n = a - b;
+    const tone = deltaTone(n);
+    if (tone === 'flat') return { text: 'Same', tone: 'flat', value: 0 };
+    return { text: signedUsd(n), sub: n < 0 ? 'less than yours' : 'more than yours', tone, value: n };
+  };
+}
+
+export const MEDICAL_SECTIONS = [
+  {
+    key: 'vsMine', label: 'Vs your plan in 2027', when: (ctx) => Boolean(ctx.mine),
+    rows: [
+      { key: 'vsTotal', label: 'Estimated total', strong: true, best: 'min', cell: vsMineCell((r) => r.cost?.total) },
+      { key: 'vsPremium', label: 'Premium', best: 'min', cell: vsMineCell((r) => r.cost?.premium) },
+      { key: 'vsDeductible', label: 'Deductible', best: 'min', cell: vsMineCell((r) => r.facts?.deductible) },
+      { key: 'vsOopMax', label: 'Out-of-pocket max', best: 'min', cell: vsMineCell((r) => r.facts?.oopMax) },
+    ],
+  },
+  {
+    key: 'cost', label: 'Cost',
+    rows: [
+      {
+        key: 'total', label: 'Estimated total', strong: true, best: 'min',
+        hint: 'Premium plus expected care costs, minus HSA or HRA money, for your scenario.',
+        cell: (r) => money(r.cost.total, { sub: r.cost.firmness === 'fixed' ? 'fixed copays' : 'estimated' }),
+      },
+      { key: 'premium', label: 'Premium', best: 'min', cell: (r) => money(r.cost.premium, { sub: 'per year' }) },
+      {
+        key: 'oop', label: 'Expected care costs', best: 'min',
+        cell: (r, ctx) => money(r.cost.oop, { sub: `${SCENARIO_TEXT[ctx.scenario] ?? 'typical'} year` }),
+      },
+      {
+        key: 'ceiling', label: 'Worst-case year', best: 'min',
+        hint: 'Premium plus the out-of-pocket max, minus HSA or HRA money: the most a year of covered in-network care can cost.',
+        cell: (r, ctx) => {
+          const v = ctx.values.get(r.code)?.ceiling ?? worstCase(r, ctx.enrollment);
+          return money(v, { sub: v == null ? 'no OOP max listed' : 'if you hit the OOP max' });
+        },
+      },
+      {
+        key: 'value', label: 'Value', best: 'max', hint: VALUE_HINT,
+        cell: (r, ctx) => {
+          const s = ctx.values.get(r.code)?.score;
+          if (!fin(s)) return { text: DASH, sub: 'needs an OOP max', value: null, tone: 'muted', title: VALUE_HINT };
+          const word = s >= 97 ? 'Best value' : s >= 88 ? 'Strong' : s >= 75 ? 'Fair' : 'Weak';
+          return { text: String(s), sub: word, value: s, meter: s / 100, title: VALUE_HINT };
+        },
+      },
+    ],
+  },
+  {
+    key: 'protection', label: 'Protection',
+    rows: [
+      { key: 'deductible', label: 'Deductible', best: 'min', cell: (r) => money(r.facts?.deductible) },
+      { key: 'oopMax', label: 'Out-of-pocket max', best: 'min', cell: (r) => money(r.facts?.oopMax) },
+      {
+        key: 'coinsurance', label: 'Coinsurance', best: 'min',
+        cell: (r) => {
+          const c = r.facts?.coinsurance;
+          return fin(c) ? { text: `${c}%`, sub: 'plan-wide', value: c } : { text: DASH, sub: 'varies by service', value: null, tone: 'muted' };
+        },
+      },
+    ],
+  },
+  {
+    key: 'care', label: 'Care costs',
+    rows: [
+      { key: 'pcp', label: 'Primary care', best: 'min', strict: true, cell: careCell('primary_care') },
+      { key: 'specialist', label: 'Specialist', best: 'min', strict: true, cell: careCell('specialist') },
+      { key: 'er', label: 'Emergency room', best: 'min', strict: true, cell: careCell('emergency') },
+      { key: 'urgent', label: 'Urgent care', best: 'min', strict: true, cell: careCell('urgent_care') },
+      { key: 'hospital', label: 'Hospital stay', best: 'min', strict: true, cell: careCell('inpatient_admission') },
+      { key: 'surgeon', label: 'Surgeon (inpatient)', best: 'min', strict: true, cell: careCell('inpatient_surgeon') },
+    ],
+  },
+  {
+    key: 'account', label: 'Account',
+    rows: [
+      {
+        key: 'account', label: 'Savings account', best: null,
+        cell: (r) => (r.account ? { text: r.account, sub: ACCOUNT_TEXT[r.account] } : { text: 'None', tone: 'muted' }),
+      },
+      {
+        key: 'deposit', label: 'Plan deposit', best: 'max',
+        cell: (r, ctx) => {
+          if (!r.account) return { text: DASH, value: null, tone: 'muted' };
+          const d = deposit(r, ctx.enrollment);
+          return { text: usd(d), sub: d ? (r.account === 'HRA' ? 'pays toward care only' : 'yours to keep') : 'none listed for 2027', value: d };
+        },
+      },
+    ],
+  },
+  {
+    key: 'changes', label: 'Changes since 2026',
+    rows: [
+      { key: 'chgPremium', label: 'Premium', best: 'min', cell: changeCell('premiumChange', (d) => (fin(d.premiumPct) ? signedPct(d.premiumPct) : undefined)) },
+      { key: 'chgDeductible', label: 'Deductible', best: 'min', cell: changeCell('deductibleChange') },
+      { key: 'chgOopMax', label: 'Out-of-pocket max', best: 'min', cell: changeCell('oopMaxChange') },
+      {
+        key: 'flags', label: 'Warning signs', best: null,
+        cell: (r) => {
+          const flags = r.diff?.flags ?? [];
+          if (flags.length) return { text: flags.length === 1 ? '1 warning' : `${flags.length} warnings`, tone: 'warn', items: flags.map((f) => FLAG_TEXT[f] ?? f) };
+          return { text: r.diff?.status === 'new' ? 'New plan' : 'None', tone: 'muted' };
+        },
+      },
+    ],
+  },
+  {
+    key: 'network', label: 'Network',
+    rows: [
+      {
+        key: 'family', label: 'Network', best: null,
+        cell: (r) => {
+          const fam = r.plan?.network_family || 'Other';
+          return { text: fam, sub: r.plan?.carrier && r.plan.carrier !== fam ? r.plan.carrier : undefined };
+        },
+      },
+      {
+        key: 'ptype', label: 'Plan type', best: null,
+        cell: (r) => ({
+          text: TYPE_TEXT[r.plan?.type] ?? r.plan?.type ?? DASH,
+          sub: [r.plan?.network && `${r.plan.network} network`, r.plan?.nationwide ? 'nationwide' : 'regional'].filter(Boolean).join(', '),
+        }),
+      },
+    ],
+  },
+  {
+    key: 'drugs', label: 'Drugs',
+    rows: [
+      // Hook for the medications task: the board marks this cell data-hook="formulary" and leaves its content alone
+      // if a `hooks.formulary(row, cellEl)` renderer is passed to the board.
+      { key: 'formulary', label: 'Your medications', best: null, cell: () => ({ text: 'Formulary lookup', sub: 'drug list check coming soon', hook: 'formulary', tone: 'muted' }) },
+    ],
+  },
+];
+
+// ---------- header + "why it ranks here" ----------
+
+function isLowest(row, group, get) {
+  const vals = group.map(get).filter(fin);
+  const mine = get(row);
+  if (vals.length < 2 || !fin(mine)) return false;
+  const min = Math.min(...vals);
+  return Math.abs(mine - min) < 0.5 && !vals.every((v) => Math.abs(v - min) < 0.5);
+}
+
+/**
+ * One line, from the numbers, saying why this column sits where it does. `scope` reads after a
+ * superlative, e.g. 'of your top 3' or 'among Aetna plans'.
+ */
+export function whyLine(row, group, ctx, scope = '') {
+  const g = group ?? [];
+  const sc = scope ? ` ${scope}` : '';
+  const gap = fin(ctx?.minTotal) && fin(row.cost?.total) ? row.cost.total - ctx.minTotal : null;
+  const ceiling = (r) => ctx?.values?.get(r.code)?.ceiling ?? worstCase(r, ctx?.enrollment ?? 'self');
+  let lead = null;
+  if (row.isMine) lead = 'Your plan, 2027 version';
+  else if (row.rank === 1) lead = 'Lowest total for your year';
+  else if (isLowest(row, g, (r) => r.cost?.premium)) lead = `Lowest premium${sc}`;
+  else if (isLowest(row, g, (r) => r.cost?.oop)) lead = `Lowest expected care costs${sc}`;
+  else if (isLowest(row, g, ceiling)) lead = `Smallest worst case${sc}`;
+  else if (isLowest(row, g, (r) => r.facts?.deductible)) lead = `Lowest deductible${sc}`;
+  else if (g[0]?.code === row.code && g.length > 1) lead = `Lowest total${sc}`;
+
+  let tail = null;
+  if (row.rank === 1) {
+    const next = g.find((r) => r.code !== row.code);
+    if (next && fin(next.cost?.total) && fin(row.cost?.total)) tail = `${usd(next.cost.total - row.cost.total)} less than #${next.rank}`;
+  } else if (gap != null) {
+    tail = gap < 0.5 ? 'ties #1 on total' : `${usd(gap)} more than #1`;
+  }
+  if (!lead) {
+    lead = tail;
+    tail = fin(row.facts?.oopMax) ? `${usd(row.facts.oopMax)} OOP max` : null;
+  } else if (!tail && fin(row.facts?.oopMax)) {
+    tail = `${usd(row.facts.oopMax)} OOP max`;
+  }
+  return [lead, tail].filter(Boolean).join('; ') || 'Ranked by estimated total';
+}
+
+/** Scope phrase for whyLine from the board's grouping mode and group label. */
+export function scopeText(mode, group) {
+  const n = group?.rows?.length ?? 0;
+  switch (mode) {
+    case 'carrier': return `among ${group.label} plans`;
+    case 'type': return `among ${group.key === 'FFS' ? 'PPO' : group.key} plans`;
+    case 'account': return group.key === 'none' ? 'among plans without an account' : `among ${group.key} plans`;
+    case 'all': return 'of all shown';
+    default: return n > 1 ? `of your top ${n}` : '';
+  }
+}
+
+/** Generic column header descriptor for a medical plan row. */
+export function medicalHeader(row, group, ctx, scope) {
+  const chips = row.isMine ? [{ text: 'Your plan · 2027', tone: 'mine' }] : [];
+  chips.push({ text: TYPE_TEXT[row.plan?.type] ?? row.plan?.type ?? 'Plan', tone: 'type' });
+  if (row.account) chips.push({ text: row.account, tone: 'acct' });
+  if (row.diff?.status === 'new') chips.push({ text: 'New', tone: 'new' });
+  return {
+    title: row.plan?.name ?? row.code,
+    subtitle: row.plan?.carrier || row.plan?.network_family || '',
+    chips,
+    total: row.cost?.total,
+    totalLabel: 'per year, estimated',
+    bar: { p: row.cost?.premium ?? 0, o: row.cost?.oop ?? 0, d: row.cost?.hsaOffset ?? 0 },
+    why: whyLine(row, group, ctx, scope),
+  };
+}

@@ -32,6 +32,9 @@ const FULL = {
   custom: [{ kind: 'specialistVisits', count: 4 }],
   dental: true,
   selectedPlans: ['104', '224', '8W4'],
+  view: 'board',
+  group: 'carrier',
+  includeMine: false,
 };
 
 test('decodeState("#garbage") returns defaults', () => {
@@ -162,4 +165,53 @@ test('data helpers derive dropdown contents', () => {
   ];
   assert.deepEqual(plansForYear(plans, 2026).map((p) => p.code), ['1']);
   assert.deepEqual(networkFamilies(plans, 2027), [{ name: 'Aetna', count: 2 }, { name: 'Kaiser', count: 1 }]);
+});
+
+test('view and group default to cards / top3 and are omitted from the hash', () => {
+  const d = defaultState();
+  assert.equal(d.view, 'cards');
+  assert.equal(d.group, 'top3');
+  assert.equal(encodeState(d), '');
+});
+
+test('every view and group value round-trips through the hash', () => {
+  for (const view of ['cards', 'board']) {
+    for (const group of ['top3', 'carrier', 'type', 'account', 'all']) {
+      const s = { ...defaultState(), view, group };
+      const back = decodeState(encodeState(s));
+      assert.equal(back.view, view);
+      assert.equal(back.group, group);
+    }
+  }
+});
+
+test('bad view or group values fall back to defaults', () => {
+  const d = decodeState('#v=zz&g=__proto__');
+  assert.equal(d.view, 'cards');
+  assert.equal(d.group, 'top3');
+  const d2 = decodeState('#v=board&g=carrier'); // long forms are not hash tokens
+  assert.equal(d2.view, 'cards');
+  assert.equal(d2.group, 'top3');
+  const store = createStore(defaultState(), { storage: null });
+  store.set({ view: 'grid', group: 'everything' });
+  assert.equal(store.get().view, 'cards');
+  assert.equal(store.get().group, 'top3');
+  store.set({ view: 'board', group: 'all' });
+  assert.equal(store.get().view, 'board');
+  assert.equal(store.get().group, 'all');
+});
+
+test('includeMine defaults to true, only "off" is written to the hash, and junk falls back to true', () => {
+  assert.equal(defaultState().includeMine, true);
+  assert.equal(encodeState(defaultState()), '');
+  const off = { ...defaultState(), currentPlan2026: '401', includeMine: false };
+  assert.match(encodeState(off), /(^|&)m=0(&|$)/);
+  assert.equal(decodeState(encodeState(off)).includeMine, false);
+  assert.equal(decodeState('#m=1').includeMine, true);
+  assert.equal(decodeState('#m=false').includeMine, true);
+  const store = createStore(defaultState(), { storage: null });
+  store.set({ includeMine: 'no' });
+  assert.equal(store.get().includeMine, true);
+  store.set({ includeMine: false });
+  assert.equal(store.get().includeMine, false);
 });
