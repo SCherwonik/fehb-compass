@@ -1,7 +1,8 @@
 // C1: regional plans serve only part of most states. OPM's service area lists whole states, whole counties (FIPS)
-// and, for partly covered counties, the ZIP codes served. There is no ZIP -> county crosswalk in OPM's data, so a
-// plan that serves only some counties of the user's state is "availability not confirmed" unless OPM lists the
-// user's ZIP. Unconfirmed plans stay in the ranked list (with a chip) but are kept out of the savings banner's
+// and, for partly covered counties, the ZIP codes served. There is no ZIP -> county crosswalk in OPM's data; the app
+// adds one from the Census (data/zip_county.json, tests/zip-county.test.js). These tests run WITHOUT that lookup
+// (it loads late, or may fail): a plan that serves only some counties of the user's state is then "availability
+// not confirmed" unless OPM lists the user's ZIP. Unconfirmed plans stay in the ranked list (with a chip) but are kept out of the savings banner's
 // "best plan" unless the user opts in. Real 2027 data.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -20,8 +21,8 @@ test('areaStatus: nationwide, statewide, ZIP listed, partial (no crosswalk) and 
   assert.equal(areaStatus(sa, 'T71', 'DC', null), 'statewide');
   // Kaiser Mid-Atlantic Prosper serves 13 Northern Virginia counties and some ZIPs of partly covered ones
   assert.equal(areaStatus(sa, 'T71', 'VA', null), 'partial');
-  assert.equal(areaStatus(sa, 'T71', 'VA', '22302'), 'partial', 'Alexandria: a covered county, but OPM has no ZIP->county map');
-  assert.equal(areaStatus(sa, 'T71', 'VA', '24011'), 'partial', 'Roanoke: cannot be ruled out without a crosswalk either');
+  assert.equal(areaStatus(sa, 'T71', 'VA', '22302'), 'partial', 'Alexandria: a covered county, but no ZIP->county lookup is passed');
+  assert.equal(areaStatus(sa, 'T71', 'VA', '24011'), 'partial', 'Roanoke: cannot be ruled out without the lookup either');
   assert.equal(areaStatus(sa, 'T71', 'VA', '22508'), 'zip', 'a ZIP OPM lists for T71');
   assert.equal(areaStatus(sa, 'T71', 'CA', null), 'outside');
   assert.equal(areaStatus(sa, 'NOPE', 'VA', null), 'outside');

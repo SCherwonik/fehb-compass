@@ -37,7 +37,7 @@ jobs:
           mkdir -p _site/data
           cp index.html 404.html robots.txt .nojekyll _site/
           cp -R src styles assets _site/
-          for f in plans rates benefits service_area meta fedvip brochure_facts; do
+          for f in plans rates benefits service_area meta fedvip brochure_facts zip_county; do
             cp "data/$f.json" _site/data/
           done
           du -ah _site/data | sort -h

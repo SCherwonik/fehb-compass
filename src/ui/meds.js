@@ -4,6 +4,7 @@ import { h, svg, ICON_CHECK, ICON_CHEVRON } from './dom.js';
 import { MAX_DRUGS, MAX_NAME } from './meds-store.js';
 import { rxFor, glp1Status, planMeds } from './rx-model.js';
 import { availablePlans } from './model.js';
+import { zipCountyHub } from '../data.js';
 import { usdExact } from './format.js';
 import { lookupButton, tierSelect, channelLabel, wireBadges } from './rx-render.js';
 
@@ -71,7 +72,7 @@ export function glp1Filter({ store, meds, data }) {
       return;
     }
     input.disabled = false;
-    const open = availablePlans(plans27, data.serviceArea, s.location.state, s.location.zip)
+    const open = availablePlans(plans27, data.serviceArea, s.location.state, s.location.zip, zipCountyHub.get())
       .filter((p) => (s.account === 'hsa' ? p.hsa : s.account === 'hra' ? p.hra : true));
     const said = open.map((p) => glp1Status(p.code, facts));
     const n = said.filter((v) => v === true).length;

@@ -87,6 +87,9 @@ export function makeRow(data, state, code) {
   if (dv && dv.total > 0) cost = { ...cost, total: cents(cost.total + dv.total) };
   const facts = planFacts(input, inputs);
   const facts2026 = planFacts(planInput(data, 2026, code), inputs);
+  const st = state.location?.state ?? null;
+  const zip = st ? state.location?.zip ?? null : null;
+  const area = areaStatus(data.serviceArea, code, st, zip, data.zipCounty ?? null);
   return {
     code,
     plan: meta,
@@ -101,8 +104,11 @@ export function makeRow(data, state, code) {
     dv,
     // total without the user's medications or dental/vision: the like-for-like basis for comparisons (see baseTotal)
     baseTotal: base.total,
-    // service area for the user's state/ZIP (areaStatus): 'partial' = availability not confirmed
-    area: areaStatus(data.serviceArea, code, state.location?.state ?? null, state.location?.state ? state.location?.zip ?? null : null),
+    // service area for the user's state/ZIP (areaStatus, with the ZIP -> county lookup data.zipCounty once
+    // loaded): 'partial' = availability not confirmed
+    area,
+    // the ZIP straddles counties the plan lists and counties it does not (areaChip names them)
+    areaSplit: area === 'partial' && zip ? zipSplit(data.serviceArea, code, zip, data.zipCounty) : null,
   };
 }
 
@@ -187,15 +193,39 @@ const STATE_FIPS = {
   WV: '54', WI: '55', WY: '56', AS: '60', GU: '66', MP: '69', PR: '72', VI: '78',
 };
 
+const own = (o, k) => Boolean(o) && Object.prototype.hasOwnProperty.call(o, k);
+
+/** County FIPS codes a ZIP falls in, from the ZIP -> county lookup (data.js zipCountyLookup), or null when unknown. */
+export function zipCounties(zipCounty, zip) {
+  if (!zip || !own(zipCounty?.zips, zip)) return null;
+  const v = zipCounty.zips[zip];
+  const list = Array.isArray(v) ? v : [v];
+  return list.length ? list : null;
+}
+
+/**
+ * The ZIP's counties split by whether the plan's service area lists them: { counties, served, unserved }, or null
+ * when the ZIP is not in the lookup (PO-box ZIPs and others without a Census ZCTA) or no lookup is loaded.
+ */
+export function zipSplit(serviceArea, code, zip, zipCounty) {
+  const counties = zipCounties(zipCounty, zip);
+  if (!counties) return null;
+  const listed = new Set(own(serviceArea, code) ? serviceArea[code]?.counties ?? [] : []);
+  return { counties, served: counties.filter((c) => listed.has(c)), unserved: counties.filter((c) => !listed.has(c)) };
+}
+
 /**
  * Where a plan stands for someone in state `st` (and ZIP `zip`, when known), from OPM's service area:
  *   'nationwide' | 'statewide' (the whole state) | 'zip' (OPM lists this ZIP for the plan)
- *   | 'partial' (the plan serves only some counties of the state and the ZIP cannot confirm it: OPM's data has no
- *     ZIP -> county map, so the user must check their county) | 'outside' (not offered there).
- * A ZIP rules a plan out only when the plan serves that state by listed ZIP codes alone (no whole county there).
+ *   | 'county' (every county the ZIP lies in is one the plan lists: confirmed through `zipCounty`, the Census
+ *     ZIP -> county lookup from data.js zipCountyLookup)
+ *   | 'partial' (the plan serves only some counties of the state and the ZIP cannot confirm it: no lookup yet,
+ *     the ZIP is not in it, or the ZIP straddles a listed and an unlisted county) | 'outside' (not offered there).
+ * A ZIP rules a plan out when the plan serves that state by listed ZIP codes alone (no whole county there), or
+ * when the lookup puts the ZIP only in counties the plan does not list.
  */
-export function areaStatus(serviceArea, code, st, zip = null) {
-  const area = serviceArea && Object.prototype.hasOwnProperty.call(serviceArea, code) ? serviceArea[code] : null;
+export function areaStatus(serviceArea, code, st, zip = null, zipCounty = null) {
+  const area = own(serviceArea, code) ? serviceArea[code] : null;
   if (!area) return 'outside';
   if (area.nationwide) return 'nationwide';
   if (!st || !(area.states ?? []).includes(st)) return 'outside';
@@ -204,40 +234,63 @@ export function areaStatus(serviceArea, code, st, zip = null) {
   const fips = STATE_FIPS[st];
   const wholeCounties = !fips || (area.counties ?? []).some((c) => c.startsWith(fips));
   if (zip && !wholeCounties) return 'outside';
+  if (zip && fips) {
+    const split = zipSplit(serviceArea, code, zip, zipCounty);
+    if (split) return !split.unserved.length ? 'county' : split.served.length ? 'partial' : 'outside';
+  }
   return 'partial';
 }
 
 /** True when availability is confirmed for the user's location (not a partial-state plan). */
-export const areaConfirmed = (status) => status === 'nationwide' || status === 'statewide' || status === 'zip';
+export const areaConfirmed = (status) => status === 'nationwide' || status === 'statewide' || status === 'zip' || status === 'county';
 
 /**
  * True when a plan (by code) may be open to someone in `st`: nationwide, or a service area that lists the state
- * (partial-state plans included: see areaStatus). With a ZIP, ZIP-only plans that do not list it are out.
+ * (partial-state plans included: see areaStatus). With a ZIP, plans that do not reach it are out.
  */
-export function servesState(serviceArea, code, st, zip = null) {
-  return areaStatus(serviceArea, code, st, zip) !== 'outside';
+export function servesState(serviceArea, code, st, zip = null, zipCounty = null) {
+  return areaStatus(serviceArea, code, st, zip, zipCounty) !== 'outside';
 }
+
+/** 'Fairfax County' from the lookup's names, or the FIPS code itself. */
+const countyName = (zipCounty, fips) => (own(zipCounty?.names, fips) && zipCounty.names[fips]) || `county ${fips}`;
+const listText = (xs) => (xs.length < 3 ? xs.join(' and ') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`);
 
 /**
  * Card chip for a plan whose service area covers only part of the user's state: { text, title } or null.
- * `stateName` e.g. 'Virginia'; `zip` the user's ZIP when known.
+ * `stateName` e.g. 'Virginia'; `zip` the user's ZIP when known; `zipCounty` the ZIP -> county lookup when loaded.
+ * A ZIP that lies in several counties, only some of them served (row.areaSplit, from makeRow), gets its own text.
  */
-export function areaChip(row, stateName, zip = null) {
+export function areaChip(row, stateName, zip = null, zipCounty = null) {
   if (row?.area !== 'partial') return null;
   const where = stateName || 'your state';
+  const split = row.areaSplit;
+  if (zip && split?.served?.length && split.unserved?.length) {
+    const names = (xs) => listText(xs.map((c) => countyName(zipCounty, c)));
+    return {
+      text: 'Serves part of your ZIP: confirm your address',
+      title: `Availability not confirmed. ZIP ${zip} lies in ${names(split.counties)}. OPM lists this plan for `
+        + `${names(split.served)} but not ${names(split.unserved)}, so check the service area in the plan’s brochure `
+        + '(or call the plan) for your address before choosing it.',
+    };
+  }
+  const why = !zip
+    ? 'Add your ZIP code to check it, or check the service area in the plan’s brochure (or call the plan) before choosing it.'
+    : zipCounty
+      ? `ZIP ${zip} is not in the Census ZIP-to-county list (PO-box and some newer ZIP codes are not), so check the service area `
+        + 'in the plan’s brochure (or call the plan) before choosing it.'
+      : `ZIP ${zip} is not among the ZIP codes it lists, so check the service area in the plan’s brochure (or call the plan) before choosing it.`;
   return {
     text: `Serves part of ${where}: confirm your county`,
-    title: `Availability not confirmed. OPM lists this plan for only some counties in ${where}`
-      + `${zip ? `, and ZIP ${zip} is not among the ZIP codes it lists` : ''}. OPM’s data cannot match a ZIP code to its county, `
-      + 'so check the service area in the plan’s brochure (or call the plan) before choosing it.',
+    title: `Availability not confirmed. OPM lists this plan for only some counties in ${where}. ${why}`,
   };
 }
 
 const familyOf = (p) => p.network_family || 'Other';
 
 /** Plans open to this state and ZIP (no state: nationwide plans only), before any network/account/type filter. */
-export function availablePlans(plans27, serviceArea, state, zip = null) {
-  return (plans27 ?? []).filter((p) => servesState(serviceArea, p.code, state ?? null, zip));
+export function availablePlans(plans27, serviceArea, state, zip = null, zipCounty = null) {
+  return (plans27 ?? []).filter((p) => servesState(serviceArea, p.code, state ?? null, zip, zipCounty));
 }
 
 /**
@@ -247,11 +300,11 @@ export function availablePlans(plans27, serviceArea, state, zip = null) {
  * Families with zero plans stay in the list, last; the rest are most plans first, then by name.
  * Counts sum to `total`, the number of plans the results show when no network is selected.
  */
-export function countsByFamily(plans27, serviceArea, { state = null, zip = null, account = 'any' } = {}) {
+export function countsByFamily(plans27, serviceArea, { state = null, zip = null, account = 'any', zipCounty = null } = {}) {
   const all = new Map();
   for (const p of plans27 ?? []) all.set(familyOf(p), 0);
   let total = 0;
-  for (const p of availablePlans(plans27, serviceArea, state, state ? zip : null)) {
+  for (const p of availablePlans(plans27, serviceArea, state, state ? zip : null, zipCounty)) {
     if (account === 'hsa' && !p.hsa) continue;
     if (account === 'hra' && !p.hra) continue;
     all.set(familyOf(p), all.get(familyOf(p)) + 1);
@@ -308,7 +361,7 @@ export function computeRows(data, state, { type = 'all' } = {}) {
   const nets = new Set(state.networks ?? []);
   const rows = [];
   for (const [code, meta] of index(data)[2027]) {
-    if (!servesState(data.serviceArea, code, st, zip)) continue;
+    if (!servesState(data.serviceArea, code, st, zip, data.zipCounty ?? null)) continue;
     if (nets.size && !nets.has(meta.network_family || 'Other')) continue;
     if (type !== 'all' && meta.type !== type) continue;
     // GLP-1 filter: applies once the brochure facts are in (before that nothing is hidden)
@@ -403,7 +456,7 @@ export function rankWithMine(data, state, rows, sortKey = 'total', { type = 'all
     others,
     mineStatus: 'included',
     medsInRank: medsRanked([...others, mine]),
-    notInState: !servesState(data.serviceArea, code, state.location?.state ?? null, state.location?.state ? state.location?.zip ?? null : null),
+    notInState: !servesState(data.serviceArea, code, state.location?.state ?? null, state.location?.state ? state.location?.zip ?? null : null, data.zipCounty ?? null),
     filtersOn,
   };
 }

@@ -3,7 +3,7 @@
 import { h, svg, ICON_CHECK, ICON_CHEVRON } from './dom.js';
 import { segmented, mineSwitch } from './inputs.js';
 import { assumptionChips, describeUsage, effectiveUsage, overrideChanges, inNetworkAtMax } from './assumptions.js';
-import { computeRows, savingsVsCurrent, availablePlans, SORTS, rankWithMine, baseTotal, dvCost, dvLabel, basisOf, basisNote, anyMeds, personLimitsNote, areaChip, rankTotal } from './model.js';
+import { computeRows, savingsVsCurrent, availablePlans, servesState, SORTS, rankWithMine, baseTotal, dvCost, dvLabel, basisOf, basisNote, anyMeds, personLimitsNote, areaChip, rankTotal } from './model.js';
 import { dvMathLines } from './dental-board.js';
 import { GROUP_LABELS, GROUP_MODES } from './grouping.js';
 import { createResultsBoard, mineNoteText } from './results-board.js';
@@ -60,6 +60,7 @@ export function createResults(main, { store, onRanked }) {
   const ui = { ...loadUi(), compareOpen: false };
   let data = null;
   let fedvip = null; // data/fedvip.json once loaded (dental/vision add-on)
+  let zipCounty = null; // data/zip_county.json decoded (data.js zipCountyLookup) once loaded
   let rx = { facts: null, factsStatus: 'loading', meds: null };
   const cards = new Map(); // code -> card record
   const visible = new Set(); // card elements intersecting the viewport (count-up only runs there)
@@ -344,7 +345,7 @@ export function createResults(main, { store, onRanked }) {
       : '';
     const oon = row.cost.breakdown.oonEstimate === true;
     const st = state.location.state;
-    const area = areaChip(row, st ? STATE_NAMES[st] ?? st : null, state.location.zip);
+    const area = areaChip(row, st ? STATE_NAMES[st] ?? st : null, st ? state.location.zip : null, data.zipCounty ?? null);
     const key = `${row.isMine ? `mine:${mineWhere}:${rankTag}` : ''}|${vsMine}:${vsExcl}|${row.cost.firmness}|${row.diff.status}|${row.diff.flags.join(',')}|${oon}|${area?.title ?? ''}`;
     if (key !== rec.chipsKey) {
       rec.chipsKey = key;
@@ -537,7 +538,9 @@ export function createResults(main, { store, onRanked }) {
       text = `${v.skipped === 1 ? 'One cheaper plan serves' : `${v.skipped} cheaper plans serve`} only part of ${where}, so `
         + `${v.skipped === 1 ? 'it is' : 'they are'} left out here. ${v.skipped === 1 ? 'It stays' : 'They stay'} in the list, marked “Serves part of ${where}”.`;
     } else if (on && v.best?.area === 'partial') {
-      text = `${v.best.plan.name} serves only part of ${where}: confirm your county is in its service area before choosing it.`;
+      text = v.best.areaSplit
+        ? `${v.best.plan.name} serves only part of ZIP ${state.location.zip}: confirm your address is in its service area before choosing it.`
+        : `${v.best.plan.name} serves only part of ${where}: confirm your county is in its service area before choosing it.`;
     }
     areaBox.hidden = !(text || on);
     areaText.textContent = text;
@@ -616,7 +619,7 @@ export function createResults(main, { store, onRanked }) {
 
     const st = state.location.state;
     // Headline = every plan open to this state (before filters); the line below says how many survive them.
-    const avail = availablePlans(data.plans.filter((p) => p.year === 2027), data.serviceArea, st, st ? state.location.zip : null).length;
+    const avail = availablePlans(data.plans.filter((p) => p.year === 2027), data.serviceArea, st, st ? state.location.zip : null, data.zipCounty ?? null).length;
     const where = st ? STATE_NAMES[st] ?? st : null;
     title.textContent = where
       ? `${avail} ${avail === 1 ? 'plan' : 'plans'} available in ${where}`
@@ -624,8 +627,10 @@ export function createResults(main, { store, onRanked }) {
     const filtersOn = state.networks.length > 0 || state.account !== 'any' || ui.type !== 'all' || (state.glp1 && Boolean(data.brochure));
     filtered.hidden = !filtersOn;
     if (filtersOn) filtered.textContent = `${filteredRows.length} of ${avail} ${avail === 1 ? 'plan' : 'plans'} after filters`;
-    mineWhere = res.mineStatus === 'included' && res.notInState ? (where ?? 'nationwide') : '';
-    renderMineNote(state, res, where);
+    // listed for the state but not for the user's ZIP (ZIP-only service area, or counties the ZIP is not in)
+    const zipOnly = st && state.location.zip && servesState(data.serviceArea, res.mine?.code, st);
+    mineWhere = res.mineStatus === 'included' && res.notInState ? (zipOnly ? `ZIP ${state.location.zip}` : where ?? 'nationwide') : '';
+    renderMineNote(state, res, res.notInState && zipOnly ? mineWhere : where);
     // say when the ranking also carries the user's priced medications or the dental/vision add-on
     const dvRow = rows.find((r) => dvCost(r) > 0);
     const extras = [medsOn && medsInRank && 'your medications', dvRow && `the ${dvLabel(dvRow).replace('incl. ', '').replace('/', ' and ')} add-on`].filter(Boolean);
@@ -682,7 +687,7 @@ export function createResults(main, { store, onRanked }) {
     try { onRanked?.(res.others.slice(0, 6)); } catch (err) { console.error(err); }
     const top = res.others[0];
     status.textContent = top
-      ? `${filteredRows.length} of ${avail} plans. Lowest ${(isBoard ? SORTS.total : SORTS[ui.sort]).label.toLowerCase()}: ${top.plan.name}, ${usd(rankTotal(top, medsInRank))} a year${top.area === 'partial' ? ', if it serves your county' : ''}.`
+      ? `${filteredRows.length} of ${avail} plans. Lowest ${(isBoard ? SORTS.total : SORTS[ui.sort]).label.toLowerCase()}: ${top.plan.name}, ${usd(rankTotal(top, medsInRank))} a year${top.area === 'partial' ? (top.areaSplit ? ', if it serves your address' : ', if it serves your county') : ''}.`
       : 'No plans match these filters.';
   }
 
@@ -695,8 +700,15 @@ export function createResults(main, { store, onRanked }) {
       data = { ...data, fedvip };
       render();
     },
+    /** ZIP -> county lookup (data.js zipCountyHub, lazy): confirms or rules out county-listed plans for the ZIP. */
+    setZipCounty(zc) {
+      zipCounty = zc;
+      if (!data) return;
+      data = { ...data, zipCounty };
+      render();
+    },
     setData(d) {
-      data = { ...d, fedvip, brochure: rx.facts, meds: rx.meds?.drugs?.length ? rx.meds : null };
+      data = { ...d, fedvip, zipCounty, brochure: rx.facts, meds: rx.meds?.drugs?.length ? rx.meds : null };
       io = new IntersectionObserver((entries) => {
         for (const e of entries) (e.isIntersecting ? visible.add(e.target) : visible.delete(e.target));
       }, { rootMargin: '10% 0px' });

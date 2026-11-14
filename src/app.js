@@ -2,7 +2,7 @@
 import { createStore, loadInitialState, encodeState, encodeHash, saveOverflow, decodeState, sanitizeAgainstData, safeStorage, STORAGE_KEY } from './state.js';
 import { initSituation, loadOpenPrefs } from './ui/situation.js';
 import { situationOpen } from './ui/situation-model.js';
-import { loadDataProgressive, loadBrochureFacts, fedvipHub } from './data.js';
+import { loadDataProgressive, loadBrochureFacts, fedvipHub, zipCountyHub } from './data.js';
 import { renderInputs } from './ui/inputs.js';
 import { initTheme } from './ui/theme.js';
 import { createResults } from './ui/results.js';
@@ -217,6 +217,19 @@ async function main() {
   });
   const s0 = store.get();
   if (s0.tab !== 'medical' || s0.dental || s0.location.zip) fedvipHub.load();
+
+  // ZIP -> county lookup (data/zip_county.json, about 360 KB): fetched only once the user has a ZIP (from the link,
+  // saved state or typed later). Until it arrives, or if it fails, regional plans stay "confirm your county".
+  zipCountyHub.subscribe((zc) => results.setZipCounty(zc));
+  let zcFor = null; // the ZIP the last load was started for: a failed load is retried only for a new ZIP
+  const needZipCounty = (s) => {
+    const z = s.location.zip;
+    if (!z || zipCountyHub.get() || z === zcFor) return;
+    zcFor = z;
+    zipCountyHub.load();
+  };
+  needZipCounty(s0);
+  store.subscribe(needZipCounty);
 
   // Stage 2 (rates + benefits): rank plans.
   try {

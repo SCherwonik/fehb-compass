@@ -96,6 +96,58 @@ export const fedvipHub = {
   subscribe(fn) { fvSubs.add(fn); return () => fvSubs.delete(fn); },
 };
 
+/**
+ * ZIP -> county lookup from data/zip_county.json (Census 2020 ZCTA-to-county file, about 360 KB). The file is
+ * stored county -> "zip zip ..." (smaller); this inverts it into the lookup model.js areaStatus takes:
+ * { zips: { zip5: countyFips | [countyFips, ...] (sorted) }, names: { countyFips: 'Fairfax County' } }.
+ * null when the document is not the expected shape.
+ */
+export function zipCountyLookup(doc) {
+  if (!doc || typeof doc !== 'object' || !doc.counties || typeof doc.counties !== 'object') return null;
+  const zips = Object.create(null);
+  for (const fips of Object.keys(doc.counties).sort()) {
+    const list = doc.counties[fips];
+    if (typeof list !== 'string' || !/^\d{5}$/.test(fips)) continue;
+    for (const z of list.split(' ')) {
+      if (!/^\d{5}$/.test(z)) continue;
+      const cur = zips[z];
+      zips[z] = cur === undefined ? fips : Array.isArray(cur) ? [...cur, fips] : [cur, fips];
+    }
+  }
+  const names = doc.names && typeof doc.names === 'object' ? doc.names : {};
+  return { zips, names };
+}
+
+let zcPromise = null;
+/** Fetch and decode data/zip_county.json once; null (and a later call retries) when it is missing or broken. */
+export function loadZipCounty(base = DEFAULT_BASE) {
+  if (!zcPromise) {
+    zcPromise = fetchJson('zip_county.json', base)
+      .then(zipCountyLookup)
+      .catch((err) => { console.warn('ZIP-to-county lookup not loaded:', err?.message ?? err); return null; })
+      .then((zc) => { if (!zc) zcPromise = null; return zc; });
+  }
+  return zcPromise;
+}
+
+// One shared handle on the ZIP -> county lookup (results, network counts, GLP-1 chip). Loaded only once the
+// user has a ZIP; until it arrives (or if it never does) plans serving part of a state stay "confirm your county".
+let zcData = null;
+const zcSubs = new Set();
+export const zipCountyHub = {
+  get: () => zcData,
+  load(base) {
+    return loadZipCounty(base).then((zc) => {
+      if (zc && zc !== zcData) {
+        zcData = zc;
+        for (const fn of [...zcSubs]) { try { fn(zc); } catch (err) { console.error(err); } }
+      }
+      return zc;
+    });
+  },
+  subscribe(fn) { zcSubs.add(fn); return () => zcSubs.delete(fn); },
+};
+
 /** Sorted unique state codes that appear in any plan's service area. */
 export function statesFromServiceArea(serviceArea) {
   const set = new Set();

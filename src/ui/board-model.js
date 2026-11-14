@@ -344,7 +344,10 @@ export function whyLine(row, group, ctx, scope = '') {
   let lead = null;
   if (row.isMine) lead = 'Your plan, 2027 version';
   // a plan serving only part of the state is never the plain "top pick": its availability is not confirmed
-  else if (row.rank === 1) lead = row.area === 'partial' ? 'Lowest total if it serves your county' : 'Lowest total for your year';
+  else if (row.rank === 1) {
+    lead = row.area !== 'partial' ? 'Lowest total for your year'
+      : row.areaSplit ? 'Lowest total if it serves your address' : 'Lowest total if it serves your county';
+  }
   else if (isLowest(row, g, (r) => r.cost?.premium)) lead = `Lowest premium${sc}`;
   else if (isLowest(row, g, (r) => r.cost?.oop)) lead = `Lowest expected care costs${sc}`;
   else if (isLowest(row, g, ceiling)) lead = `Smallest worst case${sc}`;
@@ -389,7 +392,9 @@ export function totalLabelOf(row, withMeds = true) {
 /** Generic column header descriptor for a medical plan row. */
 export function medicalHeader(row, group, ctx, scope) {
   const chips = row.isMine ? [{ text: 'Your plan · 2027', tone: 'mine' }] : [];
-  if (row.area === 'partial') chips.push({ text: ctx?.stateCode ? `Part of ${ctx.stateCode}` : 'Part of state', tone: 'area' });
+  if (row.area === 'partial') {
+    chips.push({ text: row.areaSplit ? 'Part of your ZIP' : ctx?.stateCode ? `Part of ${ctx.stateCode}` : 'Part of state', tone: 'area' });
+  }
   chips.push({ text: TYPE_TEXT[row.plan?.type] ?? row.plan?.type ?? 'Plan', tone: 'type' });
   if (row.account) chips.push({ text: row.account, tone: 'acct' });
   if (row.diff?.status === 'new') chips.push({ text: 'New', tone: 'new' });

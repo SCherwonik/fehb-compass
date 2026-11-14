@@ -7,7 +7,7 @@ import { createScenarioSection } from './scenario.js';
 import { glp1Filter } from './meds.js';
 import { createZipField, lookupZip, zipKeepsWith } from './zip.js';
 import { createDvAddon, createDvInputs } from './dental-board.js';
-import { fedvipHub } from '../data.js';
+import { fedvipHub, zipCountyHub } from '../data.js';
 import { noticeEl } from './notices.js';
 import { h, svg, ICON_CHECK, ICON_CHEVRON } from './dom.js';
 
@@ -279,6 +279,8 @@ export function renderInputs(form, { data, store, meds }) {
   const stateHint = location.el.querySelector('.field-hint');
   const zip = createZipField({ h, store, getFedvip: fedvipHub.get, onNeedData: () => fedvipHub.load(), stateName });
   fedvipHub.subscribe(() => { zip.refresh(); sync(store.get()); });
+  // the ZIP -> county lookup arrives late (app.js): network counts then reflect plans confirmed or ruled out by ZIP
+  zipCountyHub.subscribe(() => sync(store.get()));
 
   // -- current plan: searchable, grouped by whether it carries into 2027 for the chosen state
   const plans27 = plansForYear(data.plans, 2027);
@@ -392,7 +394,7 @@ export function renderInputs(form, { data, store, meds }) {
   // ---------- sync ----------
   function syncChips(s, animate = false) {
     const st = s.location.state;
-    const counts = countsByFamily(plans27, data.serviceArea, { state: st, zip: s.location.zip, account: s.account });
+    const counts = countsByFamily(plans27, data.serviceArea, { state: st, zip: s.location.zip, account: s.account, zipCounty: zipCountyHub.get() });
     const selected = new Set(s.networks);
     const where = st ? (STATE_NAMES[st] ?? st) : null;
     scope.textContent = where
