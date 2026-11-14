@@ -1,4 +1,5 @@
 import test from 'node:test';
+import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import { annualPremium, resolveBenefits, expectedOop, planTotal } from '../../src/engine/cost.js';
 import { SCENARIOS } from '../../src/engine/scenarios.js';
@@ -148,3 +149,83 @@ test('SCENARIOS and ASSUMED_PRICES shape', () => {
   for (const k of ['pcpVisit', 'specialistVisit', 'erVisit', 'inpatientStay', 'lab', 'imaging', 'surgery', 'rxGenericFill'])
     assert.ok(ASSUMED_PRICES[k] > 0, k);
 });
+
+const RATE_SELF = { self: { biweekly_active: 100, monthly_retiree: 250 } };
+const ACTIVE_SELF = { status: 'active', enrollment: 'self' };
+const ONE_PCP = { ...NO_USAGE, pcpVisits: 1 };
+
+test('HRA with zero usage: offset 0, total equals premium', () => {
+  const r = planTotal({ rate: RATE_SELF, benefits: coinsPlan, accountType: 'HRA', account: { self: 900 } }, { ...ACTIVE_SELF, usage: NO_USAGE });
+  assert.equal(r.hsaOffset, 0);
+  assert.equal(r.total, r.premium);
+});
+
+test('HRA larger than OOP: offset equals OOP, total equals premium', () => {
+  const r = planTotal({ rate: RATE_SELF, benefits: copayPlan, accountType: 'HRA', account: { self: 5000 } }, { ...ACTIVE_SELF, usage: ONE_PCP });
+  assert.ok(r.oop > 0);
+  assert.equal(r.hsaOffset, r.oop);
+  assert.equal(r.total, r.premium);
+  const viaBenefits = planTotal({ rate: RATE_SELF, benefits: { ...copayPlan, account_type: 'Health Reimbursement Arrangement' }, account: { self: 5000 } }, { ...ACTIVE_SELF, usage: ONE_PCP });
+  assert.equal(viaBenefits.hsaOffset, viaBenefits.oop);
+});
+
+test('HRA smaller than OOP: full deposit applied', () => {
+  const r = planTotal({ rate: RATE_SELF, benefits: copayPlan, accountType: 'HRA', account: { self: 5 } }, { ...ACTIVE_SELF, usage: ONE_PCP });
+  assert.equal(r.hsaOffset, 5);
+  assert.equal(r.total, r.premium + r.oop - 5);
+});
+
+test('HSA unchanged: full deposit subtracted even with zero usage; offset never negative', () => {
+  const r = planTotal({ rate: RATE_SELF, benefits: coinsPlan, accountType: 'HSA', account: { self: 800 } }, { ...ACTIVE_SELF, usage: NO_USAGE });
+  assert.equal(r.hsaOffset, 800);
+  assert.equal(r.total, 1800);
+  for (const account of [{ self: -50 }, { self: null }, {}]) {
+    for (const accountType of ['HSA', 'HRA']) {
+      assert.ok(planTotal({ rate: RATE_SELF, benefits: coinsPlan, accountType, account }, { ...ACTIVE_SELF, usage: ONE_PCP }).hsaOffset >= 0);
+    }
+  }
+});
+
+test('planTotal: every numeric output is finite with unparseable text copays', () => {
+  const junk = { value: null, kind: 'text', raw: 'See brochure for details' };
+  const copays = Object.fromEntries(Object.keys(copayPlan.copays).map((k) => [k, junk]));
+  const r = planTotal({ rate: RATE_SELF, benefits: { ...copayPlan, copays }, account: { self: 100 } }, { ...ACTIVE_SELF, usage: SCENARIOS.worst });
+  for (const k of ['premium', 'oop', 'hsaOffset', 'total']) assert.ok(Number.isFinite(r[k]), k);
+  for (const k of ['deductiblePaid', 'coinsurancePaid', 'copays', 'deductible', 'oopMax']) {
+    assert.ok(r.breakdown[k] === null || Number.isFinite(r.breakdown[k]), k);
+  }
+  assert.ok(r.breakdown.warnings.length > 0);
+});
+
+test('"Nothing" copay with a nonzero deductible costs $0 and does not warn', () => {
+  const plan = { ...copayPlan, deductible: 1000, copays: { ...copayPlan.copays, primary_care: nothing } };
+  const r = planTotal({ rate: RATE_SELF, benefits: plan }, { ...ACTIVE_SELF, usage: ONE_PCP });
+  assert.equal(r.oop, 0);
+  assert.equal(r.breakdown.warnings.length, 0);
+  assert.equal(r.firmness, 'fixed');
+});
+
+const DATA = new URL('../../data/', import.meta.url);
+const hasData = ['plans', 'rates', 'benefits'].every((f) => fs.existsSync(new URL(`${f}.json`, DATA)));
+test('real-data smoke: every 2027 plan x scenario x enrollment is finite and non-negative',
+  { skip: hasData ? false : 'data/*.json not found; run the pipeline to generate it' }, () => {
+    const load = (f) => JSON.parse(fs.readFileSync(new URL(`${f}.json`, DATA), 'utf8'));
+    const plans = load('plans'), rates = load('rates'), benefits = load('benefits');
+    let runs = 0;
+    for (const p of plans.filter((x) => x.year === 2027)) {
+      const rate = rates['2027'][p.code], ben = benefits['2027'][p.code];
+      if (!rate || !ben) continue;
+      for (const enrollment of ['self', 'self_plus_one', 'family']) {
+        if (!rate[enrollment]) continue;
+        for (const [name, usage] of Object.entries(SCENARIOS)) {
+          const r = planTotal({ rate, benefits: ben, account: ben.account_contribution }, { status: 'active', enrollment, usage });
+          const id = `${p.code}/${enrollment}/${name}`;
+          assert.ok(Number.isFinite(r.total), `${id} total`);
+          for (const k of ['premium', 'oop', 'hsaOffset']) assert.ok(Number.isFinite(r[k]) && r[k] >= 0, `${id} ${k}`);
+          for (const k of ['deductiblePaid', 'coinsurancePaid', 'copays']) assert.ok(r.breakdown[k] >= 0, `${id} ${k}`);
+          runs++;
+        }
+      }
+    }
+    assert.ok(runs > 0, 'no 2027 plans exercised');
+  });

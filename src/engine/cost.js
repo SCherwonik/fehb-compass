@@ -90,8 +90,7 @@ export function expectedOop(benefits, usage, assumptions = {}, drugs = []) {
     if (!c) { warn(); continue; }
     const useDed = (defaultYes) => {
       if (!appliesDeductible(c.raw, defaultYes)) return 0;
-      const d = Math.min(dedLeft, price);
-      return d;
+      return Math.min(dedLeft, price);
     };
 
     if (c.kind === 'pct') {
@@ -131,15 +130,25 @@ export function expectedOop(benefits, usage, assumptions = {}, drugs = []) {
 /**
  * plan: {rate, benefits (raw, per-enrollment), account?} where `rate` is rates[year][code],
  *       `account` is benefits.account_contribution (HSA/HRA deposit by enrollment).
+ *       `accountType` ('HSA' | 'HRA') or benefits.account_type ("Health Reimbursement Arrangement") marks an HRA.
  * inputs: {status, enrollment, usage, assumptions?, drugs?, hsaDeposit?}
+ * HSA deposit is cash the member keeps: fully subtracted. HRA credit is usable only against
+ * actual costs: offset is capped at expected OOP, so total never falls below premium.
  */
+function isHra(plan) {
+  const t = plan.accountType ?? plan.benefits?.account_type ?? '';
+  return /^hra$|reimbursement/i.test(String(t));
+}
+
 export function planTotal(plan, inputs) {
   const { status, enrollment, usage, assumptions = {}, drugs = [] } = inputs;
   const premium = annualPremium(plan.rate, { status, enrollment });
   const resolved = resolveBenefits(plan.benefits, enrollment);
   const o = expectedOop(resolved, usage, assumptions, drugs);
   const deposit = inputs.hsaDeposit ?? plan.account?.[enrollment] ?? 0;
-  const hsaOffset = Math.max(0, deposit || 0);
+  const hra = isHra(plan);
+  const cap = Math.max(0, deposit || 0);
+  const hsaOffset = hra ? cents(Math.min(cap, o.total)) : cap;
   const firmness = o.warnings.length === 0 && o.flat ? 'fixed' : 'estimated';
   return {
     premium,
@@ -152,6 +161,7 @@ export function planTotal(plan, inputs) {
       copays: o.copays,
       deductible: resolved.deductible,
       oopMax: resolved.oopMax,
+      accountType: hra ? 'HRA' : 'HSA',
       warnings: o.warnings,
     },
     firmness,
