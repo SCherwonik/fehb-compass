@@ -52,3 +52,6 @@ Exact layout and visual system; assumed-price table values; scenario presets; th
 
 ## Future ideas (parked)
 Medicare/Part B coordination for retirees; FSA/HSA contribution optimizer; family-member profiles; plan-brochure PDF links; premium history charts 2020-2027; "plan gotchas" alerts; formulary import; disclaimers and an About/methodology page.
+
+## Visual direction (added by owner, 2026-11-14)
+Fluid, clean, modern, techy: think Apple, NVIDIA, AMD, Google; a blend between Material Design and Apple's Liquid Glass. Emphasis on fluidity and attractive animation where it adds meaning: smooth re-ranking of cards when inputs change, animated number transitions on totals, glass/translucent surfaces with blur and soft depth, springy but quick micro-interactions, tasteful gradients and glow accents, strong typography. Respect `prefers-reduced-motion` and keep it fast (CSS/Web Animations, FLIP for reorder, no heavy libraries). Applies to Tasks 4, 5, 6, 8 and 9.
