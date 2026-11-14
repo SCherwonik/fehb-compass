@@ -2,7 +2,7 @@
 // Cards are keyed by plan code and updated in place; reordering uses FLIP limited to visible cards.
 import { h, svg, segmented, ICON_CHECK, ICON_CHEVRON, mineSwitch } from './inputs.js';
 import { assumptionChips, describeUsage, effectiveUsage, overrideChanges, inNetworkAtMax } from './assumptions.js';
-import { computeRows, savingsVsCurrent, availablePlans, SORTS, rankWithMine, baseTotal, dvCost, basisOf, basisNote } from './model.js';
+import { computeRows, savingsVsCurrent, availablePlans, SORTS, rankWithMine, baseTotal, dvCost, dvLabel, basisOf, basisNote } from './model.js';
 import { dvMathLines } from './dental-board.js';
 import { GROUP_LABELS, GROUP_MODES } from './grouping.js';
 import { createResultsBoard, mineNoteText } from './results-board.js';
@@ -281,7 +281,7 @@ export function createResults(main, { store, onRanked }) {
     }
     const anim = animateNums && visible.has(rec.el);
     tweenNumber(r.total, row.cost.total, usd, { animate: anim });
-    setText(r.totalLabel, dvCost(row) ? 'per year, incl. dental/vision' : 'per year, estimated');
+    setText(r.totalLabel, dvCost(row) ? `per year, ${dvLabel(row)}` : 'per year, estimated');
 
     // bar: premium | expected care, with the deposit shown as a hatched portion at the end
     const gross = row.cost.premium + row.cost.oop;

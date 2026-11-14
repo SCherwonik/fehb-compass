@@ -315,3 +315,55 @@ test('state: tab, presets, dental/vision plan picks and ZIP sanitize and round-t
   assert.equal(hostile.myDental, null);
   assert.equal(hostile.location.zip, null);
 });
+
+// ---------- review fixes ----------
+import { zipKeepsWith, zipPatch } from '../src/ui/zip.js';
+import { dvLabel } from '../src/ui/model.js';
+
+test('lookupZip: a ZIP3 with one real state besides "MIL" resolves; ZIP+4 accepted like cleanZip', () => {
+  assert.equal(lookupZip(FV, '97000').state, 'OR');
+  assert.equal(lookupZip(FV, '97003').state, null, 'OPM labels this ZIP Military');
+  assert.equal(lookupZip(FV, '22302-1234').state, 'VA');
+  assert.equal(lookupZip(FV, '22302-1234').zip, '22302');
+  assert.equal(lookupZip(FV, '22302-12').reason, 'format');
+});
+
+test('zipKeepsWith: picking a state keeps the ZIP unless the ZIP clearly belongs to another state', () => {
+  assert.equal(zipKeepsWith(FV, '73900', 'TX'), true, 'OK/TX ZIP3: TX is a candidate');
+  assert.equal(zipKeepsWith(FV, '73900', 'OK'), true);
+  assert.equal(zipKeepsWith(FV, '00901', 'PR'), true, 'no state in OPM: keep');
+  assert.equal(zipKeepsWith(FV, '00901', 'VA'), true);
+  assert.equal(zipKeepsWith(FV, '22302', 'VA'), true);
+  assert.equal(zipKeepsWith(FV, '22302', 'TX'), false, 'definite contradiction');
+  assert.equal(zipKeepsWith(FV, '20512', 'MD'), true);
+  assert.equal(zipKeepsWith(FV, '20512', 'TX'), false, 'not one of the candidates');
+  assert.equal(zipKeepsWith(null, '22302', 'TX'), true, 'data not loaded: never drop');
+  assert.equal(zipKeepsWith(FV, null, 'TX'), true);
+});
+
+test('zipPatch: partial or invalid entries clear the stored ZIP; valid ones set it', () => {
+  const cur = '22302';
+  for (const raw of ['2230', '222030', '22 302', 'abc']) {
+    const r = zipPatch(FV, raw, cur);
+    assert.deepEqual(r.patch, { location: { zip: null } }, raw);
+    assert.equal(r.invalid, true);
+  }
+  assert.equal(zipPatch(FV, '2230', null).patch, null, 'nothing stored: nothing to clear');
+  assert.deepEqual(zipPatch(FV, '90210', cur).patch, { location: { zip: '90210', state: 'CA' } });
+  assert.deepEqual(zipPatch(FV, '00901', cur).patch, { location: { zip: '00901' } });
+  assert.deepEqual(zipPatch(FV, '09001', cur).patch, { location: { zip: null } });
+  assert.deepEqual(zipPatch(FV, '', cur).patch, { location: { zip: null } });
+  assert.equal(zipPatch(null, '90210', cur).loading, true);
+});
+
+test('vision contacts: the caveat travels to the add-on item; labels say what was added', () => {
+  const a = dvAddOn(FV, S({ dental: true, visionUse: 'contacts', location: { state: 'VA', zip: null } }));
+  assert.equal(a.dental.amount, null);
+  assert.equal(a.vision.priced, false);
+  assert.match(a.vision.note, /benefit details in text/i);
+  assert.equal(dvLabel({ dv: a }), 'incl. vision');
+  const both = dvAddOn(FV, S({ dental: true }));
+  assert.equal(dvLabel({ dv: both }), 'incl. dental/vision');
+  assert.equal(dvLabel({ dv: dvAddOn(FV, S({ dental: true, visionPlan: 'none' })) }), 'incl. dental');
+  assert.equal(dvLabel({}), '');
+});

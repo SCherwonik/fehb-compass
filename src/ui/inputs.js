@@ -5,7 +5,7 @@ import { countsByFamily, groupCurrentPlanOptions } from './model.js';
 import { describeUsage } from './assumptions.js';
 import { createScenarioSection } from './scenario.js';
 import { glp1Filter } from './meds.js';
-import { createZipField, lookupZip } from './zip.js';
+import { createZipField, lookupZip, zipKeepsWith } from './zip.js';
 import { createDvAddon } from './dental-board.js';
 import { fedvipHub } from '../data.js';
 
@@ -381,10 +381,13 @@ export function renderInputs(form, { data, store, meds }) {
     else if (t.name === 'account') store.set({ account: t.value });
     else if (t.name === 'scenario') store.set({ scenario: t.value });
     else if (t === location.select) {
-      // a state that contradicts the ZIP drops the ZIP (it would price dental for the wrong place)
+      // only a state that clearly contradicts the ZIP drops it (it would price dental for the wrong place);
+      // ZIPs on a state line or without a state in OPM's list (Puerto Rico) stay
       const z = store.get().location.zip;
-      const zs = z && fedvipHub.get() ? lookupZip(fedvipHub.get(), z).state : null;
-      store.set({ location: { state: t.value || null, zip: z && zs === (t.value || null) ? z : null } });
+      const st = t.value || null;
+      const keep = !st || zipKeepsWith(fedvipHub.get(), z, st);
+      store.set({ location: { state: st, zip: keep ? z : null } });
+      if (!keep) zip.note(`ZIP ${z} is in ${stateName(lookupZip(fedvipHub.get(), z).state ?? '') || 'another state'}, so it was cleared. Enter a ZIP in ${stateName(st)} to price dental.`);
     }
     else if (t === dentalInput) store.set({ dental: t.checked });
     else if (t === mine.input) store.set({ includeMine: t.checked });
@@ -461,7 +464,7 @@ export function renderInputs(form, { data, store, meds }) {
     const zs = z && fedvipHub.get() ? lookupZip(fedvipHub.get(), z).state : null;
     stateHint.textContent = z && zs && zs === s.location.state
       ? `From ZIP ${z}. Choose another state to override it.`
-      : 'Plans are matched by state. Your ZIP code fills this in.';
+      : z ? `ZIP ${z} prices dental; health plans follow the state you pick here.` : 'Plans are matched by state. Your ZIP code fills this in.';
     syncCurrentModel(s.location.state);
     current.sync(s.currentPlan2026);
     mine.sync(s);

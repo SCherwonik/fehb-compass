@@ -11,7 +11,7 @@
 // The dental/vision board (Task 7) supplies its own sections and header in this same shape.
 import { usd, signedUsd, signedPct, deltaTone, DASH } from './format.js';
 import { FLAG_TEXT } from '../engine/diff.js';
-import { baseTotal, medsCost, anyMeds, anyDv, dvCost, basisOf, basisNote } from './model.js';
+import { baseTotal, medsCost, anyMeds, anyDv, dvCost, dvLabel, basisOf, basisNote } from './model.js';
 
 const fin = (n) => typeof n === 'number' && Number.isFinite(n);
 const cents = (n) => Math.round(n * 100) / 100;
@@ -201,7 +201,7 @@ export const MEDICAL_SECTIONS = [
         key: 'total', label: 'Estimated total', strong: true, best: 'min',
         hint: 'Premium plus expected care costs, minus HSA or HRA money, for your scenario.',
         cell: (r) => money(r.cost.total, {
-          sub: `${r.cost.firmness === 'fixed' ? 'fixed copays' : 'estimated'}${dvCost(r) ? `, incl. dental/vision ${usd(dvCost(r))}` : ''}`,
+          sub: `${r.cost.firmness === 'fixed' ? 'fixed copays' : 'estimated'}${dvCost(r) ? `, ${dvLabel(r)} ${usd(dvCost(r))}` : ''}`,
         }),
       },
       { key: 'premium', label: 'Premium', best: 'min', cell: (r) => money(r.cost.premium, { sub: 'per year' }) },
@@ -385,7 +385,7 @@ export function medicalHeader(row, group, ctx, scope) {
     subtitle: row.plan?.carrier || row.plan?.network_family || '',
     chips,
     total: row.cost?.total,
-    totalLabel: dvCost(row) ? 'per year, incl. dental/vision' : 'per year, estimated',
+    totalLabel: dvCost(row) ? `per year, ${dvLabel(row)}` : 'per year, estimated',
     bar: { p: row.cost?.premium ?? 0, o: row.cost?.oop ?? 0, d: row.cost?.hsaOffset ?? 0 },
     why: whyLine(row, group, ctx, scope),
   };

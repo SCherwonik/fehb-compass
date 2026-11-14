@@ -6,7 +6,6 @@
 // "No State Mapping Found" (Puerto Rico, some military ZIPs) has no state but may still list dental plans
 // (geo.zip3), so dental prices and eligibility still work there.
 
-const ZIP5 = /^[0-9]{5}$/;
 const own = (o, k) => (o && typeof o === 'object' && Object.prototype.hasOwnProperty.call(o, k) ? o[k] : undefined);
 const STATE = /^[A-Z]{2}$/;
 
@@ -26,7 +25,7 @@ export function cleanZip(v) {
  *   priced: OPM's FEDVIP geography covers this ZIP (dental eligibility and regions available)
  */
 export function lookupZip(fedvip, zip) {
-  const z = typeof zip === 'string' && ZIP5.test(zip.trim()) ? zip.trim() : null;
+  const z = cleanZip(zip); // same rule as the field: 5 digits, ZIP+4 accepted
   const out = { zip: z, state: null, reason: 'format', candidates: [], priced: false };
   if (!z) return out;
   if (!fedvip || typeof fedvip !== 'object') return { ...out, reason: 'loading' };
@@ -36,11 +35,46 @@ export function lookupZip(fedvip, zip) {
   const states = own(fedvip.zip3_to_states, z3);
   const usable = (s) => typeof s === 'string' && STATE.test(s);
   if (usable(exc)) return { ...out, state: exc, reason: 'ok' };
+  if (typeof exc === 'string') return { ...out, reason: 'nostate' }; // OPM names a non-state ("Military")
   if (!Array.isArray(states) || !states.length) return { ...out, reason: out.priced ? 'nostate' : 'unknown' };
-  if (states.length === 1) {
-    return usable(states[0]) ? { ...out, state: states[0], reason: 'ok' } : { ...out, reason: 'nostate' };
-  }
-  return { ...out, reason: 'ambiguous', candidates: states.filter(usable) };
+  // labels that are not states ("MIL") do not make a ZIP3 ambiguous: 970 = MIL, OR -> OR
+  const real = states.filter(usable);
+  if (real.length === 1) return { ...out, state: real[0], reason: 'ok' };
+  if (!real.length) return { ...out, reason: 'nostate' };
+  return { ...out, reason: 'ambiguous', candidates: real };
+}
+
+/**
+ * Does a stored ZIP still fit a state the user picked by hand? Only a definite contradiction drops it: the ZIP
+ * resolves to exactly one state and it is another one, or it is ambiguous and the pick is none of its states.
+ * ZIPs OPM gives no state (Puerto Rico, military), and any check before the data loads, keep the ZIP.
+ */
+export function zipKeepsWith(fedvip, zip, state) {
+  if (!zip || !fedvip) return true;
+  const r = lookupZip(fedvip, zip);
+  if (r.state) return r.state === state;
+  if (r.reason === 'ambiguous') return r.candidates.includes(state);
+  return true;
+}
+
+const HINT = 'Sets your state and prices FEDVIP dental for your area.';
+
+/**
+ * What the ZIP field does with its text. -> { patch|null, msg, tone, invalid, loading? }
+ * patch: the store write (null = none). A partial or invalid entry clears the stored ZIP, so results never
+ * keep using a ZIP the field no longer shows.
+ */
+export function zipPatch(fedvip, raw, currentZip, stateName = (x) => x) {
+  const text = typeof raw === 'string' ? raw.trim() : '';
+  const clear = currentZip ? { location: { zip: null } } : null;
+  if (!text) return { patch: clear, msg: HINT, tone: '', invalid: false };
+  const z = cleanZip(text);
+  if (!z) return { patch: clear, msg: 'Enter a 5-digit ZIP code. Dental prices need one.', tone: 'warn', invalid: true };
+  if (!fedvip) return { patch: null, msg: 'Looking up your ZIP…', tone: '', invalid: false, loading: true };
+  const res = lookupZip(fedvip, z);
+  if (res.state) return { patch: { location: { zip: z, state: res.state } }, msg: `${stateName(res.state)}, from ZIP ${z}.`, tone: 'ok', invalid: false };
+  if (res.priced) return { patch: { location: { zip: z } }, msg: zipMessage(res, stateName), tone: 'warn', invalid: false };
+  return { patch: clear, msg: zipMessage(res, stateName), tone: 'warn', invalid: true };
 }
 
 /** Friendly sentence for a lookup that did not give a state ('' when it did). */
@@ -71,45 +105,24 @@ export function createZipField({ h, store, getFedvip, onNeedData, stateName = (s
     type: 'text', id, class: 'select zip-input', inputmode: 'numeric', autocomplete: 'postal-code',
     maxlength: '10', pattern: '[0-9]{5}', placeholder: 'e.g. 22302', spellcheck: 'false', 'aria-describedby': msgId,
   });
-  const msg = h('p', { class: 'field-hint zip-msg', id: msgId, 'aria-live': 'polite' },
-    'Sets your state and prices FEDVIP dental for your area.');
+  const msg = h('p', { class: 'field-hint zip-msg', id: msgId, 'aria-live': 'polite' }, HINT);
   const el = h('div', { class: 'field zip-field' },
     h('label', { class: 'field-label', for: id }, 'ZIP code'), input, msg);
   let pending = null;
 
-  function apply(raw, { commit }) {
-    const z = cleanZip(raw);
-    if (!raw.trim()) {
+  // `quiet`: while typing, a partial entry clears the stored ZIP but only says so once the user leaves the field
+  function apply(raw, { quiet = false } = {}) {
+    const r = zipPatch(getFedvip(), raw, store.get().location.zip, stateName);
+    pending = r.loading ? cleanZip(raw) : null;
+    if (r.loading) onNeedData?.();
+    if (r.invalid && quiet) {
       input.removeAttribute('aria-invalid');
-      setMsg('Sets your state and prices FEDVIP dental for your area.', '');
-      if (commit && store.get().location.zip) store.set({ location: { zip: null } });
-      return;
-    }
-    if (!z) {
-      if (commit) { input.setAttribute('aria-invalid', 'true'); setMsg('Enter a 5-digit ZIP code.', 'warn'); }
-      return;
-    }
-    const fv = getFedvip();
-    if (!fv) {
-      setMsg('Looking up your ZIP…', '');
-      pending = z;
-      onNeedData?.();
-      return;
-    }
-    pending = null;
-    const res = lookupZip(fv, z);
-    input.removeAttribute('aria-invalid');
-    if (res.state) {
-      setMsg(`${stateName(res.state)}, from ZIP ${z}.`, 'ok');
-      store.set({ location: { zip: z, state: res.state } });
-    } else if (res.priced) {
-      setMsg(zipMessage(res, stateName), 'warn');
-      store.set({ location: { zip: z } });
+      setMsg(store.get().location.zip ? 'Finish the 5-digit ZIP code.' : HINT, '');
     } else {
-      input.setAttribute('aria-invalid', 'true');
-      setMsg(zipMessage(res, stateName), 'warn');
-      if (store.get().location.zip) store.set({ location: { zip: null } });
+      if (r.invalid) input.setAttribute('aria-invalid', 'true'); else input.removeAttribute('aria-invalid');
+      setMsg(r.msg, r.tone);
     }
+    if (r.patch) store.set(r.patch);
   }
 
   function setMsg(text, tone) {
@@ -118,26 +131,31 @@ export function createZipField({ h, store, getFedvip, onNeedData, stateName = (s
   }
 
   input.addEventListener('focus', () => onNeedData?.(), { once: true });
-  input.addEventListener('input', () => {
-    const z = cleanZip(input.value);
-    if (z) apply(input.value, { commit: true });
-  });
-  input.addEventListener('change', () => apply(input.value, { commit: true }));
-  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); apply(input.value, { commit: true }); } });
+  input.addEventListener('input', () => apply(input.value, { quiet: true }));
+  input.addEventListener('change', () => apply(input.value));
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); apply(input.value); } });
 
   return {
     el,
     input,
     sync(s) {
       const z = s.location.zip;
-      if (document.activeElement !== input && (z ?? '') !== cleanZip(input.value)) input.value = z ?? '';
+      // follow outside changes (a pasted link, back/forward) without wiping a partial entry the user is fixing
+      if (document.activeElement !== input) {
+        const cur = cleanZip(input.value);
+        if (z ? cur !== z : cur) input.value = z ?? '';
+      }
       if (z && getFedvip() && msg.dataset.tone !== 'warn') {
         const res = lookupZip(getFedvip(), z);
         if (res.state && res.state === s.location.state) setMsg(`${stateName(res.state)}, from ZIP ${z}.`, 'ok');
       }
     },
     refresh() {
-      if (pending) apply(pending, { commit: true });
+      if (pending) apply(pending);
+    },
+    /** Announce something about the ZIP (e.g. that a state pick cleared it). */
+    note(text) {
+      setMsg(text, 'warn');
     },
   };
 }

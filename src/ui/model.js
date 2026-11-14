@@ -124,6 +124,12 @@ export function medsCost(row) {
 }
 /** True when any of these rows has priced medications (comparisons then say they exclude them). */
 export const anyMeds = (rows) => (rows ?? []).some((r) => r?.meds?.entries?.length > 0);
+/** 'incl. dental/vision' | 'incl. dental' | 'incl. vision' | '' : what the "add dental and vision" amount holds. */
+export function dvLabel(row) {
+  const d = Number.isFinite(row?.dv?.dental?.amount);
+  const v = Number.isFinite(row?.dv?.vision?.amount);
+  return d && v ? 'incl. dental/vision' : d ? 'incl. dental' : v ? 'incl. vision' : '';
+}
 /** True when dental/vision is part of these rows' totals. */
 export const anyDv = (rows) => (rows ?? []).some((r) => dvCost(r) > 0);
 

@@ -251,7 +251,7 @@ export function createDvPanel({ store }) {
     vPreset.sync(s.visionUse);
     in2.label.hidden = kind !== 'dental';
     presetHow.textContent = kind === 'dental'
-      ? `${describeDentalPreset(s.dentalUse)}. Assumed prices for one person; your dentist’s fees will differ.`
+      ? `${describeDentalPreset(s.dentalUse)}. Assumed list prices for one person: in-network dentists usually charge plan members less, so out-of-pocket here is more likely high than low.`
       : 'Copays come from OPM’s text. Frame and contact allowances are not published by OPM, so costs above them are not counted.';
     groupSel.value = ui.group;
     diff.checked = ui.diffOnly;
@@ -418,6 +418,7 @@ export function dvMathLines(dv, mathLine) {
       `+ ${usd(it.amount)}`));
     out.push(mathLine(`${name} premium`, usd(it.premium), 'math-sub'));
     out.push(mathLine(it.kind === 'dental' ? 'Dental out-of-pocket' : 'Vision copays', it.oop != null ? usd(it.oop) : 'not priced', 'math-sub'));
+    if (it.note) out.push(mathLine(it.note, '', 'math-sub math-note'));
   }
   if (out.length) out.push(mathLine('Same dental/vision amount on every plan: the ranking does not change', '', 'math-sub math-note'));
   return out;

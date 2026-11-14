@@ -11,7 +11,10 @@
 //     preventive care; OPM's file does not say whether it applies to orthodontia, so we assume not)
 //   - plan share = (charge - deductible part) x (100 - your coinsurance %) ; you pay the rest
 //   - Class A-C plan payments stop at the annual maximum (unlimited = no cap); Class D is paid against the
-//     lifetime orthodontic maximum instead, which is separate from the annual maximum
+//     lifetime orthodontic maximum instead, which is separate from the annual maximum (when OPM's text gives
+//     separate adult and child figures, the preset's audience picks one: braces are for a child)
+//   - the assumed prices are typical list fees; in-network negotiated fees are usually lower, so these
+//     out-of-pocket figures are more likely to be high than low
 //   - "Amt. In Copayment Schedule (Approx N%)" plans (Dominion, Humana Standard) are priced at OPM's
 //     approximate percentage and flagged `approx`
 //   - a cell the preset needs that has no number (OPM text we cannot read as a %, $ or "unlimited") makes the
@@ -60,7 +63,7 @@ export const DENTAL_PRESETS = Object.freeze({
   cleanings: { label: 'Cleanings only', short: 'Cleanings', services: CLEANINGS },
   typical: { label: 'Typical', short: 'Typical', services: [...CLEANINGS, ['filling', 1]] },
   major: { label: 'Major work', short: 'Major work', services: [...CLEANINGS, ['crown', 1], ['root_canal', 1]] },
-  braces: { label: 'Braces (child)', short: 'Braces', services: [...CLEANINGS, ['braces', 1]] },
+  braces: { label: 'Braces (child)', short: 'Braces', services: [...CLEANINGS, ['braces', 1]], audience: 'child' },
 });
 
 export const VISION_PRESETS = Object.freeze({
@@ -85,6 +88,24 @@ function capOf(cell) {
   if (!cell || typeof cell !== 'object') return null;
   if (cell.unit === 'unlimited') return Infinity;
   return fin(cell.value) && cell.value >= 0 ? cell.value : null;
+}
+
+/**
+ * Lifetime orthodontic maximum for an audience ('child' | 'adult'). Some plans list two figures in one OPM cell
+ * ("$2000 Per Adult $4000 Per Child ..."), and the pipeline's numeric `value` is simply the first one; here the
+ * text decides. Falls back to the cell's value (or Infinity for no lifetime maximum, null when unreadable).
+ */
+export function orthoCap(cell, audience = 'child') {
+  if (!cell || typeof cell !== 'object') return null;
+  const text = typeof cell.text === 'string' ? cell.text.slice(0, 500) : '';
+  const found = {};
+  for (const m of text.matchAll(/\$\s*([0-9][0-9,]*)\s*Per\s+(Adult|Child)/gi)) {
+    const who = m[2].toLowerCase();
+    if (found[who] == null) found[who] = Number(m[1].replace(/,/g, ''));
+  }
+  const want = audience === 'adult' ? 'adult' : 'child';
+  if (fin(found[want])) return found[want];
+  return capOf(cell);
 }
 
 const notPriced = (warnings, extra = {}) => ({
@@ -119,7 +140,7 @@ export function dentalOop(benefits, presetKey) {
   }
   let orthoMax = Infinity;
   if (classes.has('d')) {
-    orthoMax = capOf(own(benefits, 'ortho_lifetime'));
+    orthoMax = orthoCap(own(benefits, 'ortho_lifetime'), preset.audience ?? 'adult');
     if (orthoMax == null) warnings.push(`Orthodontia lifetime maximum: OPM lists “${cellText(own(benefits, 'ortho_lifetime'))}”, which we cannot read as a dollar amount.`);
   }
   if (warnings.length) return notPriced(warnings, { approx });

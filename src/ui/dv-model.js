@@ -445,10 +445,12 @@ export function dvAddOn(fv, state) {
     if (!rows.length) return { kind, id: null, name: null, amount: null, auto: !pick, use: useLabel, note: `No ${kind} plan is listed for ZIP ${zip}.` };
     const chosen = pick ? rows.find((r) => r.code === pick) : null;
     const row = chosen ?? rows[0];
-    let note = '';
+    // vision presets the text cannot fully price (contacts, a lone unlabelled copay) carry their caveat
+    let note = row.cost.priced ? '' : row.cost.note ?? (row.cost.warnings ?? []).join(' ');
     if (pick && !chosen) {
       const p = own(yearOf(fv, '2027')?.plans, pick);
-      note = `${p ? `${p.name} ${p.option}` : 'Your pick'} is not offered at ZIP ${zip ?? ''}; the cheapest plan for you is used instead.`.replace(' at ZIP ;', ';');
+      const away = `${p ? `${p.name} ${p.option}` : 'Your pick'} is not offered${zip ? ` at ZIP ${zip}` : ''}; the cheapest plan for you is used instead.`;
+      note = note ? `${away} ${note}` : away;
     }
     return {
       kind, id: row.code, name: row.plan.name, option: row.plan.option, amount: row.cost.total, premium: row.cost.premium,

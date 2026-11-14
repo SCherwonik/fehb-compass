@@ -142,3 +142,29 @@ test('visionOop: exam and glasses priced from copays; contacts and allowances ar
     assert.ok(r.oop === null || Number.isFinite(r.oop));
   }
 });
+
+// ---------- review fixes: adult/child orthodontic maximums ----------
+import { orthoCap } from '../../src/engine/dental.js';
+
+test('orthoCap: separate Per Adult / Per Child figures; braces (child) use the child figure', () => {
+  const uhc = ben('02AP-15-High').ortho_lifetime; // "$2000 Per Adult $4000 Per Child ..." (OPM value field: 2000)
+  assert.equal(uhc.value, 2000);
+  assert.equal(orthoCap(uhc, 'child'), 4000);
+  assert.equal(orthoCap(uhc, 'adult'), 2000);
+  // full braces at 50%: plan share $3,000 fits under $4,000 -> member pays $3,000 plus $0 cleanings
+  const br = dentalOop(ben('02AP-15-High'), 'braces');
+  assert.equal(br.orthoCapped, false);
+  assert.equal(br.oop, 3000);
+  // Delta High and MetLife High list the child figure first: unchanged
+  assert.equal(orthoCap(ben('02AP-05-High').ortho_lifetime, 'child'), 3500);
+  assert.equal(orthoCap(ben('02AP-11-High').ortho_lifetime, 'child'), 3500);
+  assert.equal(orthoCap(ben('02AP-11-High').ortho_lifetime, 'adult'), 3000);
+  // single-figure plans are unchanged
+  for (const id of ['02AP-01-High', '02AP-14-Standard', '02AP-05-Standard', '02AP-08-High']) {
+    const c = ben(id).ortho_lifetime;
+    assert.equal(orthoCap(c, 'child'), c.value, id);
+  }
+  assert.equal(orthoCap(ben('02AP-06-High').ortho_lifetime, 'child'), Infinity); // "No Lifetime Per Person Max"
+  assert.equal(orthoCap({ text: 'See brochure' }, 'child'), null);
+  assert.equal(orthoCap(null, 'child'), null);
+});
