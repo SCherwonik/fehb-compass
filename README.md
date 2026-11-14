@@ -93,11 +93,9 @@ GitHub Pages sends no CSP header, and the pages carry none. A strict policy (`sc
 `'unsafe-inline'`) would currently block these inline pieces, which would need a hash, a nonce or moving to a file:
 
 - `index.html`: the inline `<script>` in `<head>` that applies the saved light/dark theme before first paint.
-- `index.html`: the `onload="this.media='all'"` attribute on the Google Fonts stylesheet link (non-blocking font load).
 - `404.html`: its inline `<script>` (sends the visitor back to the app) and its inline `<style>`.
 
-Everything else is external (`src/`, `styles/`); `style-src` would also need `https://fonts.googleapis.com` and
-`font-src` `https://fonts.gstatic.com` while Geist loads from Google Fonts.
+Everything else is external (`src/`, `styles/`, `assets/`): the page loads nothing from any other site.
 
 ## Project structure
 
@@ -134,4 +132,8 @@ Everything else is external (`src/`, `styles/`); `style-src` would also need `ht
   "Differs from OPM spreadsheet" in the app.
 - Dental costs use typical list fees, so they are more likely high than low; vision frame and contact
   allowances are not published by OPM and are not counted.
-- The Geist font loads from Google Fonts; the page falls back to system fonts if it is blocked.
+- The Geist font is self-hosted (`assets/fonts`, SIL Open Font License); the page makes no request to any other site.
+
+## License
+
+Code: MIT (`LICENSE`). The Geist font (OFL 1.1) and the OPM-derived plan data have their own terms: see `THIRD_PARTY_NOTICES.md`.

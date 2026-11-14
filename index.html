@@ -27,12 +27,8 @@
       } catch (e) { /* private mode or blocked storage: the CSS follows the system */ }
     })();
   </script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <!-- Geist from Google Fonts, loaded without blocking the first paint: system fonts show until it arrives,
-       and stay if it is blocked (font stack in styles/tokens.css). Self-hosting is an owner decision. -->
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&display=swap" media="print" onload="this.media='all'">
-  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&display=swap"></noscript>
+  <!-- Geist is self-hosted (assets/fonts, OFL 1.1); the main subset loads early so text does not reflow -->
+  <link rel="preload" href="assets/fonts/geist-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="styles/tokens.css">
   <link rel="stylesheet" href="styles/app.css">
   <link rel="stylesheet" href="styles/results.css">
