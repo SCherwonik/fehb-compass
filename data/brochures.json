@@ -1,0 +1,761 @@
+{
+ "2027": {
+  "71-004": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/71-004.pdf",
+   "bytes": 1955675,
+   "sha256": "e387be75579d06eb08129afa5af8b6f5c1dee7c16499f2e9dba1fda0bbe9313c",
+   "pages": 164,
+   "plan_codes": [
+    "471",
+    "474"
+   ],
+   "plan_names": [
+    "APWU Health Plan"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "71-005": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/71-005.pdf",
+   "bytes": 1997578,
+   "sha256": "644b3d3f8bfd71d843023d683ea406eb181cd5f05730d44d2ddf73777bbacccc",
+   "pages": 176,
+   "plan_codes": [
+    "104",
+    "111"
+   ],
+   "plan_names": [
+    "Blue Cross and Blue Shield"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "71-006": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/71-006.pdf",
+   "bytes": 1879126,
+   "sha256": "6aacdce191d1fc655306ba48ee65ee4e82df34f028a8570e851cecd88c198b24",
+   "pages": 140,
+   "plan_codes": [
+    "311",
+    "314"
+   ],
+   "plan_names": [
+    "GEHA"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "71-007": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/71-007.pdf",
+   "bytes": 1809340,
+   "sha256": "db1cfb08a8e8f12b6ab4edbc5ffca9878c84570b4533ed3fa4502e90962de965",
+   "pages": 131,
+   "plan_codes": [
+    "454"
+   ],
+   "plan_names": [
+    "MHBP"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "71-014": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/71-014.pdf",
+   "bytes": 1891915,
+   "sha256": "3bf3c6e0ae7a076cb04c2af8a885fee23a1605fb04f8248ce9bad2d59db6c2ad",
+   "pages": 144,
+   "plan_codes": [
+    "341"
+   ],
+   "plan_names": [
+    "GEHA"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "71-015": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/71-015.pdf",
+   "bytes": 1863758,
+   "sha256": "373640462e80bfbc4dd35c3efd13f6febdfbc1d3e819c4a79eb5f10268445f7f",
+   "pages": 124,
+   "plan_codes": [
+    "441",
+    "444"
+   ],
+   "plan_names": [
+    "SAMBA"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "71-017": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/71-017.pdf",
+   "bytes": 1864100,
+   "sha256": "8c1289a77c3552f1e1ecdff57619dd46c7a8360a51a57ff9ed98abc11c02a1ae",
+   "pages": 136,
+   "plan_codes": [
+    "131"
+   ],
+   "plan_names": [
+    "Blue Cross and Blue Shield"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "71-018": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/71-018.pdf",
+   "bytes": 1843483,
+   "sha256": "a7aaf38c83b3e5efbc4690ece689ac092c677c9582aece4eb8df8d4009536dd4",
+   "pages": 128,
+   "plan_codes": [
+    "251",
+    "254"
+   ],
+   "plan_names": [
+    "GEHA Indemnity Benefit Plan"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "71-028": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/71-028.pdf",
+   "bytes": 1857127,
+   "sha256": "e989820f83d87f0b4aa63dfd745f38851e2bfaa3a7b3846f2a8341149d7d693e",
+   "pages": 140,
+   "plan_codes": [
+    "421",
+    "424"
+   ],
+   "plan_names": [
+    "Compass Rose Health Plan"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "72-001": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/72-001.pdf",
+   "bytes": 1892902,
+   "sha256": "d3745145b46f3b8c32ebcb64181156a86ee1cbb8aeeeaa5ae260a7e44632b406",
+   "pages": 152,
+   "plan_codes": [
+    "401"
+   ],
+   "plan_names": [
+    "Foreign Service Benefit Plan"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "72-004": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/72-004.pdf",
+   "bytes": 1665552,
+   "sha256": "026ab040f610681a219306bf0a64f324e8d64b9a092e4aff7e15fcb71d1fdca6",
+   "pages": 95,
+   "plan_codes": [
+    "431"
+   ],
+   "plan_names": [
+    "Panama Canal Area Benefit Plan"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "73-003": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/73-003.pdf",
+   "bytes": 1803824,
+   "sha256": "801a3c2e015876c3bb3b446050ad3657b1aa699cee7a91176a8764933dabb1a9",
+   "pages": 131,
+   "plan_codes": [
+    "591",
+    "594",
+    "KC1"
+   ],
+   "plan_names": [
+    "Kaiser Permanente - Northern California"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "73-004": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/73-004.pdf",
+   "bytes": 1803993,
+   "sha256": "179cfa6e2140f5ae0b3b63dec9c73bdb7d13b222005338a4ea32d7e2db7ed27e",
+   "pages": 128,
+   "plan_codes": [
+    "571",
+    "574",
+    "AM1"
+   ],
+   "plan_names": [
+    "Kaiser Permanente - Northwest"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "73-005": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/73-005.pdf",
+   "bytes": 1755316,
+   "sha256": "b52005633bc97ecab6590b0a7e64684fc60b7060fb084ebb88268f7fe495d29a",
+   "pages": 115,
+   "plan_codes": [
+    "631",
+    "634"
+   ],
+   "plan_names": [
+    "Kaiser Permanente - Hawaii"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "73-009": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/73-009.pdf",
+   "bytes": 1769075,
+   "sha256": "c1a7712993f83a29ab076578303242747cb212964e12c9f7c99e841fb7d1ddd0",
+   "pages": 112,
+   "plan_codes": [
+    "V31",
+    "V34"
+   ],
+   "plan_names": [
+    "HealthPartners"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "73-010": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/73-010.pdf",
+   "bytes": 2363725,
+   "sha256": "774543ec3741ec1fde392598abcb3b40ee12c92bf8a78e7c32f2d8a99dbbaf76",
+   "pages": 128,
+   "plan_codes": [
+    "871",
+    "874"
+   ],
+   "plan_names": [
+    "HMSA"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "73-012": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/73-012.pdf",
+   "bytes": 1754485,
+   "sha256": "5df059c878322460c2069b83fe739957eecc67586239e65e83703774de8c772f",
+   "pages": 112,
+   "plan_codes": [
+    "541",
+    "544",
+    "PT4"
+   ],
+   "plan_names": [
+    "Kaiser Permanente - Washington Core"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "73-015": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/73-015.pdf",
+   "bytes": 2134455,
+   "sha256": "719d2c3d74635d19b937dfd4f2fcc9f3bd008230949155a8047cf79cc9379120",
+   "pages": 97,
+   "plan_codes": [
+    "521",
+    "GY4"
+   ],
+   "plan_names": [
+    "Health Alliance Plan"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "73-016": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/73-016.pdf",
+   "bytes": 1764569,
+   "sha256": "978f08f28613eea63d558ca33569bd0030030ade969f5b538922e605842e6d15",
+   "pages": 93,
+   "plan_codes": [
+    "891"
+   ],
+   "plan_names": [
+    "Triple-S Salud, Inc."
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "73-017": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/73-017.pdf",
+   "bytes": 1685536,
+   "sha256": "b9b0f21fc1086b45c52029d18b5a7f94182a1c939d334342ff2b39e8453fc9a4",
+   "pages": 100,
+   "plan_codes": [
+    "644",
+    "UX1"
+   ],
+   "plan_names": [
+    "Medical Mutual of Ohio (Northern)"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "73-019": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/73-019.pdf",
+   "bytes": 1824797,
+   "sha256": "6e61cae232dac440366042d3d29525ff99115b2896760fa793d5661b0f1d32a3",
+   "pages": 139,
+   "plan_codes": [
+    "651",
+    "654",
+    "N41"
+   ],
+   "plan_names": [
+    "Kaiser Permanente - Colorado"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "73-047": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/73-047.pdf",
+   "bytes": 1821038,
+   "sha256": "71779f9e392790b6d2cc3e553b2295ed28c8e326121db877fa321a73499035d2",
+   "pages": 132,
+   "plan_codes": [
+    "E31",
+    "E34",
+    "T71"
+   ],
+   "plan_names": [
+    "Kaiser Permanente - Mid-Atlantic States"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "73-051": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/73-051.pdf",
+   "bytes": 2001902,
+   "sha256": "f2185410adb3a5dd23f892a92f3ec1c2e70f5ed9c17132e8b29fe7cb61209329",
+   "pages": 174,
+   "plan_codes": [
+    "L11",
+    "L14"
+   ],
+   "plan_names": [
+    "Kaiser Permanente Washington Options Federal"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "73-052": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/73-052.pdf",
+   "bytes": 1939000,
+   "sha256": "9d9c21c0e949443a9e27cc26b898b617445d1294a1aa0577a3687294f31c006c",
+   "pages": 156,
+   "plan_codes": [
+    "JN1",
+    "JN4",
+    "QQ4"
+   ],
+   "plan_names": [
+    "Aetna Open Access (Capital Region and Saver)"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "73-061": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/73-061.pdf",
+   "bytes": 1655754,
+   "sha256": "f44b7a7a41c1a79be40e16536feac10471306fe3f27008ef9d3b7a2084ad1d8d",
+   "pages": 92,
+   "plan_codes": [
+    "WJ1",
+    "WJ4"
+   ],
+   "plan_names": [
+    "Group Health Cooperative of South Central Wisconsin"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "73-100": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/73-100.pdf",
+   "bytes": 1792980,
+   "sha256": "98ab85510a4d3b7e2d79302b3de067ca55917d3128d12dc022c5c0282443bf04",
+   "pages": 100,
+   "plan_codes": [
+    "JP1"
+   ],
+   "plan_names": [
+    "M.D. IPA"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "73-129": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/73-129.pdf",
+   "bytes": 1653543,
+   "sha256": "7368427551705eb16cafef15b4d4b71ef75cbbcb955fb3e809998211072b9d73",
+   "pages": 86,
+   "plan_codes": [
+    "NM1"
+   ],
+   "plan_names": [
+    "Health Plan of Nevada"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "73-197": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/73-197.pdf",
+   "bytes": 1816945,
+   "sha256": "dde5cea5090300ffdb3ae17188979159530d2970e43d0509ca556a6102538bcc",
+   "pages": 90,
+   "plan_codes": [
+    "EA1"
+   ],
+   "plan_names": [
+    "Capital Health Plan"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "73-321": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/73-321.pdf",
+   "bytes": 1788052,
+   "sha256": "33fda03cf7d329fbc58a27d28ff7b9489148c884d036730f57055f86c0d4f0c2",
+   "pages": 123,
+   "plan_codes": [
+    "F81",
+    "F84",
+    "LA1"
+   ],
+   "plan_names": [
+    "Kaiser Permanente - Georgia"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "73-563": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/73-563.pdf",
+   "bytes": 1735446,
+   "sha256": "5269a88a636c280169fc759f59ac9df288d3e35dacdcd8cff0731c4b791608e4",
+   "pages": 119,
+   "plan_codes": [
+    "P21",
+    "PS1",
+    "PS4"
+   ],
+   "plan_names": [
+    "Presbyterian Health Plan"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "73-564": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/73-564.pdf",
+   "bytes": 2019341,
+   "sha256": "61d3df157523c95a3dd0ce55f0b4414c9964dba9fd5e52ea507a70f11be3dd96",
+   "pages": 176,
+   "plan_codes": [
+    "9K1",
+    "9K4",
+    "DK4"
+   ],
+   "plan_names": [
+    "Altius Health Plans (Aetna Health of Utah, Inc.)"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "73-718": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/73-718.pdf",
+   "bytes": 2057928,
+   "sha256": "c63d71328e5007d47e36a48ae5387415b6dbfedc16314e05c126ac8add29dbb3",
+   "pages": 200,
+   "plan_codes": [
+    "2G4",
+    "B61",
+    "B64"
+   ],
+   "plan_names": [
+    "CareFirst BlueChoice"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "73-776": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/73-776.pdf",
+   "bytes": 2001282,
+   "sha256": "369206df7fdb2ac0d0fd3ee589e98d82bf260d01693353550e5d2cbaf4be0aee",
+   "pages": 176,
+   "plan_codes": [
+    "JK1",
+    "JK4",
+    "KX1"
+   ],
+   "plan_names": [
+    "TakeCare Insurance Company, Inc."
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "73-797": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/73-797.pdf",
+   "bytes": 1950241,
+   "sha256": "0402393590fdc2d6583cb1647f89f4887d18a44d01f56613e84f8b9bf9b0aa98",
+   "pages": 180,
+   "plan_codes": [
+    "8W4",
+    "UW4"
+   ],
+   "plan_names": [
+    "UPMC Health Plan"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "73-806": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/73-806.pdf",
+   "bytes": 1702734,
+   "sha256": "b0cffea09cc217005dbb3c57ded5dc24f3ac58facbd845421764537e7f23e3b2",
+   "pages": 100,
+   "plan_codes": [
+    "2X1"
+   ],
+   "plan_names": [
+    "Aetna HMO"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "73-822": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/73-822.pdf",
+   "bytes": 1799566,
+   "sha256": "a23d26ada26a79f934e354857d7fc6ec03bccda4145dbbb668a103b9c8542331",
+   "pages": 127,
+   "plan_codes": [
+    "621",
+    "624",
+    "FL1"
+   ],
+   "plan_names": [
+    "Kaiser Permanente - Southern California"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "73-828": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/73-828.pdf",
+   "bytes": 2090444,
+   "sha256": "351100603193044bc772039cf462c00606a21cddbe29e406f26464c60dff1d60",
+   "pages": 209,
+   "plan_codes": [
+    "224",
+    "N61"
+   ],
+   "plan_names": [
+    "Aetna: HDHP/Aetna Direct/Aetna Advantage"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "73-849": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/73-849.pdf",
+   "bytes": 1673381,
+   "sha256": "7d165543a36243ed96c91c9de35a45047dfc34cac3bb6cad2fc4f5e1c6e06188",
+   "pages": 94,
+   "plan_codes": [
+    "AJ1",
+    "GG4"
+   ],
+   "plan_names": [
+    "Geisinger Health Plan"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "73-851": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/73-851.pdf",
+   "bytes": 1752570,
+   "sha256": "202ace126a0103786219dfce12dcc380645cbb7886a30cac6bbe62371f32e5d2",
+   "pages": 116,
+   "plan_codes": [
+    "JC1",
+    "JC4",
+    "JR1",
+    "JR4",
+    "P31",
+    "P34"
+   ],
+   "plan_names": [
+    "Aetna Open Access"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "73-860": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/73-860.pdf",
+   "bytes": 1675345,
+   "sha256": "97aa9e2ab674cae9d23a5d0831054c631cc297c2820aa5071ceb6ff9f0331222",
+   "pages": 101,
+   "plan_codes": [
+    "DH1",
+    "DH4"
+   ],
+   "plan_names": [
+    "QualChoice"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "73-865": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/73-865.pdf",
+   "bytes": 1924321,
+   "sha256": "dc83c1e1bfcc6b376e434f54a3cd291987c5630fd579e38e5733e480b116d3ba",
+   "pages": 152,
+   "plan_codes": [
+    "SF4",
+    "WX1"
+   ],
+   "plan_names": [
+    "SelectHealth, Inc."
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "73-874": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/73-874.pdf",
+   "bytes": 1690855,
+   "sha256": "5813b988e797ebf958f28b9bb9a9702f0a3d18c13c808ccf3971dfc7920e4f7a",
+   "pages": 105,
+   "plan_codes": [
+    "B41",
+    "B44"
+   ],
+   "plan_names": [
+    "Calvo's SelectCare"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "73-877": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/73-877.pdf",
+   "bytes": 2212363,
+   "sha256": "12cc1d38396a9eaed9f5efde94a060797befd6c95d2393cd9a4bff0b50e6c433",
+   "pages": 96,
+   "plan_codes": [
+    "B31"
+   ],
+   "plan_names": [
+    "Anthem Blue Cross Select HMO"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "73-879": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/73-879.pdf",
+   "bytes": 1997309,
+   "sha256": "a6747c32deeeb1ecaf02b22d0294dffe3e96596c77d273ddafe0d1ad1b70ee98",
+   "pages": 184,
+   "plan_codes": [
+    "EP1",
+    "EP4",
+    "F51",
+    "F54",
+    "G51",
+    "G54",
+    "H41",
+    "H44",
+    "JS1",
+    "JS4"
+   ],
+   "plan_names": [
+    "Aetna HealthFund CDHP and Aetna Value Plan"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "73-881": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/73-881.pdf",
+   "bytes": 1678889,
+   "sha256": "316e9ee2f2a6b186d383729aebe482600051ba59be66e4e22c245d43aadec990",
+   "pages": 96,
+   "plan_codes": [
+    "A81",
+    "A84",
+    "P81",
+    "P84",
+    "RE1",
+    "YZ1"
+   ],
+   "plan_names": [
+    "Baylor Scott and White Health Plan"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "73-889": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/73-889.pdf",
+   "bytes": 1790662,
+   "sha256": "a48ecd93b92910ec8ee7420a2a11f4eca534ce45028b3484f64f72aaeb2fc7e5",
+   "pages": 126,
+   "plan_codes": [
+    "NZ1",
+    "NZ4",
+    "YV1"
+   ],
+   "plan_names": [
+    "Kaiser Permanente - Fresno California"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "73-890": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/73-890.pdf",
+   "bytes": 1771721,
+   "sha256": "871317a656f4046ba2c745e4dbc4f5c8a7a7fe14d5712e9952f2e4f1e8c471f0",
+   "pages": 100,
+   "plan_codes": [
+    "LR1"
+   ],
+   "plan_names": [
+    "UnitedHealthcare Insurance Company, Inc. (Choice Open Access)"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "73-891": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/73-891.pdf",
+   "bytes": 1832585,
+   "sha256": "4d762547588b4658cdf4cede2ea46afbf5e98cc57c28c920698f6ac473a6495e",
+   "pages": 116,
+   "plan_codes": [
+    "V41"
+   ],
+   "plan_names": [
+    "UnitedHealthcare Insurance Company, Inc. (A HDHP with a Health Savings Account (HSA))"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "73-899": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/73-899.pdf",
+   "bytes": 1658395,
+   "sha256": "1e9fa3caa40bbaca3f0a2b2901c48bf58dee54a2c6161aedfa6ecb5a49b43880",
+   "pages": 96,
+   "plan_codes": [
+    "YF1"
+   ],
+   "plan_names": [
+    "Medical Mutual of Ohio (Southern)"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "73-905": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/73-905.pdf",
+   "bytes": 1786429,
+   "sha256": "ce227115193ef679a6718a0632a8351dfbcdff4a66a78516f899c6f80ffd311c",
+   "pages": 100,
+   "plan_codes": [
+    "AS1"
+   ],
+   "plan_names": [
+    "UnitedHealthcare Insurance Company, Inc. Choice Plus Primary East"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "73-906": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/73-906.pdf",
+   "bytes": 1769710,
+   "sha256": "ea318b511bf8bcf88490bb5e69a331a4df56467d4c2b53a61f9e1c7e448d01d9",
+   "pages": 124,
+   "plan_codes": [
+    "Z24"
+   ],
+   "plan_names": [
+    "Aetna: HDHP/Aetna Direct/Aetna Advantage"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "73-936": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/73-936.pdf",
+   "bytes": 1641111,
+   "sha256": "7134e6a81cf744863ec17364bd21c8d96d45faae1a8589f9e7f2fcc465df47ab",
+   "pages": 90,
+   "plan_codes": [
+    "W51"
+   ],
+   "plan_names": [
+    "Western Health Advantage"
+   ],
+   "downloaded": "2026-11-14"
+  },
+  "73-937": {
+   "url": "https://www.opm.gov/healthcare-insurance/healthcare/plan-information/plans/pdf/2027/brochures/73-937.pdf",
+   "bytes": 1730993,
+   "sha256": "5e89b93746921186d1b83635c1f896082e8eaa6b50703f96e2f994aee1ef3886",
+   "pages": 93,
+   "plan_codes": [
+    "YJ1",
+    "YJ4"
+   ],
+   "plan_names": [
+    "Sharp Health Plan"
+   ],
+   "downloaded": "2026-11-14"
+  }
+ },
+ "meta": {
+  "failures": {}
+ }
+}
