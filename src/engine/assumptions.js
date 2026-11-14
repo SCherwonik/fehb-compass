@@ -15,3 +15,7 @@ export const ASSUMED_PRICES = {
 // Assumption: usage model applies each hospital stay with one surgical procedure.
 export const ASSUMPTIONS_NOTE =
   'Usage is converted to dollars with ASSUMED_PRICES; each hospital stay is assumed to include one surgical procedure.';
+
+// Assumption: coinsurance (percent) used for a custom line when the plan's own field cannot be parsed
+// AND the plan lists no general coinsurance. Always reported as a warning on that line.
+export const FALLBACK_COINSURANCE = 30;

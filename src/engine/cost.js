@@ -1,4 +1,5 @@
-import { ASSUMED_PRICES } from './assumptions.js';
+import { ASSUMED_PRICES, FALLBACK_COINSURANCE } from './assumptions.js';
+import { CUSTOM_KINDS } from './scenarios.js';
 
 const cents = (n) => Math.round(n * 100) / 100;
 
@@ -20,6 +21,9 @@ export function resolveBenefits(benefits, enrollment) {
     // HSA-qualified plans are HDHPs: by IRS rule the deductible applies to everything but preventive
     // care, so a copay line that is silent about the deductible still sits behind it.
     deductibleDefault: /savings/i.test(String(benefits.account_type ?? '')),
+    // Out-of-network: OPM lists only a deductible and an OOP max (no cost-sharing rates).
+    oon: { deductible: pick(benefits.out_of_network?.deductible), oopMax: pick(benefits.out_of_network?.oop_max) },
+    tier0: benefits.raw?.['Tier 0'] ?? null, // "$0 preventive drugs and vaccines - $0 Copayment"
   };
 }
 
@@ -50,14 +54,40 @@ export function appliesDeductible(raw, defaultYes) {
   return defaultYes;
 }
 
+// Custom line kind -> the plan benefit (copays key) that prices it. 'other' and rx kinds have none:
+// 'other' uses the plan coinsurance after the deductible; rx kinds use the tier the user picks.
+export const KIND_SERVICES = {
+  pcp: 'primary_care',
+  specialist: 'specialist',
+  urgent: 'urgent_care',
+  er: 'emergency',
+  hospital_stay: 'inpatient_admission',
+  surgery_outpatient: 'outpatient_facility',
+  lab: 'lab_xray',
+  imaging: 'imaging',
+  therapy: 'physical_therapy',
+};
+
+/** Parse an OPM drug tier string ("$0 preventive drugs - $0 Copayment", "25% Coinsurance") into a copay entry. */
+function parseTierRaw(raw) {
+  const t = String(raw ?? '');
+  const pct = t.match(/(\d+(?:\.\d+)?)\s*%/);
+  if (pct) return { kind: 'pct', value: Number(pct[1]), raw: t };
+  const usdM = t.match(/\$\s?([\d,]+(?:\.\d+)?)\s*Copay/i);
+  if (usdM) return { kind: 'usd', value: Number(usdM[1].replace(/,/g, '')), raw: t };
+  return { kind: 'text', value: null, raw: t };
+}
+
 /**
  * Expand usage into priced events: {service, label, price}.
  * `drugs` entries: {tier, fillsPerYear, price}.
+ * usage.custom lines (validated by scenarios.js sanitizeLine) become events tagged with their line index,
+ * after every scenario event, so the scenario uses the deductible first.
  */
 function buildEvents(usage, prices, drugs) {
   const ev = [];
-  const add = (n, service, label, price) => {
-    for (let i = 0; i < (n || 0); i++) ev.push({ service, label, price });
+  const add = (n, service, label, price, extra) => {
+    for (let i = 0; i < (n || 0); i++) ev.push(extra ? { service, label, price, ...extra } : { service, label, price });
   };
   add(usage.pcpVisits, 'primary_care', 'primary care visit', prices.pcpVisit);
   add(usage.specialistVisits, 'specialist', 'specialist visit', prices.specialistVisit);
@@ -70,24 +100,66 @@ function buildEvents(usage, prices, drugs) {
   for (const d of drugs || []) {
     add(d.fillsPerYear, `rx_tier${d.tier}`, `tier ${d.tier} prescription fill`, d.price);
   }
+  (usage.custom || []).forEach((l, line) => {
+    const meta = CUSTOM_KINDS[l.kind];
+    if (!meta) return;
+    let service = KIND_SERVICES[l.kind] ?? null;
+    if (meta.rx) service = Number.isInteger(l.tier) ? `rx_tier${l.tier}` : null;
+    add(l.perYear, service, l.label || meta.label, l.price, { line, kind: l.kind, oon: l.outOfNetwork === true });
+  });
   return ev;
 }
+
+const usd0 = (n) => `$${Math.round(n).toLocaleString('en-US')}`;
 
 /**
  * Expected out-of-pocket cost. `benefits` must be RESOLVED (see resolveBenefits).
  * assumptions: {prices?: partial ASSUMED_PRICES overrides}.
- * Returns {deductiblePaid, coinsurancePaid, copays, total, warnings, unpriced, flat}.
+ * Returns {deductiblePaid, coinsurancePaid, copays, oonPaid, total, warnings, flat, custom, oonEstimate}.
  * `flat` is true when every used service was a fixed copay / $0 (no price sensitivity).
+ * `custom`: one entry per usage.custom line with its cost contribution, warnings and notes.
+ * Out-of-network lines are paid in full (OPM lists no out-of-network cost sharing), counted against the plan's
+ * out-of-network OOP max when it lists one, and kept apart from the in-network deductible and OOP max.
  */
 export function expectedOop(benefits, usage, assumptions = {}, drugs = []) {
   const prices = { ...ASSUMED_PRICES, ...(assumptions.prices || {}) };
   const oopMax = benefits.oopMax == null ? Infinity : benefits.oopMax;
+  const oonMax = benefits.oon?.oopMax == null ? Infinity : benefits.oon.oopMax;
   let dedLeft = benefits.deductible || 0;
   const defaultDed = benefits.deductibleDefault === true;
-  let deductiblePaid = 0, coinsurancePaid = 0, copays = 0, total = 0;
+  let deductiblePaid = 0, coinsurancePaid = 0, copays = 0, total = 0, oonPaid = 0;
   const warnings = [];
   const warned = new Set();
   let flat = true;
+
+  const lines = (usage.custom || []).map((l) => ({
+    label: l.label || CUSTOM_KINDS[l.kind]?.label || l.kind,
+    kind: l.kind,
+    price: l.price,
+    perYear: l.perYear,
+    tier: l.tier ?? null,
+    outOfNetwork: l.outOfNetwork === true,
+    spend: cents((l.price || 0) * (l.perYear || 0)),
+    cost: 0,
+    warnings: [],
+    notes: [],
+  }));
+  const lineWarn = (e, text) => {
+    const L = lines[e.line];
+    if (!L.warnings.includes(text)) { L.warnings.push(text); warnings.push(text); }
+    flat = false;
+  };
+  const lineNote = (e, text) => {
+    const L = lines[e.line];
+    if (!L.notes.includes(text)) L.notes.push(text);
+  };
+  const warnOnce = (e, raw) => {
+    if (!warned.has(e.service)) {
+      warned.add(e.service);
+      warnings.push(`Could not price ${e.label} (${e.service}): "${raw}"`);
+    }
+    flat = false;
+  };
 
   const take = (amount) => {
     const a = Math.max(0, Math.min(amount, oopMax - total));
@@ -96,28 +168,60 @@ export function expectedOop(benefits, usage, assumptions = {}, drugs = []) {
   };
 
   for (const e of buildEvents(usage, prices, drugs)) {
-    if (total >= oopMax) break;
-    const c = benefits.copays[e.service];
     const price = e.price || 0;
-    let dedPiece = 0, coinsPiece = 0, copayPiece = 0;
-    const warn = () => {
-      if (!warned.has(e.service)) {
-        warned.add(e.service);
-        warnings.push(`Could not price ${e.label} (${e.service}): "${c ? c.raw : 'missing'}"`);
-      }
+    const custom = e.line !== undefined;
+
+    if (custom && e.oon) {
       flat = false;
+      const a = Math.max(0, Math.min(price, oonMax - oonPaid));
+      oonPaid += a;
+      lines[e.line].cost += a;
+      lineWarn(e, Number.isFinite(oonMax)
+        ? `Out-of-network estimate: ${e.label} counted at full cost (OPM lists no out-of-network cost sharing), up to the plan's ${usd0(oonMax)} out-of-network limit.`
+        : `Out-of-network estimate: ${e.label} counted at full cost; this plan lists no out-of-network benefits.`);
+      continue;
+    }
+    if (total >= oopMax) continue; // same as the old early break: nothing in-network costs more after the max
+
+    const isRx = custom && CUSTOM_KINDS[e.kind]?.rx === true;
+    let c = e.service ? benefits.copays[e.service] : null;
+    if (isRx && e.service === 'rx_tier0') {
+      // Tier 0 = preventive drugs: never behind the deductible (preventive care is exempt for HDHPs too).
+      c = benefits.tier0 ? { ...parseTierRaw(benefits.tier0), raw: `${benefits.tier0} - no deductible` } : null;
+    }
+
+    let dedPiece = 0, coinsPiece = 0, copayPiece = 0;
+    const useDed = (defaultYes) => (appliesDeductible(c.raw, defaultYes) ? Math.min(dedLeft, price) : 0);
+    // Custom-line fallback: plan coinsurance (or the documented assumption) after the deductible.
+    const fallback = (why) => {
+      flat = false;
+      const listed = benefits.coinsurance;
+      const rateNum = Number.isFinite(listed) ? listed : FALLBACK_COINSURANCE;
+      dedPiece = Math.min(dedLeft, price);
+      coinsPiece = (price - dedPiece) * (rateNum / 100);
+      const rateText = Number.isFinite(listed)
+        ? `the plan's ${listed}% coinsurance`
+        : `an assumed ${FALLBACK_COINSURANCE}% coinsurance (the plan lists none)`;
+      if (why) lineWarn(e, `${e.label}: ${why}, so it is priced at ${rateText} after the deductible.`);
+      else if (Number.isFinite(listed)) lineNote(e, `Priced at ${rateText} after the deductible.`);
+      else lineWarn(e, `${e.label}: priced at ${rateText} after the deductible.`);
     };
 
-    if (!c) { warn(); continue; }
-    const useDed = (defaultYes) => {
-      if (!appliesDeductible(c.raw, defaultYes)) return 0;
-      return Math.min(dedLeft, price);
-    };
-
-    if (c.kind === 'pct') {
+    if (isRx && e.service === null) {
+      // No tier chosen: the user's price is what they pay (it still counts toward the OOP max).
+      flat = false;
+      copayPiece = price;
+      lineNote(e, 'No drug tier chosen: counted at the full price you entered.');
+    } else if (custom && e.kind === 'other') {
+      fallback(null);
+    } else if (!c) {
+      if (!custom) { warnOnce(e, 'missing'); continue; }
+      fallback(isRx ? `the plan lists no tier ${e.service.slice(7)} drug benefit` : 'the plan lists no benefit for it');
+    } else if (c.kind === 'pct') {
       flat = false;
       const rate = (c.value ?? benefits.coinsurance ?? 0) / 100;
-      dedPiece = useDed(true);
+      // Drug tiers silent about the deductible follow the plan default (HDHP: yes, others: no).
+      dedPiece = useDed(isRx ? defaultDed : true);
       coinsPiece = (price - dedPiece) * rate;
     } else if (c.kind === 'usd') {
       dedPiece = useDed(defaultDed);
@@ -127,25 +231,34 @@ export function expectedOop(benefits, usage, assumptions = {}, drugs = []) {
     } else if (c.kind === 'text' && /nothing/i.test(c.raw || '')) {
       dedPiece = useDed(defaultDed);
       if (dedPiece > 0) flat = false;
+    } else if (custom) {
+      fallback(`the plan's benefit reads "${c.raw || 'blank'}"`);
     } else {
-      warn();
+      warnOnce(e, c.raw);
       continue;
     }
 
     const d = take(dedPiece);
     dedLeft -= d;
     deductiblePaid += d;
-    coinsurancePaid += take(coinsPiece);
-    copays += take(copayPiece);
+    const ci = take(coinsPiece);
+    coinsurancePaid += ci;
+    const cp = take(copayPiece);
+    copays += cp;
+    if (custom) lines[e.line].cost += d + ci + cp;
   }
 
+  for (const L of lines) L.cost = cents(L.cost);
   return {
     deductiblePaid: cents(deductiblePaid),
     coinsurancePaid: cents(coinsurancePaid),
     copays: cents(copays),
-    total: cents(total),
+    oonPaid: cents(oonPaid),
+    total: cents(total + oonPaid),
     warnings,
     flat,
+    custom: lines,
+    oonEstimate: lines.some((L) => L.outOfNetwork && L.perYear > 0),
   };
 }
 
@@ -184,6 +297,9 @@ export function planTotal(plan, inputs) {
       deductible: resolved.deductible,
       oopMax: resolved.oopMax,
       accountType: hra ? 'HRA' : 'HSA',
+      oonPaid: o.oonPaid,
+      oonEstimate: o.oonEstimate,
+      custom: o.custom,
       warnings: o.warnings,
     },
     firmness,

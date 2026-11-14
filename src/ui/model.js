@@ -1,7 +1,7 @@
 // Results model: eligibility, costing, year-over-year diff, ranking and the savings banner.
 // DOM-free (pure functions over loaded data + state) so it is unit tested under node.
 import { planTotal } from '../engine/cost.js';
-import { SCENARIOS } from '../engine/scenarios.js';
+import { SCENARIOS, applyOverrides, usageFromCustom } from '../engine/scenarios.js';
 import { diffPlan, planFacts } from '../engine/diff.js';
 import { statesFromServiceArea } from '../data.js';
 import { groupPlans } from './grouping.js';
@@ -52,11 +52,13 @@ export function planInput(data, year, code) {
   return { rate, benefits, account: benefits.account_contribution ?? null, accountType };
 }
 
+/** Engine inputs: the scenario's usage, with the fine-tune overrides on top, plus the user's custom lines. */
 export function costInputs(state) {
+  const base = Object.prototype.hasOwnProperty.call(SCENARIOS, state.scenario) ? SCENARIOS[state.scenario] : SCENARIOS.typical;
   return {
     status: state.status,
     enrollment: state.enrollment,
-    usage: SCENARIOS[state.scenario] ?? SCENARIOS.typical,
+    usage: usageFromCustom(state.custom, applyOverrides(base, state.overrides)),
   };
 }
 
