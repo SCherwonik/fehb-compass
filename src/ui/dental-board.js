@@ -11,7 +11,7 @@ import { scopeText } from './board-model.js';
 import { groupPlans } from './grouping.js';
 import {
   dvRows, rankDv, filterDvRows, dvCarriers, dvContext, dvSections, filterDvSections, dvHeader, dvAddOn, plans2026, dvCard,
-  DV_GROUP_MODES, DV_GROUP_LABELS, OPM_LIMITS, ENROLLMENT_LABEL,
+  DV_GROUP_MODES, DV_GROUP_LABELS, ENROLLMENT_LABEL,
 } from './dv-model.js';
 import { DENTAL_PRESETS, VISION_PRESETS, describeDentalPreset } from '../engine/dental.js';
 import { fedvipHub } from '../data.js';
@@ -68,23 +68,20 @@ function tabList({ label, tabs, onPick, cls = '' }) {
   };
 }
 
-/**
- * Top-of-results tab switch. createDvTabs({ store }) -> { el, sync(state) }.
- * Dental & Vision opens on the sub-tab used last.
- */
+/** Top-of-results tab switch, one row: Health plans | Dental | Vision. createDvTabs({ store }) -> { el, sync(state) }. */
 export function createDvTabs({ store }) {
   const t = tabList({
     label: 'Plans to compare',
     cls: 'dvt-main',
-    tabs: [['medical', 'Health plans', ICON_HEART], ['dv', 'Dental & Vision', ICON_TOOTH]],
+    tabs: [['medical', 'Health plans', ICON_HEART], ['dental', 'Dental', ICON_TOOTH], ['vision', 'Vision', ICON_EYE]],
     onPick: (v) => {
-      if (v === 'medical') store.set({ tab: 'medical' });
-      else if (store.get().tab === 'medical') { fedvipHub.load(); store.set({ tab: ui.lastKind }); }
+      if (v !== 'medical') fedvipHub.load();
+      store.set({ tab: v });
     },
   });
   return {
-    el: h('nav', { class: 'dv-tabs', 'aria-label': 'Health or dental and vision' }, t.el),
-    sync(s) { t.sync(s.tab === 'medical' ? 'medical' : 'dv', s.tab === 'medical' ? 'results-frame' : 'dv-panel'); },
+    el: h('nav', { class: 'dv-tabs', 'aria-label': 'Health, dental or vision plans' }, t.el),
+    sync(s) { t.sync(s.tab, s.tab === 'medical' ? 'results-frame' : 'dv-panel'); },
   };
 }
 
@@ -105,17 +102,11 @@ const linkIcon = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M9.5 2.5h
 export function createDvPanel({ store }) {
   let query = '';
   let open = false;
-  const kindTabs = tabList({
-    label: 'Dental or vision', cls: 'dvt-sub',
-    tabs: [['dental', 'Dental', ICON_TOOTH], ['vision', 'Vision', ICON_EYE]],
-    onPick: (v) => store.set({ tab: v }),
-  });
   const title = h('h2', { class: 'rhead-title dv-title', id: 'dv-title' });
   const sub = h('p', { class: 'rhead-sub dv-sub' });
   const filtered = h('p', { class: 'rhead-filtered dv-filtered', hidden: true });
   const editFilters = h('button', { type: 'button', class: 'info-toggle dv-edit-filters' }, 'Change filters');
   const countRow = h('div', { class: 'rhead-count' }, filtered, editFilters);
-  const limits = h('p', { class: 'dv-limits' });
   const mineNote = h('p', { class: 'rhead-mine', hidden: true });
 
   // the same toolbar as Health plans: View (Cards | Board), then Show (board only)
@@ -150,7 +141,7 @@ export function createDvPanel({ store }) {
   const empty = h('section', { class: 'results-none dv-empty', hidden: true });
   const status = h('p', { class: 'sr-only', role: 'status' });
   const head = h('header', { class: 'rhead dv-head' },
-    h('div', { class: 'rhead-copy' }, kindTabs.el, title, countRow, sub, limits, mineNote),
+    h('div', { class: 'rhead-copy' }, title, countRow, sub, mineNote),
     h('div', { class: 'rtools' }, viewCtl.el, groupCtl));
   const el = h('section', { class: 'dv', id: 'dv-panel', role: 'tabpanel', 'aria-labelledby': 'dv-title', hidden: true },
     head, board.el, list, empty, status);
@@ -263,14 +254,12 @@ export function createDvPanel({ store }) {
     if (!isDv) { open = false; firstCards = true; return; }
     const kind = s.tab === 'vision' ? 'vision' : 'dental';
     if (ui.lastKind !== kind) { ui.lastKind = kind; saveUi(); }
-    kindTabs.sync(kind, 'dv-panel');
     el.dataset.kind = kind;
     const isBoard = s.dvView === 'board';
     viewCtl.sync(s.dvView);
     groupSel.value = s.dvGroup;
     groupCtl.hidden = !isBoard;
     diff.checked = ui.diffOnly;
-    limits.textContent = OPM_LIMITS[kind];
     const f = prefs.filter(kind);
 
     const fv = fedvipHub.get();

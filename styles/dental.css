@@ -66,21 +66,11 @@
 .dvt-tab:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .dv-ico { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; flex: none; }
 .dvt-tab[aria-selected="true"] .dv-ico { stroke: var(--accent); }
-.dvt-sub { flex: none; align-self: flex-start; }
-.dvt-sub .dvt-tab { min-height: 36px; padding: 0 var(--space-4); font-size: var(--text-sm); }
 
 /* ---------- panel ---------- */
 .dv { display: grid; gap: var(--space-5); }
 .dv > * { min-width: 0; }
 .dv-head { align-items: flex-start; }
-.dv-limits {
-  margin-top: var(--space-3);
-  max-width: 68ch;
-  font-size: var(--text-sm);
-  line-height: var(--leading-snug);
-  color: var(--text-subtle);
-  text-wrap: pretty;
-}
 /* Dental & Vision inputs live in the situation panel (src/ui/situation.js); these are their in-panel tweaks */
 .dv-preset .seg { min-height: 44px; }
 .dv-preset .seg-label { white-space: normal; }
@@ -90,7 +80,6 @@
 .dv-empty .btn { margin-top: var(--space-3); }
 
 /* ranked cards: the health plan card (results.css) with the key benefits as facts */
-.dv-head .dvt-sub { margin-bottom: var(--space-4); }
 .dv-facts { grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); }
 .dv-facts .fact-v { overflow-wrap: anywhere; }
 .dv-facts .t-warn .fact-v { color: var(--warning); }
