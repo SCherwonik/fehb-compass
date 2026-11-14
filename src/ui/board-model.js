@@ -94,6 +94,8 @@ export function boardContext(rankedRows, state, mine = null, baseline = null) {
   return {
     enrollment: state?.enrollment ?? 'self',
     scenario: state?.scenario ?? 'typical',
+    // fine-tune overrides or custom lines change the scenario's care
+    adjusted: (state?.custom?.length ?? 0) > 0 || Object.keys(state?.overrides ?? {}).length > 0,
     values: valueScores(rows, state?.enrollment ?? 'self'),
     minTotal: totals.length ? Math.min(...totals) : null,
     mine, // the user's 2027 plan row when "include my plan" is on: baseline for the "vs your plan" rows
@@ -181,7 +183,9 @@ export const MEDICAL_SECTIONS = [
       { key: 'premium', label: 'Premium', best: 'min', cell: (r) => money(r.cost.premium, { sub: 'per year' }) },
       {
         key: 'oop', label: 'Expected care costs', best: 'min',
-        cell: (r, ctx) => money(r.cost.oop, { sub: `${SCENARIO_TEXT[ctx.scenario] ?? 'typical'} year` }),
+        cell: (r, ctx) => money(r.cost.oop, {
+          sub: ctx.scenario === 'nothing' ? 'your own costs' : `${SCENARIO_TEXT[ctx.scenario] ?? 'typical'} year${ctx.adjusted ? ', adjusted' : ''}`,
+        }),
       },
       {
         key: 'ceiling', label: 'Worst-case year', best: 'min',

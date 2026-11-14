@@ -2,6 +2,8 @@
 import { SCENARIOS } from '../engine/scenarios.js';
 import { STATE_NAMES, statesFromServiceArea, plansForYear, networkFamilies } from '../data.js';
 import { countsByFamily, groupCurrentPlanOptions } from './model.js';
+import { describeUsage } from './assumptions.js';
+import { createScenarioSection } from './scenario.js';
 
 const VISIBLE_NETWORKS = 8;
 const reduceMotion = () => globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
@@ -334,13 +336,8 @@ export function renderInputs(form, { data, store }) {
     chipWrap,
     more);
 
-  // -- scenario
-  const scenario = segmented({
-    name: 'scenario', legend: 'Expected care in 2027',
-    options: [['healthy', 'Healthy'], ['typical', 'Typical'], ['condition', 'Condition'], ['worst', 'Worst case']],
-  });
-  const scenarioDesc = h('p', { class: 'scenario-desc', 'aria-live': 'polite' });
-  scenario.el.append(scenarioDesc);
+  // -- scenario, fine-tune overrides and custom lines (src/ui/scenario.js)
+  const year = createScenarioSection({ store });
 
   // -- dental
   const dentalInput = h('input', { type: 'checkbox', role: 'switch', id: 'in-dental', class: 'switch-input' });
@@ -359,7 +356,7 @@ export function renderInputs(form, { data, store }) {
     group('Coverage', status.el, enrollment.el),
     group('Location', location.el),
     group('Plans to consider', current.el, mine.el, account.el, networks),
-    group('Your year', scenario.el, dental),
+    group('Your year', year.el, dental),
   );
 
   // ---------- events ----------
@@ -437,21 +434,6 @@ export function renderInputs(form, { data, store }) {
     more.textContent = expanded ? 'Show fewer' : `Show ${hiddenCount} more`;
   }
 
-  let lastScenario = null;
-  function syncScenario(s) {
-    scenario.sync(s.scenario);
-    if (s.scenario === lastScenario) return;
-    const text = describeScenario(s.scenario);
-    if (lastScenario && !reduceMotion()) {
-      scenarioDesc.animate(
-        [{ opacity: 0, transform: 'translateY(4px)', filter: 'blur(3px)' }, { opacity: 1, transform: 'none', filter: 'none' }],
-        { duration: 300, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' },
-      );
-    }
-    scenarioDesc.textContent = text;
-    lastScenario = s.scenario;
-  }
-
   function sync(s) {
     status.sync(s.status);
     enrollment.sync(s.enrollment);
@@ -461,7 +443,7 @@ export function renderInputs(form, { data, store }) {
     mine.sync(s);
     account.sync(s.account);
     syncChips(s, true);
-    syncScenario(s);
+    year.sync(s);
     dentalInput.checked = s.dental;
   }
 
@@ -492,20 +474,8 @@ export function mineSwitch(id, { compact = false } = {}) {
   };
 }
 
-const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
-
 /** Plain-language summary of an engine scenario, e.g. "3 primary care visits, 2 specialist visits, ...". */
 export function describeScenario(key) {
   const u = SCENARIOS[key];
-  if (!u) return '';
-  const parts = [
-    u.pcpVisits && plural(u.pcpVisits, 'primary care visit'),
-    u.specialistVisits && plural(u.specialistVisits, 'specialist visit'),
-    u.erVisits && plural(u.erVisits, 'ER visit'),
-    u.hospitalStays && plural(u.hospitalStays, 'hospital stay'),
-    u.labs && plural(u.labs, 'lab test'),
-    u.imaging && plural(u.imaging, 'imaging scan'),
-    u.rxMonthly && `${plural(u.rxMonthly, 'monthly generic prescription')}`,
-  ].filter(Boolean);
-  return parts.join(', ') + '.';
+  return u ? describeUsage(u) : '';
 }

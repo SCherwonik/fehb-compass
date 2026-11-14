@@ -1,19 +1,22 @@
 // Entry point: theme, state (URL hash + saved), staged data load, input panel, ranked results.
-import { createStore, loadInitialState, encodeState, decodeState, sanitizeAgainstData } from './state.js';
+import { createStore, loadInitialState, encodeState, encodeHash, saveOverflow, decodeState, sanitizeAgainstData } from './state.js';
 import { loadDataProgressive } from './data.js';
 import { renderInputs } from './ui/inputs.js';
 import { initTheme } from './ui/theme.js';
 import { createResults } from './ui/results.js';
 import { dataVocabulary } from './ui/model.js';
 
-const NEEDLE_ANGLE = { healthy: -42, typical: -12, condition: 24, worst: 58 };
+const NEEDLE_ANGLE = { nothing: -64, healthy: -42, typical: -12, condition: 24, worst: 58 };
 
 const store = createStore(loadInitialState({ hash: location.hash }));
 export { store };
 
 // Keep the shareable URL in step with state (replaceState: no history spam, no scroll jump).
+// Custom lines that do not fit the URL budget are kept in localStorage (see state.js encodeHash).
 function writeHash(s) {
-  const hash = encodeState(s);
+  const res = encodeHash(s);
+  saveOverflow(res);
+  const hash = res.hash;
   const url = hash ? `#${hash}` : location.pathname + location.search;
   if (`#${hash}` !== location.hash && !(hash === '' && location.hash === '')) {
     history.replaceState(null, '', url);
@@ -87,7 +90,7 @@ async function main() {
 
   // Back/forward or a pasted link: adopt the hash, minus anything the data does not know.
   window.addEventListener('hashchange', () => {
-    const next = sanitizeAgainstData(decodeState(location.hash), vocab);
+    const next = sanitizeAgainstData(decodeState(location.hash, { storage: undefined }), vocab);
     if (encodeState(next) !== encodeState(store.get())) store.set(next);
     writeHash(store.get());
   });

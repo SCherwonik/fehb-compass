@@ -1,6 +1,7 @@
 // Ranked results: header + toolbar, savings banner, compare view, keyed card list or the Compare Board, compare tray.
 // Cards are keyed by plan code and updated in place; reordering uses FLIP limited to visible cards.
-import { h, svg, segmented, ICON_CHECK, ICON_CHEVRON, describeScenario, mineSwitch } from './inputs.js';
+import { h, svg, segmented, ICON_CHECK, ICON_CHEVRON, mineSwitch } from './inputs.js';
+import { assumptionChips, describeUsage, effectiveUsage, overrideChanges } from './assumptions.js';
 import { computeRows, savingsVsCurrent, availablePlans, SORTS, rankWithMine } from './model.js';
 import { GROUP_LABELS, GROUP_MODES } from './grouping.js';
 import { createResultsBoard, mineNoteText } from './results-board.js';
@@ -14,7 +15,11 @@ import { measure, reorder, tweenNumber, pop, nudge, reduceMotion, EASE_OUT } fro
 
 const UI_KEY = 'fehb-compass:results-ui:v1';
 const ENROLLMENT_TEXT = { self: 'self only', self_plus_one: 'self plus one', family: 'family' };
-const SCENARIO_TEXT = { healthy: 'healthy', typical: 'typical', condition: 'managing a condition', worst: 'worst case' };
+const SCENARIO_TEXT = { healthy: 'healthy', typical: 'typical', condition: 'managing a condition', worst: 'worst case', nothing: 'start-from-nothing' };
+/** "typical year", or "your own year" once overrides or custom lines change the scenario. */
+const yearText = (state) => (state.custom.length || overrideChanges(state).length
+  ? (state.scenario === 'nothing' ? 'your own costs' : `${SCENARIO_TEXT[state.scenario]} year, adjusted`)
+  : `${SCENARIO_TEXT[state.scenario]} year`);
 const TYPES = [['all', 'All'], ['FFS', 'FFS'], ['HMO', 'HMO'], ['HDHP', 'HDHP']];
 const PRICE_LABELS = {
   pcpVisit: 'Primary care visit', specialistVisit: 'Specialist visit', erVisit: 'Emergency room visit',
@@ -81,8 +86,10 @@ export function createResults(main, { store }) {
   const mineCtl = mineSwitch('rt-mine', { compact: true });
   mineCtl.el.classList.add('tool');
   const mineNote = h('p', { class: 'rhead-mine', hidden: true });
+  const assume = h('ul', { class: 'assume', 'aria-label': 'Your assumptions' });
+  let assumeKey = '';
   const head = h('header', { class: 'rhead' },
-    h('div', { class: 'rhead-copy' }, title, countRow, infoNote, sub, mineNote),
+    h('div', { class: 'rhead-copy' }, title, countRow, infoNote, sub, assume, mineNote),
     h('div', { class: 'rtools' }, viewCtl.el, groupCtl, sortCtl.el, typeCtl.el, mineCtl.el));
   const board = createResultsBoard();
 
@@ -272,7 +279,7 @@ export function createResults(main, { store }) {
     if (row.diff.status === 'new') { setClass(r.premium.d, 'fact-d delta delta-new'); setText(r.premium.d, 'New for 2027'); }
     else setDelta(r.premium.d, row.diff.premiumChange, row.diff.premiumPct ? ` (${signedPct(row.diff.premiumPct)})` : '');
     tweenNumber(r.care.v, row.cost.oop, usd, { animate: anim });
-    setText(r.care.d, `${SCENARIO_TEXT[state.scenario]} year`);
+    setText(r.care.d, yearText(state));
     setClass(r.care.d, 'fact-d');
 
     const raw = row.account ? row.benefits.account_contribution?.[state.enrollment] ?? 0 : 0;
@@ -300,7 +307,8 @@ export function createResults(main, { store }) {
     const rankTag = row.isMine && Number.isInteger(row.globalRank)
       ? `#${row.globalRank} overall${mineFiltersOn ? (row.viewRank ? ` · #${row.viewRank} in this view` : ' · outside your filters') : ''}`
       : '';
-    const key = `${row.isMine ? `mine:${mineWhere}:${rankTag}` : ''}|${vsMine}|${row.cost.firmness}|${row.diff.status}|${row.diff.flags.join(',')}`;
+    const oon = row.cost.breakdown.oonEstimate === true;
+    const key = `${row.isMine ? `mine:${mineWhere}:${rankTag}` : ''}|${vsMine}|${row.cost.firmness}|${row.diff.status}|${row.diff.flags.join(',')}|${oon}`;
     if (key !== rec.chipsKey) {
       rec.chipsKey = key;
       const items = [
@@ -312,6 +320,8 @@ export function createResults(main, { store }) {
         row.cost.firmness === 'fixed'
           ? h('li', { class: 'tag tag-fixed', title: 'Every service in this scenario is a flat copay, so this total does not depend on assumed prices.' }, 'Fixed cost')
           : h('li', { class: 'tag tag-est', title: 'Part of this total depends on assumed prices for care. See the math.' }, 'Estimated'),
+        oon && h('li', { class: 'tag tag-warn', title: 'Out-of-network lines are counted at full cost: OPM publishes no out-of-network cost sharing. See the math.' },
+          svg(ICON_WARN), 'Out-of-network estimate'),
         row.diff.status === 'new' && h('li', { class: 'tag tag-new' }, 'New for 2027'),
         ...row.diff.flags.map((f) => h('li', { class: 'tag tag-warn' }, svg(ICON_WARN), FLAG_TEXT[f] ?? f)),
       ];
@@ -340,7 +350,7 @@ export function createResults(main, { store }) {
     const premiumHow = state.status === 'retiree'
       ? `${usdExact(rate.monthly_retiree)} a month × 12`
       : `${usdExact(rate.biweekly_active)} per paycheck × 26`;
-    const careSum = b.deductiblePaid + b.coinsurancePaid + b.copays;
+    const careSum = b.deductiblePaid + b.coinsurancePaid + b.copays + (b.oonPaid || 0);
     const hitMax = b.oopMax != null && cost.oop >= b.oopMax - 0.5;
     const raw = row.account ? row.benefits.account_contribution?.[state.enrollment] ?? 0 : 0;
 
@@ -350,7 +360,8 @@ export function createResults(main, { store }) {
       mathLine('Toward the deductible', usd(b.deductiblePaid), 'math-sub'),
       mathLine('Coinsurance', usd(b.coinsurancePaid), 'math-sub'),
       mathLine('Copays', usd(b.copays), 'math-sub'),
-      hitMax && mathLine(`Capped at the ${usd(b.oopMax)} out-of-pocket max`, '', 'math-sub math-note'),
+      b.oonPaid > 0 && mathLine('Out of network, at full cost', usd(b.oonPaid), 'math-sub'),
+      hitMax &&mathLine(`Capped at the ${usd(b.oopMax)} out-of-pocket max`, '', 'math-sub math-note'),
       Math.abs(careSum - cost.oop) > 1 && mathLine('Rounding', usd(cost.oop - careSum), 'math-sub'),
       row.account && mathLine(
         h('span', {}, h('i', { class: 'dot dot-dep' }), row.account === 'HRA' ? 'HRA credit used ' : 'HSA deposit ',
@@ -364,16 +375,35 @@ export function createResults(main, { store }) {
     const prices = Object.entries(ASSUMED_PRICES).map(([k, v]) =>
       h('li', {}, h('span', {}, PRICE_LABELS[k] ?? k), h('span', { class: 'num' }, usd(v))));
 
+    // custom lines: what each one adds to this plan's care costs, with its own notes and warnings
+    const customs = b.custom ?? [];
+    const lineMsgs = new Set(customs.flatMap((c) => c.warnings));
+    const otherWarnings = b.warnings.filter((w) => !lineMsgs.has(w));
+    const customBlock = customs.length > 0 && [
+      h('p', { class: 'math-h' }, 'Your own costs'),
+      h('ul', { class: 'math-custom' }, customs.map((c) => h('li', { class: c.warnings.length ? 'has-warn' : '' },
+        h('div', { class: 'mc-row' },
+          h('span', { class: 'mc-name' }, c.label,
+            h('span', { class: 'math-how' }, `${c.perYear} × ${usdExact(c.price)}${c.outOfNetwork ? ', out of network' : ''}`)),
+          h('span', { class: 'num mc-cost' }, `+ ${usd(c.cost)}`)),
+        [...c.warnings.map((w) => h('p', { class: 'mc-warn' }, svg(ICON_WARN), w)),
+          ...c.notes.map((n) => h('p', { class: 'mc-note' }, n))]))),
+    ];
+    const changes = overrideChanges(state);
+
     rec.r.mathInner.replaceChildren(
       h('div', { class: 'math-sum' }, lines),
       h('div', { class: 'math-notes' },
-        h('p', { class: 'math-h' }, `Care assumed for a ${SCENARIO_TEXT[state.scenario]} year`),
-        h('p', { class: 'math-p' }, describeScenario(state.scenario)),
+        h('p', { class: 'math-h' }, state.scenario === 'nothing'
+          ? 'Care assumed: none beyond your own costs'
+          : `Care assumed for a ${SCENARIO_TEXT[state.scenario]} year${changes.length ? ', fine-tuned' : ''}`),
+        h('p', { class: 'math-p' }, describeUsage(effectiveUsage(state))),
+        customBlock,
         h('p', { class: 'math-h' }, 'Assumed price of each service'),
         h('ul', { class: 'math-prices' }, prices),
         h('p', { class: 'math-p math-fine' }, `${ASSUMPTIONS_NOTE.replace('ASSUMED_PRICES', 'these prices')} Your plan's copays and coinsurance come from OPM's 2027 benefits file.`),
-        b.warnings.length > 0 && h('p', { class: 'math-h' }, 'Could not price'),
-        b.warnings.length > 0 && h('ul', { class: 'math-warn' }, b.warnings.map((w) => h('li', {}, w)))));
+        otherWarnings.length > 0 && h('p', { class: 'math-h' }, 'Could not price'),
+        otherWarnings.length > 0 && h('ul', { class: 'math-warn' }, otherWarnings.map((w) => h('li', {}, w)))));
   }
 
   // ---------- savings banner ----------
@@ -433,6 +463,25 @@ export function createResults(main, { store }) {
     mineNote.textContent = text;
   }
 
+  // "Your assumptions" chips: scenario, fine-tune changes, custom lines (shared by cards, board and compare)
+  function renderAssumptions(state) {
+    const chips = assumptionChips(state);
+    const key = chips.map((c) => `${c.id}:${c.text}:${c.title}`).join('|');
+    if (key === assumeKey) return;
+    const before = new Set([...assume.children].map((li) => li.dataset.id));
+    const animate = assumeKey !== '' && !reduceMotion();
+    assumeKey = key;
+    assume.replaceChildren(...chips.map((c) => {
+      const li = h('li', { class: `assume-chip is-${c.tone}`, 'data-id': c.id, title: c.title },
+        c.tone === 'warn' && svg(ICON_WARN), c.text, h('span', { class: 'sr-only' }, `: ${c.title}`));
+      if (animate && !before.has(c.id)) {
+        li.animate([{ opacity: 0, transform: 'scale(0.9)', filter: 'blur(3px)' }, { opacity: 1, transform: 'none', filter: 'none' }],
+          { duration: 320, easing: EASE_OUT });
+      }
+      return li;
+    }));
+  }
+
   let first = true;
   function render(state = store.get()) {
     if (!data) return;
@@ -467,8 +516,9 @@ export function createResults(main, { store }) {
     mineWhere = res.mineStatus === 'included' && res.notInState ? (where ?? 'nationwide') : '';
     renderMineNote(state, res, where);
     sub.textContent = st
-      ? `Ranked by ${(isBoard ? SORTS.total : SORTS[ui.sort]).label.toLowerCase()} for ${ENROLLMENT_TEXT[state.enrollment]} coverage and a ${SCENARIO_TEXT[state.scenario]} year.`
+      ? `Ranked by ${(isBoard ? SORTS.total : SORTS[ui.sort]).label.toLowerCase()} for ${ENROLLMENT_TEXT[state.enrollment]} coverage and the year you described.`
       : 'Choose your state to add regional HMO plans. Nationwide plans are shown now.';
+    renderAssumptions(state);
 
     list.hidden = isBoard;
     board.el.hidden = !isBoard;
