@@ -46,6 +46,7 @@ All plan data comes from OPM's public use files and the 2027 plan brochures. Dat
 | `plans.json`, `rates.json`, `benefits.json`, `service_area.json` | FEHB plans, 2026 and 2027 rates, benefits and service areas | OPM FEHB public use files (2027 files published Sep 29 to Oct 26, 2026) |
 | `fedvip.json` | FEDVIP dental and vision plans, regional rates, benefits, ZIP geography | OPM FEDVIP public use files (published Sep 29 to Sep 30, 2026) |
 | `brochure_facts.json` | Drug tiers, drug lookup links, what changed in 2027 | 2027 plan brochures (read Nov 14, 2026), AI-extracted and quote-verified |
+| `zip_county.json` | ZIP code to county FIPS (counties holding at least 5% of a ZIP area's land) | U.S. Census Bureau 2020 ZCTA-to-county relationship file, via `pipeline/build_zip_county.py` |
 | `meta.json` | Source URL and published date of every OPM file | |
 | `brochures.json` | Brochure download manifest (URLs, checksums) | used by the pipeline only |
 | `dental_vision.json` | Older FEDVIP output, superseded by `fedvip.json` | written by `build_data.py`; not used by the app, not deployed |
@@ -122,9 +123,10 @@ Everything else is external (`src/`, `styles/`, `assets/`): the page loads nothi
 - Each scenario is one covered person's year of care. With Self Plus One or Self and Family coverage the premium is
   the family one, but the self-only deductible and out-of-pocket max apply to that person (shared-deductible HSA
   plans: the family deductible, capped at the self-only max). Households where several people use care can pay more.
-- Service areas: OPM has no ZIP-to-county map, so a regional plan that covers only some counties of your state
-  is marked "Serves part of [state]: confirm your county" (unless OPM lists your ZIP) and is not picked by the
-  savings banner unless you opt in.
+- Service areas: OPM lists regional plans by county, so your ZIP is matched to its county with the Census 2020
+  ZIP-to-county file (`zip_county.json`; Census ZIP areas only approximate postal ZIPs). Plans the match cannot
+  confirm (no ZIP, a PO-box ZIP, a ZIP split across counties) are marked "confirm your county" or "confirm your
+  address" and are not picked by the savings banner unless you opt in.
 - Care is priced at assumed amounts (shown in "See the math" and "How it works"); real prices vary.
 - Out-of-network care is counted at full cost, because OPM publishes no out-of-network cost sharing.
 - OPM's spreadsheet has a few errors. Hand-checked brochure values replace them in `benefits.json` (listed with
