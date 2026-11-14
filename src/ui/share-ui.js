@@ -17,7 +17,8 @@ export function toast(message, { extra = null, sticky = false, returnTo = null }
   clearTimeout(toastTimer);
   const close = h('button', { type: 'button', class: 'toast-close', 'aria-label': 'Dismiss' }, '×');
   close.addEventListener('click', hide);
-  toastEl.replaceChildren(h('p', { class: 'toast-msg' }, message), (sticky || extra) && close, extra);
+  // only real nodes: a skipped slot passed as null would print as the text "null"
+  toastEl.replaceChildren(...[h('p', { class: 'toast-msg' }, message), (sticky || extra) ? close : null, extra].filter(Boolean));
   toastEl._hide = hide;
   toastEl.classList.add('is-visible');
   if (!reduceMotion()) {
