@@ -65,7 +65,7 @@ function content() {
       table('Assumed dental fees', ['Service', 'Assumed fee'], Object.values(DENTAL_SERVICES).map((s) => [s.label, usd(s.price)]))),
     h('section', {},
       h('h3', {}, 'Facts from the plan brochures'),
-      h('p', {}, 'Prescription tiers, drug lookup links and “what changed in 2027” come from the 2027 plan brochures. An AI model read each brochure and extracted these facts with quotes. Every fact was then checked against the brochure text: about 77% matched their quote and were kept; the rest were dropped. Where a brochure’s drug tiers disagreed with OPM’s benefits spreadsheet, each disagreement was checked by hand against the brochure, and the board notes when OPM’s spreadsheet differs.')),
+      h('p', {}, 'Prescription tiers, drug lookup links and “what changed in 2027” come from the 2027 plan brochures. An AI model read each brochure and extracted these facts with quotes. Every fact was then checked against the brochure text: about 77% matched their quote and were kept; the rest were dropped. Where a brochure’s drug tiers disagreed with OPM’s benefits spreadsheet, each disagreement was checked by hand against the brochure, and the board notes when OPM’s spreadsheet differs. One misprinted link (Sharp Health Plan’s drug search, printed as “sharphealtplan.com”) is corrected to the plan’s own site and labelled; links a brochure prints through a link shortener (bit.ly) are labelled as such, since they do not show where they lead.')),
     h('section', {},
       h('h3', {}, 'Known limits'),
       h('ul', {},

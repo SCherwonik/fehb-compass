@@ -242,9 +242,26 @@ export function rxFor(code, option, facts = FACTS) {
   return out;
 }
 
+// URL shorteners: the link does not show its destination (never followed or expanded here).
+const SHORTENERS = new Set(['bit.ly', 'tinyurl.com', 'ow.ly', 't.co', 'goo.gl', 'rebrand.ly', 'is.gd', 'buff.ly', 'shorturl.at']);
+
+/** 'sharphealthplan.com' from a link (leading www. dropped), or null for anything normalizeUrl rejects. */
+export function linkHost(href) {
+  const u = normalizeUrl(href);
+  return u ? new URL(u).hostname.replace(/^www\./i, '').toLowerCase() : null;
+}
+
+/** The fields a lookup button needs (rx-render lookupButton), for board and matrix cells. */
+export function lookupLink(l) {
+  if (!l) return null;
+  return { href: l.href, text: l.text, host: l.host, shortener: l.shortener === true, ...(l.corrected ? { corrected: l.corrected } : {}), ...(l.note ? { note: l.note } : {}) };
+}
+
 /**
  * The plan's drug lookup link: drug_lookup_url, else formulary_url, else the member website.
- * -> { href, kind: 'lookup'|'formulary'|'website', text, cite } | null
+ * A fact corrected by pipeline/link_overrides.json carries `url` (used instead of the printed text) and
+ * `corrected` { printed, page, reason }.
+ * -> { href, kind: 'lookup'|'formulary'|'website', text, cite, host, shortener, corrected?, note? } | null
  */
 export function lookupFor(code, facts = FACTS) {
   const p = own(facts?.plans, code);
@@ -256,8 +273,19 @@ export function lookupFor(code, facts = FACTS) {
   ];
   for (const [kind, f, text] of tries) {
     if (!f || typeof f !== 'object') continue;
-    const href = extractUrl(f.quote, p.option);
-    if (href) return { href, kind, text, cite: citation(f, code, facts) };
+    const fixed = typeof f.url === 'string' ? normalizeUrl(f.url) : null;
+    const href = fixed ?? extractUrl(f.quote, p.option);
+    if (!href) continue;
+    const host = linkHost(href);
+    const shortener = SHORTENERS.has(host);
+    const out = { href, kind, text, cite: citation(f, code, facts), host, shortener };
+    if (fixed && f.corrected && typeof f.corrected === 'object') {
+      out.corrected = { printed: str(f.corrected.printed), page: Number.isInteger(f.corrected.page) ? f.corrected.page : null, reason: str(f.corrected.reason) };
+      out.note = `Corrected from the brochure’s misprint “${out.corrected.printed}”.`;
+    } else if (shortener) {
+      out.note = 'Link shortener from the brochure: it does not show where it leads.';
+    }
+    return out;
   }
   return null;
 }
@@ -323,8 +351,8 @@ export function rxSummaryRows(codes, facts = FACTS) {
   add('br:pbm', 'Pharmacy program (PBM)', (rx) => (rx.pbm ? textCell(rx.pbm, { note: rx.formularyName ? `Formulary: ${rx.formularyName.text}` : undefined }) : null));
   add('br:lookup', 'Drug lookup / formulary', (rx) => (rx.lookup ? {
     text: rx.lookup.href, kind: 'link', display: rx.lookup.text, cite: rx.lookup.cite,
-    link: { href: rx.lookup.href, text: rx.lookup.text },
-    note: rx.lookup.kind === 'website' ? 'The brochure names no drug lookup page; this is the plan’s website.' : undefined,
+    link: lookupLink(rx.lookup),
+    note: [rx.lookup.kind === 'website' ? 'The brochure names no drug lookup page; this is the plan’s website.' : '', rx.lookup.corrected ? rx.lookup.note : ''].filter(Boolean).join(' ') || undefined,
   } : null), { hint: 'Opens the plan’s own drug search in a new tab. Check which tier each of your drugs is on.' });
 
   const numbers = new Set();

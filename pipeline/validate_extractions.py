@@ -30,6 +30,7 @@ ROOT = PIPELINE.parent
 YEAR = "2027"
 OVERLAP_MIN = 0.8
 ADJUDICATION = PIPELINE / "rx_adjudication.json"
+LINK_OVERRIDES = PIPELINE / "link_overrides.json"
 MAX_QUOTE = 300
 
 PAGE_RE = re.compile(r"^=== PAGE (\d+) ===[ \t]*$", re.M)
@@ -921,12 +922,53 @@ def build_brochure_entries(num, data, facts, codes_names, bench, trim_quotes, op
     return per_code, dict(unmatched), dropped, match_log
 
 
+def apply_link_overrides(plans: dict, spec: dict | None) -> int:
+    """Correct misprinted brochure links (I4; pipeline/link_overrides.json). The verified quote is kept as printed;
+    the fact gets `url` (the corrected link the app opens) and `corrected` {printed, page, reason}. An entry whose
+    printed text matches no fact of its brochure stops the build (the extraction changed: re-check it).
+    Returns the number of facts corrected."""
+    n = 0
+    for o in (spec or {}).get("overrides", []):
+        want = squash(_strip_url(o["printed"]))
+        hit = 0
+        for p in plans.values():
+            if p.get("brochure") != o["brochure"]:
+                continue
+            for field in o["fields"]:
+                f = (p.get("rx") or {}).get(field)
+                if isinstance(f, dict) and squash(_strip_url(str(f.get("quote") or ""))) == want:
+                    f["url"] = o["url"]
+                    f["corrected"] = {"printed": o["printed"], "page": o["page"], "reason": o["reason"]}
+                    hit += 1
+        if not hit:
+            raise ValueError(f"link_overrides: {o['brochure']} has no fact printed as {o['printed']!r}: re-check")
+        n += hit
+    return n
+
+
+def spreadsheet_view(bench: dict) -> dict:
+    """benefits.json as OPM's spreadsheet wrote it: undo build_data.py's brochure overrides (I5) in the raw
+    fields, so the Rx crosscheck still compares the brochure with the spreadsheet (and its badges stay)."""
+    out = {}
+    for code, e in bench.items():
+        ov = e.get("overrides") if isinstance(e, dict) else None
+        if not ov:
+            out[code] = e
+            continue
+        raw = dict(e.get("raw") or {})
+        for field, o in ov.items():
+            if isinstance(o, dict) and "sheet" in o:
+                raw[field] = o["sheet"]
+        out[code] = {**e, "raw": raw}
+    return out
+
+
 def run(args) -> int:
     ext_dir = Path(args.extractions)
     txt_dir = Path(args.text)
     manifest = read_json(ROOT / "data" / "brochures.json")[YEAR]
     plans = {p["code"]: p for p in read_json(ROOT / "data" / "plans.json") if str(p.get("year")) == YEAR}
-    bench = read_json(ROOT / "data" / "benefits.json")[YEAR]
+    bench = spreadsheet_view(read_json(ROOT / "data" / "benefits.json")[YEAR])
 
     nums = sorted(p.stem for p in ext_dir.glob("*.json"))
     reports, built = {}, {}
@@ -1016,6 +1058,9 @@ def run(args) -> int:
             meta_dropped["by_section"].update(dropped)
             meta_dropped["by_brochure"][n] = d_tot
         meta_dropped["by_section"] = dict(sorted(meta_dropped["by_section"].items()))
+        links = None if args.no_link_overrides else read_json(Path(args.link_overrides))
+        n_links = apply_link_overrides(plans_out, links)
+        print(f"link overrides: {n_links} facts corrected")
         out = {"meta": {"source": "OPM 2027 brochures", "generated": args.date, "dropped": meta_dropped,
                         "kept_facts": totals["verified"],
                         "notes": ["Only facts whose quote/text was verified against the brochure text are included.",
@@ -1030,6 +1075,8 @@ def run(args) -> int:
                                   "see pipeline/rx_adjudication.json."],
                         "brochures": meta_b},
                "plans": plans_out}
+        if links is not None:
+            out["meta"]["link_overrides"] = {"source": "pipeline/link_overrides.json", "facts_corrected": n_links}
         if adj is not None:
             out["meta"]["rx_adjudication"] = {
                 "source": "pipeline/rx_adjudication.json", "tiers": dict(adj_counts),
@@ -1066,6 +1113,8 @@ def main(argv=None) -> int:
     ap.add_argument("--date", default=datetime.date.today().isoformat())
     ap.add_argument("--adjudication", default=str(ADJUDICATION), help="Rx adjudication decisions (JSON)")
     ap.add_argument("--no-adjudication", action="store_true", help="do not apply pipeline/rx_adjudication.json")
+    ap.add_argument("--link-overrides", default=str(LINK_OVERRIDES), help="corrections to misprinted brochure links (JSON)")
+    ap.add_argument("--no-link-overrides", action="store_true", help="do not apply pipeline/link_overrides.json")
     ap.add_argument("--no-facts", action="store_true", help="validate only; do not write data/brochure_facts.json")
     ap.add_argument("--trim-quotes", action="store_true", help=f"trim emitted quotes to {MAX_QUOTE} chars")
     args = ap.parse_args(argv)

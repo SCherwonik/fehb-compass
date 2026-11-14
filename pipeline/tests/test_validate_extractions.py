@@ -447,3 +447,57 @@ def test_adjudication_quotes_are_in_the_brochure_text():
                                               if isinstance(c, dict) and "quote" in c]
         for q, pg in cites:
             assert v.squash(q) in v.squash(pages[pg]), (d["brochure"], d["plan_code"], d["tier"], q)
+
+
+# --------------------------------------------------------------------------- I4 / I5 helpers
+
+LINK_OV = {"brochure": "73-937", "fields": ["drug_lookup_url", "formulary_url"],
+           "printed": "www.sharphealtplan.com/search-drug-list", "url": "https://www.sharphealthplan.com/search-drug-list",
+           "page": 64, "reason": "typo"}
+
+
+def _plans():
+    f = {"quote": "www.sharphealtplan.com/search-drug-list", "page": 64, "match": "exact"}
+    return {"YJ1": {"brochure": "73-937", "rx": {"drug_lookup_url": dict(f), "formulary_url": dict(f)}},
+            "104": {"brochure": "71-005", "rx": {"drug_lookup_url": {"quote": "www.fepblue.org", "page": 1}}}}
+
+
+def test_apply_link_overrides_adds_a_corrected_url_and_keeps_the_printed_quote():
+    plans = _plans()
+    n = v.apply_link_overrides(plans, {"overrides": [LINK_OV]})
+    assert n == 2
+    f = plans["YJ1"]["rx"]["drug_lookup_url"]
+    assert f["quote"] == "www.sharphealtplan.com/search-drug-list"
+    assert f["url"] == "https://www.sharphealthplan.com/search-drug-list"
+    assert f["corrected"] == {"printed": "www.sharphealtplan.com/search-drug-list", "page": 64, "reason": "typo"}
+    assert "url" not in plans["104"]["rx"]["drug_lookup_url"]
+
+
+def test_apply_link_overrides_stops_when_nothing_matches():
+    with pytest.raises(ValueError, match="73-937"):
+        v.apply_link_overrides(_plans(), {"overrides": [{**LINK_OV, "printed": "www.other.com"}]})
+
+
+def test_tracked_link_overrides_use_https_and_name_their_reason():
+    spec = json.loads((PIPELINE / "link_overrides.json").read_text(encoding="utf-8"))
+    for o in spec["overrides"]:
+        assert o["url"].startswith("https://") and o["reason"] and isinstance(o["page"], int)
+
+
+def test_spreadsheet_view_restores_the_spreadsheet_text_for_the_crosscheck():
+    bench = {"634": {"raw": {"Tier 1": "$5 Copayment - generic maintenance drugs"},
+                     "overrides": {"Tier 1": {"field": "rx_tier1", "sheet": "Preferred Generic - $15 Copayment"}}},
+             "104": {"raw": {"Tier 1": "$7.50"}}}
+    out = v.spreadsheet_view(bench)
+    assert out["634"]["raw"]["Tier 1"] == "Preferred Generic - $15 Copayment"
+    assert bench["634"]["raw"]["Tier 1"].startswith("$5")  # input untouched
+    assert out["104"] is bench["104"]
+
+
+@pytest.mark.skipif(not (ROOT / "data" / "brochure_facts.json").exists(), reason="no data")
+def test_brochure_facts_carry_the_corrected_sharp_link():
+    facts = json.loads((ROOT / "data" / "brochure_facts.json").read_text(encoding="utf-8"))
+    for code in ("YJ1", "YJ4"):
+        f = facts["plans"][code]["rx"]["drug_lookup_url"]
+        assert f["url"] == "https://www.sharphealthplan.com/search-drug-list"
+        assert "sharphealtplan" in f["quote"]

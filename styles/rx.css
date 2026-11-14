@@ -50,6 +50,11 @@ a.rx-cite:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .rx-lookup svg { flex: none; width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .rx-lookup .rx-ext { width: 11px; height: 11px; opacity: 0.7; transition: transform var(--dur-base) var(--ease-spring); }
 .rx-lookup:hover .rx-ext { transform: translate(1px, -1px); }
+/* a link the brochure printed through a shortener, or misprinted and corrected: say so next to the button */
+.rx-lookup-wrap { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
+.rx-lookup-note { font-size: var(--text-xs); color: var(--text-subtle); line-height: var(--leading-snug); }
+.rx-lookup-note.is-warn { color: var(--warning); }
+.rx-card-head .rx-lookup-wrap { margin-left: auto; }
 
 .rx-deco { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 4px; }
 .rx-badge-wrap { display: inline-grid; gap: 4px; max-width: 100%; }

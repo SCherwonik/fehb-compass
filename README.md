@@ -62,7 +62,10 @@ Brochure facts (`brochure_facts.json`) are partly manual:
     python pipeline/validate_extractions.py   # 7. keep only facts whose quote is found in the brochure text
 
 Step 7 also applies the hand-checked rulings in `pipeline/rx_adjudication.json` where a brochure's drug tiers
-disagree with OPM's benefits spreadsheet. In the current data about 77% of extracted facts verified; the rest
+disagree with OPM's benefits spreadsheet, and the link corrections in `pipeline/link_overrides.json` (a misprinted
+host keeps its printed quote and gets a corrected `url`). Run it with `--date` set to the facts' original date
+(`meta.generated`) to keep the output stable; it reads `benefits.json` as the spreadsheet wrote it, so the
+brochure overrides of step 3 do not change its crosscheck. In the current data about 77% of extracted facts verified; the rest
 were dropped.
 
 ## Deploy (GitHub Pages)

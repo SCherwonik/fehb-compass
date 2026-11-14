@@ -27,10 +27,16 @@ export function lookupButton(link, { compact = false, planName } = {}) {
   const href = link?.href ? normalizeUrl(link.href) : null;
   if (!href) return null;
   const label = link.text || 'Look up your drug';
-  return h('a', ext({
-    class: `rx-lookup${compact ? ' is-compact' : ''}`, href,
-    'aria-label': `${label}${planName ? ` on ${planName}` : ''} (opens the plan’s site in a new tab)`,
+  // where the link goes, said before the click; a link shortener is named as one (it hides its destination)
+  const where = link.shortener ? 'a link shortener from the brochure' : link.host ? link.host : 'the plan’s site';
+  const btn = h('a', ext({
+    class: `rx-lookup${compact ? ' is-compact' : ''}${link.shortener ? ' is-shortener' : ''}`, href,
+    title: link.note ? `${link.note} Opens ${link.host ?? href}.` : `Opens ${link.host ?? href}`,
+    'aria-label': `${label}${planName ? ` on ${planName}` : ''} (opens ${where} in a new tab)`,
   }), svg(ICON_SEARCH), h('span', {}, label), svg(ICON_EXT));
+  if (!link.shortener && !link.corrected) return btn;
+  return h('span', { class: 'rx-lookup-wrap' }, btn,
+    h('span', { class: `rx-lookup-note${link.shortener ? ' is-warn' : ''}` }, link.shortener ? 'Link shortener from the brochure' : 'Link corrected from a brochure misprint'));
 }
 
 let tipId = 0;

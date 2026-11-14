@@ -2,7 +2,7 @@
 // "What changed in 2027" (one row per change category). Section/row shapes: see board-model.js.
 // Rich content goes through board hooks ('rxdrug', 'rxchg'), rendered with rx-render.js.
 import { h } from './inputs.js';
-import { rxFor, lookupFor, changesFor, CHANGE_CATEGORIES } from './rx-model.js';
+import { rxFor, lookupFor, lookupLink, changesFor, CHANGE_CATEGORIES } from './rx-model.js';
 import { drugLines, changesList, medsSummary } from './rx-render.js';
 import { DASH } from './format.js';
 
@@ -21,7 +21,7 @@ export function rxBoardSections({ codes = [], factsStatus = 'loading', meds = nu
         if (!ready) return waiting;
         const l = lookupFor(r.code);
         if (!l) return { text: 'No link in the brochure', tone: 'muted', value: null };
-        return { text: l.text, link: { href: l.href, text: l.text }, cite: l.cite, value: null, sub: l.kind === 'website' ? 'plan website' : undefined };
+        return { text: l.text, link: lookupLink(l), cite: l.cite, value: null, sub: l.kind === 'website' ? 'plan website' : undefined };
       },
     },
   ];
