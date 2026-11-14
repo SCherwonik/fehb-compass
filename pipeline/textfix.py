@@ -57,10 +57,20 @@ TYPOS = {
     "addmission": "admission", "admisison": "admission", "alloowance": "allowance",
     "allowanceup": "allowance up", "copayup": "copay up", "authorizaton": "authorization",
     "calendary": "calendar", "hopsital": "hospital", "maxiumum": "maximum",
-    "nnual": "annual", "surery": "surgery", "co ins": "coins",
+    "nnual": "annual", "surery": "surgery", "co ins": "coinsurance",
     "per aper admission": "per admission",
     "upto": "up to", "inpat cost": "inpatient cost",
 }
+# Cell shorthand spelled out. Exact-case, whole-word only (never 'Added', 'MO', 'Prevention').
+ABBREVIATIONS = {
+    "Ded": "Deductible", "ded": "deductible", "Coins": "Coinsurance", "coins": "coinsurance",
+    "Auth": "Authorization", "auth": "authorization", "mo": "month", "Yr": "Year",
+    "prev": "preventive", "chiro": "chiropractic", "acu": "acupuncture", "comb": "combined",
+    "Meds": "Medications", "OOPM": "out-of-pocket maximum", "w/in": "within",
+}
+_ABBR = re.compile(
+    r"(?<![A-Za-z0-9'/])(" + "|".join(re.escape(k) for k in ABBREVIATIONS) + r")(?![A-Za-z0-9'/])")
+
 # Clipped at the end of the cell text (only repaired when it is the last word).
 TRUNCATED = {"admi": "admission", "offic": "office", "copaymen": "copayment",
              "allowanc": "allowance"}
@@ -147,6 +157,7 @@ def fix_spacing(text: str, vocab: Counter | None = None) -> str:
     t = re.sub(r"\s+", " ", text.replace("\u00a0", " ")).strip()
     t = _GLUED.sub(lambda m: GLUED[m.group(1)], t)
     t = _TYPOS.sub(lambda m: _keep_case(m, TYPOS), t)
+    t = _ABBR.sub(lambda m: ABBREVIATIONS[m.group(1)], t)
     t = _TRUNC.sub(lambda m: _keep_case(m, TRUNCATED), t)
     t = _DIGITS.sub(r"\1\2", t)
     for rx, rep in _PUNCT_RULES:
