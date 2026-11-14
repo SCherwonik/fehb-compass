@@ -35,9 +35,11 @@ h1, h2, h3, p { margin: 0; }
 /* Theme toggle: a single cross-fade of the whole page (View Transitions API, see src/ui/theme.js), so every color
    changes at once and ends at the same moment. */
 ::view-transition-old(root), ::view-transition-new(root) {
-  animation-duration: 380ms;
-  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  animation-duration: 600ms;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
+/* while the page cross-fades, no element runs its own color transition underneath (the fade shows the live new page) */
+.theme-instant *, .theme-instant *::before, .theme-instant *::after { transition: none !important; }
 
 /* Fallback for browsers without View Transitions: color hand-off on every element. */
 .theme-shift, .theme-shift * {
@@ -167,7 +169,6 @@ h1, h2, h3, p { margin: 0; }
   transform: rotate(-60deg) scale(0.6);
   transition: opacity var(--dur-fast) var(--ease-out), transform var(--dur-slow) var(--ease-spring);
 }
-.icon-btn[data-mode="system"] .icon-system,
 .icon-btn[data-mode="light"] .icon-light,
 .icon-btn[data-mode="dark"] .icon-dark { opacity: 1; transform: none; }
 
