@@ -3,8 +3,12 @@ import { h, svg } from './inputs.js';
 import { makeRow, planInput, costInputs } from './model.js';
 import { planTotal } from '../engine/cost.js';
 import { FLAG_TEXT } from '../engine/diff.js';
-import { usd, signedUsd, shareText, deltaTone, DASH } from './format.js';
+import { usd, signedUsd, deltaTone, DASH } from './format.js';
 import { reduceMotion, EASE_OUT } from './motion.js';
+import { createMatrixPanel } from './matrix.js';
+
+// One matrix panel for the page: it keeps its search text and open sections while the grid re-renders.
+let matrixPanel = null;
 
 const ICON_X = '<svg viewBox="0 0 16 16" aria-hidden="true" class="icon-x"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>';
 
@@ -86,15 +90,12 @@ export function renderCompare(section, { data, state, onRemove, onClose }) {
       })));
   }
 
-  // cost sharing + changes rows (text)
+  // Primary care, specialist and every other cost share live in the full benefits matrix below.
   grid.append(h('div', { class: 'cg-row', role: 'row' },
-    h('div', { class: 'cg-label', role: 'rowheader' }, 'Primary care / specialist'),
-    rows.map((r) => {
-      const c = r.benefits.copays ?? {};
-      return h('div', { class: 'cg-cell', role: 'cell' },
-        h('span', { class: 'cg-now cg-text' }, `${shareText(c.primary_care) ?? DASH} / ${shareText(c.specialist) ?? DASH}`),
-        h('span', { class: 'cg-was' }, r.facts.coinsurance != null ? `${r.facts.coinsurance}% coinsurance` : 'No plan-wide coinsurance listed'));
-    })));
+    h('div', { class: 'cg-label', role: 'rowheader' }, 'Coinsurance'),
+    rows.map((r) => h('div', { class: 'cg-cell', role: 'cell' },
+      h('span', { class: 'cg-now cg-text' }, r.facts.coinsurance != null ? `${r.facts.coinsurance}%` : DASH),
+      h('span', { class: 'cg-was' }, r.facts.coinsurance != null ? 'plan-wide' : 'varies by service')))));
   grid.append(h('div', { class: 'cg-row', role: 'row' },
     h('div', { class: 'cg-label', role: 'rowheader' }, 'What changed'),
     rows.map((r) => h('div', { class: 'cg-cell', role: 'cell' },
@@ -102,7 +103,14 @@ export function renderCompare(section, { data, state, onRemove, onClose }) {
         ? h('ul', { class: 'cg-flags' }, r.diff.flags.map((f) => h('li', {}, FLAG_TEXT[f] ?? f)))
         : h('span', { class: 'cg-was' }, r.diff.status === 'new' ? 'New plan for 2027' : 'No warning signs')))));
 
-  section.replaceChildren(head, h('div', { class: 'compare-scroll' }, grid));
+  matrixPanel ??= createMatrixPanel();
+  matrixPanel.update({
+    year: 2027,
+    enrollment: state.enrollment,
+    status: state.status,
+    plans: rows.map((r) => ({ code: r.code, name: r.plan.name, benefits: r.benefits })),
+  });
+  section.replaceChildren(head, h('div', { class: 'compare-scroll' }, grid), matrixPanel.el);
 }
 
 /** Reveal the compare section with a short rise; reduced motion just shows it. */

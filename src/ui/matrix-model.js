@@ -83,6 +83,12 @@ const LABELS = {
   'Plan Option Type': 'Plan option type',
 };
 
+// OPM's Title Case field names, read as sentence case; proper nouns and Medicare terms keep their capitals.
+const KEEP_CAPS = new Set(['Medicare', 'Advantage', 'Part', 'Parts']);
+function sentenceCase(t) {
+  return t.replace(/\b([A-Z])([a-z]+)\b/g, (m, a, b, i) => (i === 0 || KEEP_CAPS.has(m) ? m : a.toLowerCase() + b));
+}
+
 const MAX_ROWS = new Set([
   'Medical account contribution',
   'Total Annual Part B Premium Reimbursement Amount Per Enrollee (MAPD)',
@@ -171,9 +177,22 @@ const SHARE_RE = /\$\s?([\d,]+(?:\.\d+)?)\s*(copayment|copay)|(\d+(?:\.\d+)?)\s*
 /**
  * Plain-English parse of one OPM cell. The original text is always kept in `text`.
  * -> { kind, display, value, unit, share?, name?, note? } (see header for kinds)
+ * Results are memoized by text (the board parses ~100 rows x ~120 plans per render; OPM repeats wording a lot).
  */
+const parseCache = new Map();
 export function parseCell(raw) {
   if (raw == null || String(raw).trim() === '') return { text: null, kind: 'missing', display: 'Not listed', value: null, unit: null };
+  const key = String(raw);
+  let hit = parseCache.get(key);
+  if (!hit) {
+    if (parseCache.size > 20000) parseCache.clear();
+    hit = Object.freeze(parseUncached(key));
+    parseCache.set(key, hit);
+  }
+  return { ...hit };
+}
+
+function parseUncached(raw) {
   const text = String(raw);
   const s = text.trim();
   const dash = s.indexOf(' - ');
@@ -292,7 +311,7 @@ export function buildMatrix(plans, { enrollment = 'self', status = 'active', ext
       return { code: p.code, field: f, ...parseCell(rawMap[f]) };
     });
     if (cells.every((c) => c.kind === 'missing')) continue;
-    const label = /^Tier \d+$/.test(base) ? base : LABELS[base] ?? base;
+    const label = /^Tier \d+$/.test(base) ? base : LABELS[base] ?? sentenceCase(base);
     rowsBySection.get(b.section).push({
       key: base,
       label,
@@ -351,3 +370,90 @@ export function buildMatrix(plans, { enrollment = 'self', status = 'active', ext
 }
 
 export const sectionById = (id) => SECTION_BY_ID.get(id) ?? null;
+
+const matches = (q, ...parts) => parts.some((p) => p != null && String(p).toLowerCase().includes(q));
+
+/**
+ * View filter over buildMatrix output.
+ * diffOnly: keep only rows where the plans differ. query: case-insensitive substring over the row label, the OPM
+ * field name, the section title and every cell's wording and display.
+ * Sections left with no rows are dropped. -> { sections: [{...section, rows, forcedOpen}], hiddenRows, matched }
+ *   hiddenRows: rows hidden by diffOnly (search misses are not counted); matched: rows shown.
+ *   forcedOpen: true while searching, so the matches are visible whatever the saved open state is.
+ */
+export function filterMatrix(sections, { diffOnly = false, query = '' } = {}) {
+  const q = String(query ?? '').trim().toLowerCase();
+  let hiddenRows = 0;
+  let matched = 0;
+  const out = [];
+  for (const s of sections ?? []) {
+    const rows = s.rows.filter((r) => {
+      if (diffOnly && !r.differs) { hiddenRows += 1; return false; }
+      if (!q) return true;
+      return matches(q, r.label, r.hint, r.key, s.title, r.sub) || r.cells.some((c) => matches(q, c.text, c.display, c.name));
+    });
+    matched += rows.length;
+    if (rows.length) out.push({ ...s, rows, forcedOpen: Boolean(q) });
+  }
+  return { sections: out, hiddenRows, matched };
+}
+
+/** Saved matrix view prefs (localStorage; never in the shareable hash): { diffOnly, open: { [sectionId]: boolean } }. */
+export function sanitizeMatrixPrefs(v) {
+  const src = v && typeof v === 'object' ? v : {};
+  const open = {};
+  if (src.open && typeof src.open === 'object' && !Array.isArray(src.open)) {
+    for (const [k, b] of Object.entries(src.open)) if (SECTION_BY_ID.has(k) && typeof b === 'boolean') open[k] = b;
+  }
+  return { diffOnly: src.diffOnly === true, open };
+}
+
+/**
+ * Board adapter: matrix sections -> the board's section/row-definition shape (board-model.js header), so the
+ * Compare Board renders the same matrix the 4-plan compare panel does. `sections` is buildMatrix (or
+ * filterMatrix().sections) output built over the board's plans; `open` maps section id -> boolean overrides.
+ * Board row keys are 'mx:<section>:<field>' so they never collide with the board's own rows.
+ */
+export function matrixBoardSections(sections, { open = {} } = {}) {
+  return (sections ?? []).map((s) => ({
+    key: `mx-${s.id}`,
+    matrixId: s.id,
+    label: s.title,
+    note: s.note,
+    prominent: s.prominent,
+    collapsible: true,
+    open: s.forcedOpen || (typeof open[s.id] === 'boolean' ? open[s.id] : s.open),
+    count: `${s.rows.length} ${s.rows.length === 1 ? 'row' : 'rows'}`,
+    rows: s.rows.map((r) => {
+      const byCode = new Map(r.cells.map((c) => [c.code, c]));
+      return {
+        key: `mx:${s.id}:${r.key}`,
+        label: r.label,
+        labelSub: r.sub,
+        hint: r.hint ? `OPM field: ${r.hint}` : undefined,
+        differs: r.differs,
+        best: r.dir ?? null,
+        // best-in-row over the board group's own cells, with the matrix's unit-aware rule
+        bestOf: (cells) => new Set(rowBest(cells.map((c) => c.mx ?? { kind: 'missing' }), r.dir)),
+        cell: (row) => boardCell(byCode.get(row.code)),
+      };
+    }),
+  }));
+}
+
+const KIND_TONE = { missing: 'muted', na: 'muted', none: 'muted' };
+
+/** One matrix cell as a board cell descriptor: short display, tier name, clamped note, raw wording as the title. */
+export function boardCell(c) {
+  if (!c) return { text: 'Not listed', tone: 'muted', kind: 'missing', value: null, mx: { kind: 'missing' } };
+  return {
+    text: c.display,
+    sub: c.name || undefined,
+    note: c.kind === 'text' ? undefined : c.note || undefined,
+    title: c.text ?? undefined,
+    kind: c.kind,
+    tone: KIND_TONE[c.kind],
+    value: Number.isFinite(c.value) ? c.value : null,
+    mx: c,
+  };
+}

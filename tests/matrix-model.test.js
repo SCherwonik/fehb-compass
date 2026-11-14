@@ -250,3 +250,68 @@ test('real data: parsed values agree with the pipeline copay parser where both e
   }
   assert.ok(n > 300);
 });
+
+// ---------- view filtering: differences only + search ----------
+import { filterMatrix, sanitizeMatrixPrefs } from '../src/ui/matrix-model.js';
+
+test('filterMatrix: differences only hides identical rows and empty sections, and counts them', () => {
+  const m = buildMatrix(fixture, { year: 2027, enrollment: 'self', status: 'active' });
+  const total = m.reduce((n, s) => n + s.rows.length, 0);
+  const all = filterMatrix(m, {});
+  assert.equal(all.hiddenRows, 0);
+  assert.equal(all.sections.reduce((n, s) => n + s.rows.length, 0), total);
+  const d = filterMatrix(m, { diffOnly: true });
+  assert.ok(d.sections.every((s) => s.rows.length > 0 && s.rows.every((r) => r.differs)));
+  assert.equal(d.hiddenRows, total - d.sections.reduce((n, s) => n + s.rows.length, 0));
+  assert.ok(d.hiddenRows > 0);
+  assert.ok(!d.sections.some((s) => s.id === 'visits'), 'every visit row matches, so the section hides');
+});
+
+test('filterMatrix: search matches labels, OPM field names, section titles and cell text', () => {
+  const m = buildMatrix(fixture, { year: 2027, enrollment: 'self', status: 'active' });
+  const keys = (f) => f.sections.flatMap((s) => s.rows.map((r) => r.key));
+  assert.deepEqual(keys(filterMatrix(m, { query: 'chiro' })), ['Chiropractic']);
+  assert.deepEqual(keys(filterMatrix(m, { query: 'Primary care' })), ['Primary Care Office Visit']);
+  assert.ok(keys(filterMatrix(m, { query: 'prescriptions' })).includes('Tier 1'), 'section title');
+  assert.ok(keys(filterMatrix(m, { query: '30% coinsurance' })).includes('Tier 2'), 'cell text');
+  const none = filterMatrix(m, { query: 'zzzz' });
+  assert.equal(none.sections.length, 0);
+  assert.ok(none.matched === 0);
+  // search sections are reported open so matches are visible
+  assert.ok(filterMatrix(m, { query: 'waived' }).sections.every((s) => s.forcedOpen));
+});
+
+test('sanitizeMatrixPrefs keeps only known section ids and booleans', () => {
+  assert.deepEqual(sanitizeMatrixPrefs(null), { diffOnly: false, open: {} });
+  assert.deepEqual(
+    sanitizeMatrixPrefs({ diffOnly: true, open: { rx: false, medicare: true, '<script>': true, other: 'yes' }, junk: 1 }),
+    { diffOnly: true, open: { rx: false, medicare: true } },
+  );
+  assert.deepEqual(sanitizeMatrixPrefs({ diffOnly: 'true', open: [] }), { diffOnly: false, open: {} });
+});
+
+import { matrixBoardSections } from '../src/ui/matrix-model.js';
+
+test('board adapter: same rows, unique keys, cells by plan code, unit-aware best', () => {
+  const m = buildMatrix(fixture, { year: 2027, enrollment: 'self', status: 'active' });
+  const secs = matrixBoardSections(m, { open: { medicare: true } });
+  assert.equal(secs[0].key, 'mx-rx');
+  assert.equal(secs[0].open, true);
+  assert.equal(secs.find((s) => s.matrixId === 'medicare').open, true);
+  const keys = secs.flatMap((s) => s.rows.map((r) => r.key));
+  assert.equal(new Set(keys).size, keys.length);
+  const t1 = secs[0].rows.find((r) => r.key === 'mx:rx:Tier 1');
+  const rows = fixture.map((p) => ({ code: p.code }));
+  const cells = rows.map((r) => t1.cell(r));
+  assert.deepEqual(cells.map((c) => c.text), ['$10', '$5', '$10']);
+  assert.equal(cells[0].sub, 'Generic');
+  assert.equal(cells[0].title, 'Generic - $10 Copayment');
+  assert.deepEqual([...t1.bestOf(cells)], [1]);
+  const t2 = secs[0].rows.find((r) => r.key === 'mx:rx:Tier 2');
+  assert.deepEqual([...t2.bestOf(rows.map((r) => t2.cell(r)))], [], '$ vs % never compared');
+  assert.equal(t1.cell({ code: 'nope' }).text, 'Not listed');
+  for (const s of secs) for (const d of s.rows) for (const r of rows) {
+    const c = d.cell(r);
+    assert.ok(c.text && !/undefined|NaN/.test(`${c.text} ${c.sub ?? ''} ${c.note ?? ''}`), d.key);
+  }
+});

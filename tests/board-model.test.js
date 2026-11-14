@@ -70,7 +70,7 @@ test('sections are data: every row has a key, label and cell(); no cell shows Na
       }
     }
   }
-  for (const k of ['total', 'premium', 'oop', 'ceiling', 'value', 'deductible', 'oopMax', 'coinsurance', 'pcp', 'specialist', 'er', 'urgent', 'hospital', 'surgeon', 'account', 'deposit', 'chgPremium', 'chgDeductible', 'chgOopMax', 'flags', 'family', 'ptype', 'formulary']) {
+  for (const k of ['total', 'premium', 'oop', 'ceiling', 'value', 'deductible', 'oopMax', 'coinsurance', 'account', 'deposit', 'chgPremium', 'chgDeductible', 'chgOopMax', 'flags', 'family', 'ptype', 'formulary']) {
     assert.ok(keys.has(k), `missing row ${k}`);
   }
   const ded = MEDICAL_SECTIONS.flatMap((s) => s.rows).find((d) => d.key === 'deductible');

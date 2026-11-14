@@ -9,8 +9,7 @@
 // `value` feeds best-in-row: `best` says which direction wins; `strict` skips the highlight when any
 // column has no comparable value (e.g. a $30 copay against 20% coinsurance).
 // The dental/vision board (Task 7) supplies its own sections and header in this same shape.
-import { usd, signedUsd, signedPct, shareText, deltaTone, DASH } from './format.js';
-import { appliesDeductible } from '../engine/cost.js';
+import { usd, signedUsd, signedPct, deltaTone, DASH } from './format.js';
 import { FLAG_TEXT } from '../engine/diff.js';
 
 const fin = (n) => typeof n === 'number' && Number.isFinite(n);
@@ -109,23 +108,6 @@ export const sectionsFor = (sections, ctx) => sections.filter((s) => !s.when || 
 
 // ---------- cells ----------
 const money = (n, extra = {}) => ({ text: usd(n), value: fin(n) ? n : null, ...extra });
-
-function careCell(key) {
-  return (row) => {
-    const c = row.benefits?.copays?.[key];
-    const t = shareText(c);
-    if (!t) return { text: DASH, sub: c?.raw ? 'see plan brochure' : 'not listed', title: c?.raw || undefined, value: null, tone: 'muted' };
-    const free = c.kind === 'text';
-    const ded = appliesDeductible(c.raw, row.account === 'HSA');
-    const kind = free ? 'no charge' : c.kind === 'pct' ? 'coinsurance' : 'copay';
-    return {
-      text: t,
-      sub: ded ? `${kind} after deductible` : kind,
-      title: c.raw,
-      value: c.kind === 'pct' ? null : free ? 0 : c.value,
-    };
-  };
-}
 
 function changeCell(field, extra) {
   return (row) => {
@@ -234,17 +216,8 @@ export const MEDICAL_SECTIONS = [
       },
     ],
   },
-  {
-    key: 'care', label: 'Care costs',
-    rows: [
-      { key: 'pcp', label: 'Primary care', best: 'min', strict: true, cell: careCell('primary_care') },
-      { key: 'specialist', label: 'Specialist', best: 'min', strict: true, cell: careCell('specialist') },
-      { key: 'er', label: 'Emergency room', best: 'min', strict: true, cell: careCell('emergency') },
-      { key: 'urgent', label: 'Urgent care', best: 'min', strict: true, cell: careCell('urgent_care') },
-      { key: 'hospital', label: 'Hospital stay', best: 'min', strict: true, cell: careCell('inpatient_admission') },
-      { key: 'surgeon', label: 'Surgeon (inpatient)', best: 'min', strict: true, cell: careCell('inpatient_surgeon') },
-    ],
-  },
+  // Care costs (primary care, specialist, ER, hospital...) live in the full benefits matrix (matrix-model.js),
+  // which the board appends after these sections: one source of truth for every OPM benefit field.
   {
     key: 'account', label: 'Account',
     rows: [

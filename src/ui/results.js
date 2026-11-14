@@ -2,9 +2,8 @@
 // Cards are keyed by plan code and updated in place; reordering uses FLIP limited to visible cards.
 import { h, svg, segmented, ICON_CHECK, ICON_CHEVRON, describeScenario, mineSwitch } from './inputs.js';
 import { computeRows, savingsVsCurrent, availablePlans, SORTS, rankWithMine } from './model.js';
-import { createBoard } from './board.js';
-import { groupPlans, GROUP_LABELS, GROUP_MODES } from './grouping.js';
-import { MEDICAL_SECTIONS, boardContext, sectionsFor, medicalHeader, scopeText } from './board-model.js';
+import { GROUP_LABELS, GROUP_MODES } from './grouping.js';
+import { createResultsBoard, mineNoteText } from './results-board.js';
 import { renderCompare, revealCompare } from './compare.js';
 import { FLAG_TEXT } from '../engine/diff.js';
 import { ASSUMED_PRICES, ASSUMPTIONS_NOTE } from '../engine/assumptions.js';
@@ -85,8 +84,7 @@ export function createResults(main, { store }) {
   const head = h('header', { class: 'rhead' },
     h('div', { class: 'rhead-copy' }, title, countRow, infoNote, sub, mineNote),
     h('div', { class: 'rtools' }, viewCtl.el, groupCtl, sortCtl.el, typeCtl.el, mineCtl.el));
-  const board = createBoard({ label: 'Plan comparison board. Columns are plans, best first.' });
-  board.el.hidden = true;
+  const board = createResultsBoard();
 
   const savings = h('section', { class: 'savings', hidden: true, 'aria-live': 'polite' });
   const compare = h('section', { class: 'compare', hidden: true, 'aria-labelledby': 'compare-title' });
@@ -298,11 +296,16 @@ export function createResults(main, { store }) {
     // chips: your plan / vs your plan, firmness, status, warnings (rebuilt only when their content changes)
     const vsMine = mine && !row.isMine ? Math.round(row.cost.total - mine.cost.total) : null;
     rec.el.classList.toggle('is-mine', Boolean(row.isMine));
-    const key = `${row.isMine ? `mine:${mineWhere}` : ''}|${vsMine}|${row.cost.firmness}|${row.diff.status}|${row.diff.flags.join(',')}`;
+    // the pinned plan sits outside the ranking: its number is the overall rank in the state
+    const rankTag = row.isMine && Number.isInteger(row.globalRank)
+      ? `#${row.globalRank} overall${mineFiltersOn ? (row.viewRank ? ` · #${row.viewRank} in this view` : ' · outside your filters') : ''}`
+      : '';
+    const key = `${row.isMine ? `mine:${mineWhere}:${rankTag}` : ''}|${vsMine}|${row.cost.firmness}|${row.diff.status}|${row.diff.flags.join(',')}`;
     if (key !== rec.chipsKey) {
       rec.chipsKey = key;
       const items = [
         row.isMine && h('li', { class: 'tag tag-mine' }, 'Your plan · 2027'),
+        rankTag && h('li', { class: 'tag' }, rankTag),
         row.isMine && mineWhere && h('li', { class: 'tag' }, `Not listed for ${mineWhere}`),
         vsMine != null && h('li', { class: `tag tag-vs tag-vs-${deltaTone(vsMine)}`, title: 'Estimated yearly total compared with your plan in 2027' },
           deltaTone(vsMine) === 'flat' ? 'Same as your plan' : `${signedUsd(vsMine)} vs your plan`),
@@ -423,42 +426,11 @@ export function createResults(main, { store }) {
   // ---------- include my plan ----------
   let mine = null; // the user's 2027 row when pinned
   let mineWhere = ''; // state name when that plan is not listed there
+  let mineFiltersOn = false; // results filters narrowing the plans (the pinned card then also shows its filtered rank)
   function renderMineNote(state, res, where) {
-    const name = data.plans.find((p) => p.year === 2026 && p.code === state.currentPlan2026)?.name ?? 'Your plan';
-    let text = '';
-    if (res.mineStatus === 'ended') text = `${name} has no 2027 version, so it cannot be pinned. Savings are measured against what it cost in 2026.`;
-    else if (res.mineStatus === 'uncostable') text = `${name} has no 2027 rate for this coverage, so it cannot be pinned.`;
-    else if (res.mineStatus === 'included' && res.notInState) text = `${name} (2027) is not listed for ${where ?? 'nationwide enrollment'}. It is pinned so you can compare.`;
+    const text = mineNoteText(data, state, res, where);
     mineNote.hidden = !text;
     mineNote.textContent = text;
-  }
-
-  // ---------- board ----------
-  let boardOpen = false;
-  function renderBoard(state, res) {
-    const groups = groupPlans(res.others, state.group);
-    if (res.mine) {
-      groups.unshift({ key: 'mine', label: 'Your plan', rows: [res.mine], total: 1, note: mineWhere ? `2027 version, not listed for ${mineWhere}` : '2027 version' });
-    }
-    const ctx = boardContext(res.ranked, state, res.mine);
-    const shown = groups.reduce((n, g) => n + (g.key === 'mine' ? 0 : g.rows.length), 0);
-    const segs = groups.filter((g) => g.key !== 'mine').length;
-    const n = res.others.length;
-    const plans = (k) => `${k} ${k === 1 ? 'plan' : 'plans'}`;
-    let text;
-    if (state.group === 'all') text = `Showing all ${plans(n)}`;
-    else if (state.group === 'top3') text = `Showing ${plans(shown)}: the top ${shown} of ${n} available`;
-    else text = `Showing ${plans(shown)}: top 3 in ${segs} ${segs === 1 ? 'group' : 'groups'} of ${n} available`;
-    text += res.mine ? ', plus your plan.' : '.';
-    board.update({
-      groups,
-      sections: sectionsFor(MEDICAL_SECTIONS, ctx),
-      header: (row, g) => medicalHeader(row, g.rows, ctx, g.key === 'mine' ? '' : scopeText(state.group, g)),
-      ctx,
-      summary: text,
-      enter: !boardOpen,
-    });
-    boardOpen = true;
   }
 
   let first = true;
@@ -466,8 +438,9 @@ export function createResults(main, { store }) {
     if (!data) return;
     const isBoard = state.view === 'board';
     const filteredRows = computeRows(data, state, { type: ui.type });
-    const res = rankWithMine(data, state, filteredRows, isBoard ? 'total' : ui.sort);
+    const res = rankWithMine(data, state, filteredRows, isBoard ? 'total' : ui.sort, { type: ui.type });
     mine = res.mine;
+    mineFiltersOn = res.filtersOn;
     // the user's plan pinned first, every other plan in its true rank order
     const rows = res.mine ? [res.mine, ...res.others] : res.ranked;
     sortCtl.sync(ui.sort);
@@ -500,9 +473,9 @@ export function createResults(main, { store }) {
     list.hidden = isBoard;
     board.el.hidden = !isBoard;
     if (isBoard) {
-      renderBoard(state, res);
+      board.render(data, state, res, { mineWhere });
     } else {
-      boardOpen = false;
+      board.reset();
       const scale = Math.max(1, ...rows.map((r) => r.cost.premium + r.cost.oop));
       const firstPos = first ? new Map() : measure(list); // read before any write: no forced recalc
       const els = rows.map((row) => {

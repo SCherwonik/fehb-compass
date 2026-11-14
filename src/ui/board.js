@@ -22,18 +22,26 @@ const BUFFER = 4;
 const ICON_L = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5L5.5 8l4.5 4.5"/></svg>';
 const ICON_R = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5L10.5 8 6 12.5"/></svg>';
 const ICON_INFO = '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v4M8 4.9v.1"/></svg>';
+const ICON_CHEV = '<svg viewBox="0 0 16 16" aria-hidden="true" class="mx-chev"><path d="M4 6l4 4 4-4"/></svg>';
+const NOTE_CLAMP = 90; // characters before a cell note gets a "More" toggle (CSS clamps it to 3 lines)
 
 let uid = 0;
+// Row keys can hold OPM field names (spaces, brackets): make them safe for id and aria-controls (IDREFS).
+const idSafe = (k) => String(k).replace(/[^A-Za-z0-9_-]+/g, '_');
 
 /**
  * createBoard({ label, hooks }) -> { el, update(opts) }
  * hooks: { [cell.hook]: (row, td, cell) => void } custom renderers (e.g. the formulary task).
+ * onSectionToggle(sectionKey, open): called when the user opens or closes a collapsible section.
+ * Sections may be collapsible ({ collapsible, open, prominent, note, count }); row definitions may carry
+ * `differs` (marked in the label), `labelSub`, and `bestOf(cells) -> Set` (a custom best-in-row rule).
+ * Cell descriptors may carry `kind` (styled k-<kind>) and `note` (clamped to 3 lines with a More toggle).
  * update({ groups: [{key,label,rows,total,note?}], sections, header(row, group) -> descriptor, ctx,
  *          summary, animate = true, enter = false })
  * Header descriptor: { title, subtitle, chips: [{text, tone}], total, totalLabel, bar: {p,o,d}, why }.
  * Rows need `code` and `rank`; `isMine` pins the column (sticky on wide screens).
  */
-export function createBoard({ label = 'Plan comparison board', hooks = {} } = {}) {
+export function createBoard({ label = 'Plan comparison board', hooks = {}, onSectionToggle } = {}) {
   const id = `bd${++uid}`;
   const caption = h('caption', { class: 'sr-only' });
   const colgroup = h('colgroup');
@@ -71,6 +79,7 @@ export function createBoard({ label = 'Plan comparison board', hooks = {} } = {}
   let rowEls = new Map(); // def.key -> tr
   let sectionSig = '';
   let sectionHeads = []; // th elements spanning the table (colspan updates)
+  let sectionBodies = new Map(); // section key -> tbody (collapsible sections)
   let win = { start: 0, end: -1 };
   let metrics = null;
   let hasMine = false;
@@ -107,7 +116,7 @@ export function createBoard({ label = 'Plan comparison board', hooks = {} } = {}
   function renderCell(col, def, td) {
     const d = col.desc.get(def.key);
     if (!d) return;
-    td.className = `${col.base}${d.best ? ' is-best' : ''}${d.tone ? ` t-${d.tone}` : ''}${def.strong ? ' is-strong' : ''}`;
+    td.className = `${col.base}${d.best ? ' is-best' : ''}${d.tone ? ` t-${d.tone}` : ''}${d.kind ? ` k-${d.kind}` : ''}${def.strong ? ' is-strong' : ''}`;
     td._base = null;
     if (d.title) td.title = d.title; else td.removeAttribute('title');
     if (d.hook) {
@@ -118,6 +127,10 @@ export function createBoard({ label = 'Plan comparison board', hooks = {} } = {}
     if (d.best) kids.push(h('span', { class: 'sr-only' }, ' (best in this row)'));
     if (d.meter != null) kids.push(h('span', { class: 'bd-meter', 'aria-hidden': 'true', style: `--m:${Math.max(0, Math.min(1, d.meter)).toFixed(3)}` }));
     if (d.sub) kids.push(h('span', { class: 'bd-s' }, d.sub));
+    if (d.note) {
+      kids.push(h('span', { class: 'bd-note' }, d.note));
+      if (d.note.length > NOTE_CLAMP) kids.push(h('button', { type: 'button', class: 'bd-more', 'aria-expanded': 'false' }, 'More'));
+    }
     if (d.items?.length) kids.push(h('ul', { class: 'bd-items' }, d.items.map((t) => h('li', {}, t))));
     td.replaceChildren(...kids);
   }
@@ -144,6 +157,7 @@ export function createBoard({ label = 'Plan comparison board', hooks = {} } = {}
   function makeCol(key) {
     const p = {
       rank: h('span', { class: 'bd-rank' }),
+      rankSub: h('span', { class: 'bd-rank-sub', hidden: true }),
       chips: h('ul', { class: 'bd-chips' }),
       name: h('span', { class: 'bd-name' }),
       sub: h('span', { class: 'bd-sub' }),
@@ -155,7 +169,7 @@ export function createBoard({ label = 'Plan comparison board', hooks = {} } = {}
     };
     const th = h('th', { scope: 'col', class: 'bd-head' },
       h('div', { class: 'bd-h' },
-        h('div', { class: 'bd-h-top' }, p.rank, p.chips),
+        h('div', { class: 'bd-h-top' }, p.rank, p.rankSub, p.chips),
         p.name, p.sub,
         h('div', { class: 'bd-total' }, p.num, p.numLabel),
         p.bar, p.why));
@@ -167,7 +181,10 @@ export function createBoard({ label = 'Plan comparison board', hooks = {} } = {}
   function fillHeader(col, hd, scale, animateNum) {
     const { p } = col;
     const row = col.item.row;
-    p.rank.replaceChildren(h('span', { class: 'sr-only' }, 'Rank '), `#${row.rank}`);
+    p.rank.replaceChildren(h('span', { class: 'sr-only' }, 'Rank '), hd.rankText ?? `#${row.rank}`);
+    p.rank.classList.toggle('is-wide', Boolean(hd.rankText && hd.rankText.length > 4));
+    p.rankSub.textContent = hd.rankSub ?? '';
+    p.rankSub.hidden = !hd.rankSub;
     if (p.name.textContent !== hd.title) { p.name.textContent = hd.title; p.name.title = hd.title; }
     p.sub.textContent = hd.subtitle ?? '';
     const ck = (hd.chips ?? []).map((c) => `${c.tone}:${c.text}`).join('|');
@@ -189,23 +206,36 @@ export function createBoard({ label = 'Plan comparison board', hooks = {} } = {}
     bodies = [];
     rowEls = new Map();
     sectionHeads = [];
+    sectionBodies = new Map();
     defs = [];
     for (const c of cols) { c.cells.clear(); c.filled = false; }
     for (const s of sections) {
-      const secTh = h('th', { scope: 'rowgroup', class: 'bd-sec' }, h('span', { class: 'bd-sec-label' }, s.label));
+      const bodyId = `${id}-sec-${idSafe(s.key)}`;
+      const secTh = h('th', { scope: 'rowgroup', class: `bd-sec${s.prominent ? ' is-prominent' : ''}` },
+        s.collapsible
+          ? h('span', { class: 'bd-sec-label' },
+            h('button', { type: 'button', class: 'bd-sec-toggle', 'aria-expanded': String(s.open !== false), 'aria-controls': bodyId, 'data-sec': s.key },
+              svg(ICON_CHEV), h('span', { class: 'bd-sec-title' }, s.label), s.count && h('span', { class: 'bd-sec-count' }, s.count)),
+            s.note && h('span', { class: 'bd-sec-note' }, s.note))
+          : h('span', { class: 'bd-sec-label' }, s.label));
       sectionHeads.push(secTh);
-      const tb = h('tbody', { class: `bd-group bd-group-${s.key}` }, h('tr', { class: 'bd-sec-row' }, secTh));
+      const tb = h('tbody', {
+        id: bodyId,
+        class: `bd-group bd-group-${s.key}${s.collapsible ? ' is-collapsible' : ''}${s.collapsible && s.open === false ? ' is-collapsed' : ''}${s.prominent ? ' is-prominent' : ''}`,
+      }, h('tr', { class: 'bd-sec-row' }, secTh));
+      if (s.collapsible) sectionBodies.set(s.key, tb);
       for (const def of s.rows) {
         defs.push(def);
-        const tipId = `${id}-tip-${def.key}`;
+        const tipId = `${id}-tip-${idSafe(def.key)}`;
         const labelTh = h('th', { scope: 'row', class: `bd-label${def.strong ? ' is-strong' : ''}` },
           h('span', { class: 'bd-label-row' },
-            h('span', { class: 'bd-label-text' }, def.label),
+            def.differs && h('span', { class: 'bd-diff', title: 'Plans differ here' }, h('span', { class: 'sr-only' }, 'Plans differ: ')),
+            h('span', { class: 'bd-label-text' }, def.label, def.labelSub && h('span', { class: 'bd-label-sub' }, def.labelSub)),
             def.hint && h('button', {
               type: 'button', class: 'bd-hint', 'aria-expanded': 'false', 'aria-controls': tipId, 'aria-label': `About ${def.label}`,
             }, svg(ICON_INFO))),
           def.hint && h('span', { class: 'bd-tip', id: tipId, hidden: true }, def.hint));
-        const tr = h('tr', { class: 'bd-row', 'data-key': def.key }, labelTh);
+        const tr = h('tr', { class: `bd-row${def.differs ? ' is-diff' : ''}`, 'data-key': def.key }, labelTh);
         rowEls.set(def.key, tr);
         tb.append(tr);
       }
@@ -309,6 +339,23 @@ export function createBoard({ label = 'Plan comparison board', hooks = {} } = {}
 
   // Row-label info toggles.
   table.addEventListener('click', (e) => {
+    const more = e.target.closest('.bd-more');
+    if (more) {
+      const open = more.getAttribute('aria-expanded') !== 'true';
+      more.setAttribute('aria-expanded', String(open));
+      more.textContent = open ? 'Less' : 'More';
+      more.closest('td')?.classList.toggle('is-expanded', open);
+      return;
+    }
+    const tog = e.target.closest('.bd-sec-toggle');
+    if (tog) {
+      const tb = sectionBodies.get(tog.dataset.sec);
+      if (!tb) return;
+      const open = tb.classList.contains('is-collapsed');
+      setSectionOpen(tb, tog, open, true);
+      onSectionToggle?.(tog.dataset.sec, open);
+      return;
+    }
     const btn = e.target.closest('.bd-hint');
     if (!btn) return;
     const tip = document.getElementById(btn.getAttribute('aria-controls'));
@@ -316,6 +363,28 @@ export function createBoard({ label = 'Plan comparison board', hooks = {} } = {}
     btn.setAttribute('aria-expanded', String(open));
     tip.hidden = !open;
   });
+
+  function setSectionOpen(tb, tog, open, animate) {
+    if (tb.classList.contains('is-collapsed') === !open) return;
+    tb.classList.toggle('is-collapsed', !open);
+    tog.setAttribute('aria-expanded', String(open));
+    if (open) fillWindow(); // rows that were collapsed may hold unfilled cells
+    if (open && animate && !reduceMotion()) {
+      [...tb.rows].slice(1, 16).forEach((tr, i) => {
+        tr.animate([{ opacity: 0, transform: 'translateY(-6px)' }, { opacity: 1, transform: 'none' }],
+          { duration: 300, delay: i * 18, easing: EASE_OUT, fill: 'backwards' });
+      });
+    }
+  }
+
+  /** Open or close collapsible sections without rebuilding (Expand all / Collapse all). */
+  function setSections(openByKey, animate = true) {
+    for (const [key, tb] of sectionBodies) {
+      if (!(key in openByKey)) continue;
+      const tog = tb.querySelector('.bd-sec-toggle');
+      if (tog) setSectionOpen(tb, tog, openByKey[key], animate);
+    }
+  }
 
   // ---------- pointer drag (mouse only; touch and trackpads scroll natively with momentum) ----------
   let drag = null;
@@ -414,13 +483,14 @@ export function createBoard({ label = 'Plan comparison board', hooks = {} } = {}
     // sections
     const sig = sections.map((s) => `${s.key}:${s.rows.map((r) => r.key).join(',')}`).join('|');
     if (sig !== sectionSig) { sectionSig = sig; rebuildBody(sections); }
+    else setSections(Object.fromEntries(sections.filter((s) => s.collapsible).map((s) => [s.key, s.open !== false])), false);
 
     // cell descriptors + best-in-row (per group; the pinned "your plan" group is its own baseline)
     for (const g of groups) {
       const gcols = cols.filter((c) => c.item.group === g);
       for (const def of defs) {
         const cells = gcols.map((c) => def.cell(c.item.row, ctx));
-        const best = g.key === 'mine' ? new Set() : bestInRow(def, cells);
+        const best = g.key === 'mine' ? new Set() : def.bestOf ? def.bestOf(cells) : bestInRow(def, cells);
         gcols.forEach((c, i) => c.desc.set(def.key, { ...cells[i], best: best.has(i) }));
       }
     }
@@ -441,6 +511,7 @@ export function createBoard({ label = 'Plan comparison board', hooks = {} } = {}
     fillWindow();
     for (const c of cols) if (!c.filled) clearColumn(c);
     updateNav();
+    table.style.setProperty('--bd-thead-h', `${thead.offsetHeight}px`);
 
     // FLIP "last/invert/play" for columns now in view
     if (motion || entering) {
@@ -470,5 +541,5 @@ export function createBoard({ label = 'Plan comparison board', hooks = {} } = {}
     first = false;
   }
 
-  return { el, update, scroller };
+  return { el, update, scroller, setSections };
 }
