@@ -89,7 +89,7 @@ export function bestInRow(def, cells) {
 }
 
 /** Shared context for cells: enrollment, scenario, value scores and the #1 total over every ranked row. */
-export function boardContext(rankedRows, state, mine = null) {
+export function boardContext(rankedRows, state, mine = null, baseline = null) {
   const rows = rankedRows ?? [];
   const totals = rows.map((r) => r.cost?.total).filter(fin);
   return {
@@ -98,6 +98,9 @@ export function boardContext(rankedRows, state, mine = null) {
     values: valueScores(rows, state?.enrollment ?? 'self'),
     minTotal: totals.length ? Math.min(...totals) : null,
     mine, // the user's 2027 plan row when "include my plan" is on: baseline for the "vs your plan" rows
+    // when the user's 2026 plan ended (no 2027 version): its 2026 figures, for the "vs your 2026 plan (ended)" rows
+    // { code, name, total, premium, deductible, oopMax } (model.endedBaseline)
+    baseline: mine ? null : baseline,
   };
 }
 
@@ -153,7 +156,29 @@ function vsMineCell(get) {
   };
 }
 
+// "vs your 2026 plan (ended)": each column minus what the user's ended plan cost in 2026.
+function vsEndedCell(get, key) {
+  return (row, ctx) => {
+    const a = get(row);
+    const b = ctx.baseline?.[key];
+    if (!fin(a) || !fin(b)) return { text: DASH, value: null, tone: 'muted' };
+    const n = a - b;
+    const tone = deltaTone(n);
+    if (tone === 'flat') return { text: 'Same', tone: 'flat', value: 0 };
+    return { text: signedUsd(n), sub: n < 0 ? `less than ${usd(b)} in 2026` : `more than ${usd(b)} in 2026`, tone, value: n };
+  };
+}
+
 export const MEDICAL_SECTIONS = [
+  {
+    key: 'vsEnded', label: 'Vs your 2026 plan (ended)', when: (ctx) => !ctx.mine && Boolean(ctx.baseline),
+    rows: [
+      { key: 'vsEndedTotal', label: 'Estimated total', strong: true, best: 'min', hint: 'Your 2026 plan has no 2027 version. Each plan is compared with what yours cost in 2026 for the same year of care.', cell: vsEndedCell((r) => r.cost?.total, 'total') },
+      { key: 'vsEndedPremium', label: 'Premium', best: 'min', cell: vsEndedCell((r) => r.cost?.premium, 'premium') },
+      { key: 'vsEndedDeductible', label: 'Deductible', best: 'min', cell: vsEndedCell((r) => r.facts?.deductible, 'deductible') },
+      { key: 'vsEndedOopMax', label: 'Out-of-pocket max', best: 'min', cell: vsEndedCell((r) => r.facts?.oopMax, 'oopMax') },
+    ],
+  },
   {
     key: 'vsMine', label: 'Vs your plan in 2027', when: (ctx) => Boolean(ctx.mine),
     rows: [
@@ -344,7 +369,17 @@ export function medicalHeader(row, group, ctx, scope) {
   chips.push({ text: TYPE_TEXT[row.plan?.type] ?? row.plan?.type ?? 'Plan', tone: 'type' });
   if (row.account) chips.push({ text: row.account, tone: 'acct' });
   if (row.diff?.status === 'new') chips.push({ text: 'New', tone: 'new' });
+  // The pinned plan sits outside the ranking: it claims its overall rank, and its filtered-view rank only
+  // when filters are narrowing the board.
+  let rankText = `#${row.rank}`;
+  let rankSub;
+  if (row.isMine && Number.isInteger(row.globalRank)) {
+    rankText = `#${row.globalRank} overall`;
+    if (ctx?.filtersOn) rankSub = Number.isInteger(row.viewRank) ? `#${row.viewRank} in this view` : 'not in this view';
+  }
   return {
+    rankText,
+    rankSub,
     title: row.plan?.name ?? row.code,
     subtitle: row.plan?.carrier || row.plan?.network_family || '',
     chips,

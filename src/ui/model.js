@@ -195,43 +195,91 @@ export function sortRows(rows, key = 'total') {
   return rows.slice().sort((a, b) => v(a) - v(b) || a.cost.total - b.cost.total || a.code.localeCompare(b.code));
 }
 
+/** True when any results filter is narrowing the plans open in the state (network, account or plan type). */
+export function filtersActive(state, type = 'all') {
+  return (state.networks?.length ?? 0) > 0 || (state.account ?? 'any') !== 'any' || (type ?? 'all') !== 'all';
+}
+
 /**
  * "Include my plan (2027 version)": the 2027 plan with the same code as state.currentPlan2026 joins the
  * compared set whatever the network / plan type / account / state filters say (it is what the user would
  * get by staying put, so every alternative should be measured against it).
- * -> { ranked, others, mine, mineStatus, notInState }
- *   ranked:  rows (plus mine when the filters had dropped it) sorted by sortKey; each a copy with a 1-based `rank`
- *   mine:    the user's 2027 row (in `ranked`, flagged isMine) or null; others: ranked minus mine
+ *
+ * Mine is pinned OUTSIDE the ranking: every other plan keeps the rank it has in the filtered view (`rows`),
+ * exactly as with the toggle off, so pinning never shifts anyone's number. Mine carries
+ *   globalRank: its TRUE rank among every plan open in the chosen state (network/account/type filters ignored;
+ *               when the plan is not offered in the state it is ranked among that state's plans plus itself)
+ *   viewRank:   its rank inside the filtered view, or null when the filters exclude it
+ *   rank:       = globalRank (what the pinned header shows, as "#21 overall")
+ * opts.type: the UI-local plan type filter that produced `rows` ('all' when none).
+ * -> { ranked, others, mine, mineStatus, notInState, filtersOn }
+ *   ranked:  others plus mine, in sort order (value scores and the #1 total are computed over this)
+ *   mine:    the user's 2027 row (flagged isMine) or null; others: ranked minus mine
  *   mineStatus: 'none' (no current plan) | 'off' (toggle off: behave as before) | 'ended' (no 2027 version)
  *               | 'uncostable' (no rate for this enrollment) | 'included'
  *   notInState: the 2027 service area does not list the chosen state (still included, flagged in the UI)
  */
-export function rankWithMine(data, state, rows, sortKey = 'total') {
+export function rankWithMine(data, state, rows, sortKey = 'total', { type = 'all' } = {}) {
   const code = state.currentPlan2026;
+  const filtersOn = filtersActive(state, type);
   const rank = (list) => sortRows(list, sortKey).map((r, i) => ({ ...r, rank: i + 1 }));
   const plain = (mineStatus) => {
     const ranked = rank(rows);
-    return { ranked, others: ranked, mine: null, mineStatus, notInState: false };
+    return { ranked, others: ranked, mine: null, mineStatus, notInState: false, filtersOn };
   };
   if (!code) return plain('none');
   if (state.includeMine === false) return plain('off');
   if (!planMeta(data, 2027, code)) return plain('ended');
-  let list = rows;
-  if (!rows.some((r) => r.code === code)) {
-    const m = makeRow(data, state, code);
-    if (!m) return plain('uncostable');
-    list = [...rows, m];
-  }
-  const ranked = rank(list);
-  const at = ranked.findIndex((r) => r.code === code);
-  ranked[at] = { ...ranked[at], isMine: true };
+
+  const viewRanked = rank(rows); // the filtered view's own ranking (identical to the toggle-off ranking)
+  const inView = viewRanked.find((r) => r.code === code) ?? null;
+  const base = inView ?? makeRow(data, state, code);
+  if (!base) return plain('uncostable');
+
+  // overall: every plan open in the state, no network/account/type filter
+  const everyRow = filtersOn ? computeRows(data, { ...state, networks: [], account: 'any' }, { type: 'all' }) : rows;
+  const overall = everyRow.some((r) => r.code === code) ? everyRow : [...everyRow, base];
+  const globalRank = sortRows(overall, sortKey).findIndex((r) => r.code === code) + 1;
+
+  const mine = { ...base, isMine: true, rank: globalRank, globalRank, viewRank: inView ? inView.rank : null };
+  const others = viewRanked.filter((r) => r.code !== code);
+  const order = sortRows([...others, mine], sortKey).map((r) => r.code);
+  const byCode = new Map([...others, mine].map((r) => [r.code, r]));
   return {
-    ranked,
-    mine: ranked[at],
-    others: ranked.filter((_, i) => i !== at),
+    ranked: order.map((c) => byCode.get(c)),
+    mine,
+    others,
     mineStatus: 'included',
     notInState: !servesState(data.serviceArea, code, state.location?.state ?? null),
+    filtersOn,
   };
+}
+
+/**
+ * Baseline for the board's "vs your 2026 plan (ended)" rows when the user's 2026 plan has no 2027 version:
+ * { code, name, total, premium, deductible, oopMax } from the 2026 rates and benefits, or null.
+ */
+export function endedBaseline(data, state) {
+  const code = state.currentPlan2026;
+  if (!code || planMeta(data, 2027, code)) return null;
+  const input = planInput(data, 2026, code);
+  if (!input || !input.rate[state.enrollment]) return null;
+  try {
+    const inputs = costInputs(state);
+    const cost = planTotal(input, inputs);
+    const facts = planFacts(input, inputs);
+    if (!Number.isFinite(cost.total)) return null;
+    return {
+      code,
+      name: planMeta(data, 2026, code)?.name ?? `Plan ${code}`,
+      total: cost.total,
+      premium: cost.premium,
+      deductible: facts?.deductible ?? null,
+      oopMax: facts?.oopMax ?? null,
+    };
+  } catch {
+    return null;
+  }
 }
 
 /** Board segments: the user's plan pinned as its own first group (true rank kept), then state.group over the rest. */

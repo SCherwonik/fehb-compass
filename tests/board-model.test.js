@@ -154,3 +154,32 @@ test('vs-your-plan rows: only with a baseline plan; deltas are column minus your
   assert.equal(get('vsTotal').cell(mine, ctx).sub, 'your baseline');
   assert.match(medicalHeader(mine, [mine], ctx, '').chips[0].text, /Your plan/);
 });
+
+test('ended plan: the board compares against what your plan cost in 2026', () => {
+  const alt = row('a', { total: 4200, premium: 3500, ded: 1000, max: 6000 });
+  const baseline = { code: 'X9', name: 'Old Plan', total: 5000, premium: 3000, deductible: 500, oopMax: 6000 };
+  const ctx = boardContext([alt], { enrollment: 'self' }, null, baseline);
+  const secs = sectionsFor(MEDICAL_SECTIONS, ctx);
+  assert.ok(!secs.some((s) => s.key === 'vsMine'));
+  const sec = secs.find((s) => s.key === 'vsEnded');
+  assert.equal(sec.label, 'Vs your 2026 plan (ended)');
+  const get = (k) => sec.rows.find((d) => d.key === k);
+  assert.equal(get('vsEndedTotal').cell(alt, ctx).text, '−$800');
+  assert.equal(get('vsEndedPremium').cell(alt, ctx).text, '+$500');
+  assert.equal(get('vsEndedOopMax').cell(alt, ctx).text, 'Same');
+  assert.ok(!sectionsFor(MEDICAL_SECTIONS, boardContext([alt], {})).some((s) => s.key === 'vsEnded'));
+});
+
+test('your plan header claims its overall rank, plus the filtered-view rank when filters are on', () => {
+  const mine = { ...row('m', { total: 5000, premium: 3000 }), isMine: true, rank: 21, globalRank: 21, viewRank: 3 };
+  const ctx = boardContext([mine], { enrollment: 'self' }, mine);
+  const h1 = medicalHeader(mine, [mine], { ...ctx, filtersOn: true }, '');
+  assert.equal(h1.rankText, '#21 overall');
+  assert.equal(h1.rankSub, '#3 in this view');
+  const h2 = medicalHeader({ ...mine, viewRank: null }, [mine], { ...ctx, filtersOn: true }, '');
+  assert.equal(h2.rankSub, 'not in this view');
+  const h3 = medicalHeader({ ...mine, viewRank: 21 }, [mine], { ...ctx, filtersOn: false }, '');
+  assert.equal(h3.rankSub, undefined);
+  const other = row('o', { total: 4000, premium: 3000, rank: 4 });
+  assert.equal(medicalHeader(other, [other], ctx, '').rankText, '#4');
+});

@@ -194,7 +194,7 @@ test('real data: every eligible 2027 plan in every state yields finite totals an
 });
 
 // ---------- "include my plan (2027 version)" ----------
-import { rankWithMine, boardGroups } from '../src/ui/model.js';
+import { rankWithMine, boardGroups, endedBaseline } from '../src/ui/model.js';
 
 test('real data: plan 401 (FSBP High) is pinned first on the board with its true rank, even when filtered out', { skip: !real }, () => {
   const base = { ...defaultState(), location: { state: 'VA', zip: null }, currentPlan2026: '401', group: 'top3' };
@@ -206,8 +206,14 @@ test('real data: plan 401 (FSBP High) is pinned first on the board with its true
   assert.equal(res.mineStatus, 'included');
   assert.equal(res.mine.code, '401');
   assert.equal(res.mine.isMine, true);
-  const all = sortRows([...rows, res.mine], 'total');
-  assert.equal(res.mine.rank, all.findIndex((r) => r.code === '401') + 1, 'true rank among the compared set');
+  // TRUE rank: among every plan open in VA, ignoring the network/account/type filters
+  const everyVa = sortRows(computeRows(real, { ...s, networks: [], account: 'any' }), 'total');
+  const globalRank = everyVa.findIndex((r) => r.code === '401') + 1;
+  assert.ok(globalRank > 0);
+  assert.equal(res.mine.rank, globalRank, 'global rank');
+  assert.equal(res.mine.globalRank, globalRank);
+  assert.equal(res.mine.viewRank, null, 'filtered out, so no rank in this view');
+  assert.equal(res.filtersOn, true);
   const groups = boardGroups(real, s, rows);
   assert.equal(groups[0].key, 'mine');
   assert.deepEqual(groups[0].rows.map((r) => r.code), ['401']);
@@ -246,7 +252,53 @@ test('rankWithMine: no plan, toggle off, ended plan, and not listed in the chose
   assert.equal(rr.mineStatus, 'included');
   assert.equal(rr.notInState, true);
   assert.equal(rr.mine.code, regional.code);
-  // every rank is unique and 1..n
-  const ranks = rr.ranked.map((x) => x.rank).sort((a, b) => a - b);
+  // the other plans' ranks are unique and 1..n (mine is pinned outside the ranking)
+  const ranks = rr.others.map((x) => x.rank).sort((a, b) => a - b);
   assert.deepEqual(ranks, ranks.map((_, i) => i + 1));
+  // not offered in VA: ranked overall among VA's plans plus itself
+  const va = sortRows([...computeRows(real, { ...r, networks: [], account: 'any' }), rr.mine], 'total');
+  assert.equal(rr.mine.globalRank, va.findIndex((x) => x.code === regional.code) + 1);
+});
+
+test('rankWithMine: other plans never change rank because your plan was pinned', { skip: !real }, () => {
+  const ranks = (res) => Object.fromEntries(res.others.map((r) => [r.code, r.rank]));
+  for (const code of ['401', '104', '224']) {
+    for (const networks of [[], ['Aetna'], ['Blue Cross and Blue Shield']]) {
+      const s = { ...defaultState(), location: { state: 'VA', zip: null }, currentPlan2026: code, networks };
+      const on = rankWithMine(real, { ...s, includeMine: true }, computeRows(real, s));
+      const off = rankWithMine(real, { ...s, includeMine: false }, computeRows(real, s));
+      if (on.mineStatus !== 'included') continue;
+      const offRanks = ranks(off);
+      for (const [c, rk] of Object.entries(ranks(on))) assert.equal(rk, offRanks[c], `${code} ${networks} ${c}`);
+    }
+  }
+});
+
+test('rankWithMine: your plan shows its overall rank and, with filters on, its rank in the filtered view', { skip: !real }, () => {
+  const s = { ...defaultState(), location: { state: 'VA', zip: null }, currentPlan2026: '104' };
+  const all = sortRows(computeRows(real, s), 'total');
+  const g = all.findIndex((r) => r.code === '104') + 1;
+  const plain = rankWithMine(real, s, computeRows(real, s));
+  assert.equal(plain.mine.globalRank, g);
+  assert.equal(plain.mine.viewRank, g);
+  assert.equal(plain.filtersOn, false);
+  // plan type filter (UI-local) that keeps 104 (FFS)
+  const typed = computeRows(real, s, { type: 'FFS' });
+  const res = rankWithMine(real, s, typed, 'total', { type: 'FFS' });
+  assert.equal(res.filtersOn, true);
+  assert.equal(res.mine.globalRank, g, 'type filter ignored for the overall rank');
+  assert.equal(res.mine.viewRank, sortRows(typed, 'total').findIndex((r) => r.code === '104') + 1);
+  assert.equal(res.mine.rank, g);
+});
+
+test('endedBaseline: 2026 figures for a plan with no 2027 version, null otherwise', { skip: !real }, () => {
+  const ended = real.plans.find((p) => p.year === 2026 && !real.plans.some((q) => q.year === 2027 && q.code === p.code)
+    && real.rates[2026]?.[p.code]?.self);
+  const s = { ...defaultState(), location: { state: 'VA', zip: null }, currentPlan2026: ended.code };
+  const b = endedBaseline(real, s);
+  assert.equal(b.code, ended.code);
+  assert.equal(b.total, savingsVsCurrent(real, s, computeRows(real, s)).current2026Total);
+  for (const k of ['total', 'premium']) assert.ok(Number.isFinite(b[k]), k);
+  assert.equal(endedBaseline(real, { ...s, currentPlan2026: '104' }), null);
+  assert.equal(endedBaseline(real, { ...s, currentPlan2026: null }), null);
 });
