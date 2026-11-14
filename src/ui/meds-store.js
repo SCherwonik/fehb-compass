@@ -3,7 +3,7 @@
 // Also the shared hub for brochure facts (loaded after first paint) and the current top-ranked plans, so the
 // input panel and the results can talk without importing each other. DOM-free (node tested).
 //
-// Stored shape (MEDS_KEY): { drugs: [{ id, name, monthlyCost|null, fillsPerYear, channel }],
+// Stored shape (MEDS_KEY): { drugs: [{ id, name, monthlyCost|null (the 30-day price: the form takes the price of one fill and converts), fillsPerYear, channel }],
 //                            records: { [planCode]: { [drugId]: 'Tier 2' | 'nc' | 'pa' } } }
 import { safeStorage } from '../state.js';
 import { plainText } from '../text.js';
@@ -31,7 +31,7 @@ export function sanitizeDrug(d) {
   return {
     id,
     name,
-    monthlyCost: typeof cost === 'number' && Number.isFinite(cost) && cost >= 0 && cost <= 100000 ? Math.round(cost * 100) / 100 : null,
+    monthlyCost: typeof cost === 'number' && Number.isFinite(cost) && cost >= 0 && cost <= 100000 ? Math.round(cost * 10000) / 10000 : null, // 4 decimals: a 90-day price kept as a 30-day price must come back to the cent
     fillsPerYear: Number.isInteger(fills) && fills >= 1 && fills <= 365 ? fills : 12,
     channel: typeof d.channel === 'string' && CHANNEL_IDS.includes(d.channel) ? d.channel : 'retail30',
   };

@@ -18,6 +18,11 @@ const reduceMotion = () => globalThis.matchMedia?.('(prefers-reduced-motion: red
 
 const CHANNEL_OPTS = [['retail30', 'Retail, 30-day'], ['retail90', 'Retail, 90-day'], ['mail', 'Mail order, 90-day'], ['specialty', 'Specialty pharmacy']];
 const NINETY = new Set(['retail90', 'mail']);
+const daysOf = (channel) => (NINETY.has(channel) ? 90 : 30);
+// The form asks for the price of ONE FILL of the chosen supply (30 or 90 days): that is the number a person knows.
+// It is stored as a 30-day price (what the cost model uses) and converted back for display.
+const round2 = (n) => Math.round(n * 100) / 100;
+const fillPriceOf = (d) => (d.monthlyCost == null ? null : round2((d.monthlyCost * daysOf(d.channel)) / 30));
 let wired = false;
 
 /**
@@ -104,6 +109,7 @@ export function createMedsPanel({ meds }) {
   const nameIn = h('input', { class: 'cl-input', id: 'md-name', type: 'text', maxlength: String(MAX_NAME), autocomplete: 'off', spellcheck: 'false', placeholder: 'Drug name, e.g. Eliquis 5 mg' });
   const costIn = h('input', { class: 'cl-input cl-num', id: 'md-cost', type: 'number', min: '0', max: '100000', step: '0.01', inputmode: 'decimal', placeholder: 'optional' });
   const fillsIn = h('input', { class: 'cl-input cl-num', id: 'md-fills', type: 'number', min: '1', max: '365', step: '1', inputmode: 'numeric', value: '12' });
+  const costCap = h('label', { class: 'cl-cap', for: 'md-cost' }, 'Full price, 30-day supply');
   const chanSel = h('select', { class: 'select', id: 'md-chan' }, CHANNEL_OPTS.map(([v, t]) => h('option', { value: v }, t)));
   const submit = h('button', { type: 'submit', class: 'btn btn-primary md-add' }, svg(ICON_PLUS), h('span', { class: 'btn-text' }, 'Add drug'));
   const cancel = h('button', { type: 'button', class: 'btn btn-quiet', hidden: true }, 'Cancel');
@@ -113,13 +119,13 @@ export function createMedsPanel({ meds }) {
   const form = h('form', { class: 'md-form', novalidate: true },
     h('div', { class: 'cl-cell md-cell-name' }, h('label', { class: 'cl-cap', for: 'md-name' }, 'Drug'), nameIn),
     h('div', { class: 'cl-grid' },
-      h('div', { class: 'cl-cell' }, h('label', { class: 'cl-cap', for: 'md-cost' }, 'Full price a month'),
-        h('div', { class: 'cl-affix' }, h('span', { class: 'cl-pre', 'aria-hidden': 'true' }, '$'), costIn)),
-      h('div', { class: 'cl-cell' }, h('label', { class: 'cl-cap', for: 'md-fills' }, 'Fills a year'), fillsIn),
       h('div', { class: 'cl-cell cl-cell-tier' }, h('label', { class: 'cl-cap', for: 'md-chan' }, 'Where you fill it'),
-        h('div', { class: 'select-wrap' }, chanSel, svg(ICON_CHEVRON)))),
+        h('div', { class: 'select-wrap' }, chanSel, svg(ICON_CHEVRON))),
+      h('div', { class: 'cl-cell' }, costCap,
+        h('div', { class: 'cl-affix' }, h('span', { class: 'cl-pre', 'aria-hidden': 'true' }, '$'), costIn)),
+      h('div', { class: 'cl-cell' }, h('label', { class: 'cl-cap', for: 'md-fills' }, 'Fills a year'), fillsIn)),
     fillsWarn,
-    h('p', { class: 'md-hint' }, 'Price is optional. It is needed when a tier is a percentage, when a drug is not covered, and before an HDHP deductible is met. Use 4 fills for 90-day supplies.'),
+    h('p', { class: 'md-hint' }, 'Price is optional: the full price you would pay for one fill with no insurance, for the supply you chose above. It is needed when a tier is a percentage, when a drug is not covered, and before an HDHP deductible is met. A 90-day supply is 4 fills a year.'),
     h('div', { class: 'md-actions' }, submit, cancel),
     msg);
 
@@ -151,7 +157,9 @@ export function createMedsPanel({ meds }) {
       ? `${n} fills of a 90-day supply is about ${Math.round((n * 90) / 30)} months of medicine. Most people need 4.`
       : '';
   }
+  const syncCostCap = () => { costCap.textContent = `Full price, ${daysOf(chanSel.value)}-day supply`; };
   chanSel.addEventListener('change', () => {
+    syncCostCap();
     if (!fillsTouched) fillsIn.value = NINETY.has(chanSel.value) ? '4' : '12';
     checkFills();
   });
@@ -163,6 +171,7 @@ export function createMedsPanel({ meds }) {
     form.reset();
     fillsIn.value = '12';
     chanSel.value = 'retail30';
+    syncCostCap();
     fillsWarn.textContent = '';
     submit.querySelector('.btn-text').textContent = 'Add drug';
     cancel.hidden = true;
@@ -173,7 +182,8 @@ export function createMedsPanel({ meds }) {
     e.preventDefault();
     const fields = {
       name: nameIn.value,
-      monthlyCost: costIn.value.trim() === '' ? null : costIn.value,
+      // price of one fill -> the 30-day price the cost model uses
+      monthlyCost: costIn.value.trim() === '' || !Number.isFinite(Number(costIn.value)) ? null : (Number(costIn.value) * 30) / daysOf(chanSel.value),
       fillsPerYear: fillsIn.value.trim() === '' ? 12 : Math.round(Number(fillsIn.value)),
       channel: chanSel.value,
     };
@@ -206,9 +216,10 @@ export function createMedsPanel({ meds }) {
       editing = id;
       fillsTouched = true;
       nameIn.value = d.name;
-      costIn.value = d.monthlyCost ?? '';
+      costIn.value = fillPriceOf(d) ?? '';
       fillsIn.value = String(d.fillsPerYear);
       chanSel.value = d.channel;
+      syncCostCap();
       checkFills();
       submit.querySelector('.btn-text').textContent = 'Save changes';
       cancel.hidden = false;
@@ -258,7 +269,7 @@ export function createMedsPanel({ meds }) {
       h('div', { class: 'md-drug-main' },
         h('span', { class: 'md-drug-name' }, d.name),
         h('span', { class: 'md-drug-meta' }, [
-          d.monthlyCost != null ? `${usdExact(d.monthlyCost)} a month` : 'no price',
+          d.monthlyCost != null ? `${usdExact(fillPriceOf(d))} for ${daysOf(d.channel)} days` : 'no price',
           `${d.fillsPerYear} ${d.fillsPerYear === 1 ? 'fill' : 'fills'} a year${NINETY.has(d.channel) && d.fillsPerYear > 4 ? ' (over a year of 90-day fills?)' : ''}`,
           channelLabel(d.channel),
         ].join(' · '))),

@@ -26,6 +26,9 @@ test('sanitizeDrug: defaults, ranges and channels', () => {
   assert.deepEqual(d, { id: 'abc123', name: 'Lipitor', monthlyCost: null, fillsPerYear: 12, channel: 'retail30' });
   assert.equal(sanitizeDrug({ id: 'a', name: 'X', monthlyCost: '120.5' }).monthlyCost, 120.5);
   assert.equal(sanitizeDrug({ id: 'a', name: 'X', monthlyCost: -5 }).monthlyCost, null);
+  // a 90-day price of $100 is stored as a 30-day price and must convert back to the cent (x3 -> $100.00)
+  const third = sanitizeDrug({ id: 'a', name: 'X', monthlyCost: 100 / 3 }).monthlyCost;
+  assert.equal(Math.round(third * 3 * 100) / 100, 100);
   assert.equal(sanitizeDrug({ id: 'a', name: 'X', monthlyCost: 1e9 }).monthlyCost, null);
   assert.equal(sanitizeDrug({ id: 'a', name: 'X', monthlyCost: NaN }).monthlyCost, null);
   assert.equal(sanitizeDrug({ id: 'a', name: 'X', fillsPerYear: 4 }).fillsPerYear, 4);
