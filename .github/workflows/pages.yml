@@ -1,0 +1,59 @@
+# Deploy FEHB Compass (a static site: no build step) to GitHub Pages.
+# Runs the JavaScript tests, copies only what the site serves into _site/, and publishes it.
+# Not uploaded: pipeline/ (and its raw downloads), docs/, tests/, .superpowers/, data/dental_vision.json (a
+# pipeline output the app no longer reads) and data/brochures.json (the pipeline's download manifest).
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [master, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; let an in-progress one finish.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Test (cost engine, state, share link privacy, relative asset paths)
+        run: node --test "tests/engine/*.test.js" "tests/*.test.js"
+
+      - name: Assemble the site
+        run: |
+          mkdir -p _site/data
+          cp index.html 404.html robots.txt .nojekyll _site/
+          cp -R src styles assets _site/
+          for f in plans rates benefits service_area meta fedvip brochure_facts; do
+            cp "data/$f.json" _site/data/
+          done
+          du -ah _site/data | sort -h
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

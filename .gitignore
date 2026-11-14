@@ -3,3 +3,4 @@ pipeline/raw/
 __pycache__/
 .pytest_cache/
 node_modules/
+.stable-preview/

@@ -1,0 +1,124 @@
+/* Dental & Vision (FEDVIP): the results tab switch, the Dental & Vision results (cards and board), its inputs in
+   the situation panel, the ZIP field and the "add dental and vision" picks. Built on the tokens in tokens.css; board cells reuse board.css. */
+
+.results-frame[hidden], .dv[hidden], .dv-add[hidden], .dv-empty[hidden], .dv-preset[hidden], .dv-cards[hidden] { display: none; }
+
+/* ---------- tab switch: one glass lens that slides between Health plans and Dental & Vision ---------- */
+.dv-tabs { margin-bottom: var(--space-5); }
+.dvt {
+  position: relative;
+  display: inline-grid;
+  grid-template-columns: repeat(var(--n), minmax(0, 1fr));
+  padding: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+  box-shadow: inset 0 0 0 1px var(--border-control), inset 0 1px 2px rgba(10, 17, 34, 0.08);
+  isolation: isolate;
+  max-width: 100%;
+}
+.dvt-thumb {
+  position: absolute;
+  z-index: -1;
+  inset: 4px auto 4px 4px;
+  width: calc((100% - 8px) / var(--n));
+  border-radius: var(--radius-pill);
+  background: var(--surface-glass-strong, var(--surface-raised));
+  border: 1px solid var(--border);
+  box-shadow: var(--glass-highlight), var(--elev-1);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  transform: translateX(calc(var(--i) * 100%));
+  transition: transform var(--dur-slow) var(--ease-spring);
+}
+/* a thin accent edge under the lens: the one place the gradient appears on this control */
+.dvt-thumb::after {
+  content: "";
+  position: absolute;
+  left: 22%;
+  right: 22%;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent-gradient);
+  opacity: 0.85;
+}
+.dvt-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 42px;
+  padding: 0 var(--space-5);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color var(--dur-base) var(--ease-out);
+  -webkit-tap-highlight-color: transparent;
+}
+.dvt-tab:hover { color: var(--text); }
+.dvt-tab[aria-selected="true"] { color: var(--text); font-weight: var(--weight-semibold); }
+.dvt-tab:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.dv-ico { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; flex: none; }
+.dvt-tab[aria-selected="true"] .dv-ico { stroke: var(--accent); }
+
+/* ---------- panel ---------- */
+.rhead-sub-line { display: block; }
+.dv { display: grid; gap: var(--space-5); }
+.dv > * { min-width: 0; }
+.dv-head { align-items: flex-start; }
+/* Dental & Vision inputs live in the situation panel (src/ui/situation.js); these are their in-panel tweaks */
+.dv-preset .seg { min-height: 44px; }
+.dv-preset .seg-label { white-space: normal; }
+.dv-preset-how { max-width: 60ch; }
+.dv-filter .chips { gap: 6px; }
+.dv-filtered { margin-top: 0; }
+.dv-empty .btn { margin-top: var(--space-3); }
+
+/* ranked cards: the health plan card (results.css) with the key benefits as facts */
+.dv-facts { grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); }
+.dv-facts .fact-v { overflow-wrap: anywhere; }
+.dv-facts .t-warn .fact-v { color: var(--warning); }
+.dv-facts .t-muted .fact-v { color: var(--text-subtle); font-weight: var(--weight-medium); }
+.dv-card-actions { justify-content: flex-start; flex-wrap: wrap; }
+.dv-link { min-height: 44px; text-decoration: none; }
+.dv-card-actions .dv-link:first-child { margin-left: calc(var(--space-3) * -1); }
+
+/* the panel arrives with the same quiet rise the board columns use (motion answers the tab click) */
+@media (prefers-reduced-motion: no-preference) {
+  .dv .board:not([hidden]) { animation: dv-rise var(--dur-slow) var(--ease-out); }
+}
+@keyframes dv-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* ---------- ZIP field ---------- */
+.zip-input { font-variant-numeric: tabular-nums; letter-spacing: 0.04em; max-width: 12rem; }
+.zip-input[aria-invalid="true"] { border-color: var(--p-rose-500); }
+.zip-msg[data-tone="ok"] { color: var(--accent-2); }
+.zip-msg[data-tone="warn"] { color: var(--text-muted); }
+.zip-field + .field { margin-top: var(--space-4); }
+
+/* ---------- "add dental and vision" picks ---------- */
+.dv-add {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-left: 2px solid color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.dv-add .field { margin: 0; }
+.dv-add .select { font-size: var(--text-sm); }
+.dv-add-line { margin-top: var(--space-1); font-variant-numeric: tabular-nums; }
+.dv-add-goto { justify-self: start; }
+
+/* See the math: the dental/vision line */
+.dot-dv { background: var(--p-amber-500); }
+
+@media (max-width: 640px) {
+  .dvt-main { display: grid; width: 100%; }
+  .dvt-tab { padding: 0 var(--space-3); }
+}

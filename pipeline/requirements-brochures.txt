@@ -1,0 +1,2 @@
+# PDF tooling for pipeline/brochures.py (kept separate from requirements.txt)
+pymupdf==2.1

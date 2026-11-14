@@ -1,0 +1,477 @@
+{
+ "about": "Benefit values where the 2027 plan brochure (the plan's official statement of benefits) disagrees with OPM's benefits spreadsheet and the brochure was checked by hand. pipeline/build_data.py applies each entry to data/benefits.json: the engine field gets the brochure value, the listed raw fields show the brochure text, and benefits[code].overrides keeps the spreadsheet value, page, quote and reason (the app shows a 'Differs from OPM spreadsheet' badge). Each entry's 'sheet' must equal the spreadsheet value or the build stops.",
+ "overrides": [
+  {
+   "year": 2027,
+   "plan_code": "YJ1",
+   "field": "deductible",
+   "raw_fields": [
+    "Annual deductible (Self)",
+    "Annual deductible (Self Plus One)",
+    "Annual deductible (Self & Family)",
+    "Net deductible (Self)",
+    "Net deductible (Self Plus One)",
+    "Net deductible (Self & Family)"
+   ],
+   "sheet": {
+    "self": 5500,
+    "self_plus_one": 11000,
+    "family": 11000
+   },
+   "brochure_value": {
+    "self": 4800,
+    "self_plus_one": 9600,
+    "family": 9600
+   },
+   "brochure": "73-937",
+   "page": 24,
+   "quote": "The calendar year deductible for the Basic Option is $4,800 per person.",
+   "also": [
+    {
+     "page": 29,
+     "quote": "$4,800 deductible"
+    },
+    {
+     "page": 31,
+     "quote": "The calendar year deductible for Basic Option is: $4,800 per person ($9,600 per Self Plus One enrollment, or $9,600 per Self and Family enrollment)."
+    }
+   ],
+   "reason": "Every mention in the Sharp Health Plan brochure (Section 4 page 24, the Basic Option overview page 29, Section 5 pages 31, 48 and 56; page numbers are the PDF pages of the brochure text file) gives $4,800 per person / $9,600 for Self Plus One and Self and Family; $5,500 appears nowhere in it. The out-of-pocket maximums ($8,100 / $16,200) agree with the spreadsheet. The brochure is the plan's official statement of benefits.",
+   "source": "read by hand from pipeline/raw/brochures_txt/2027/73-937.txt"
+  },
+  {
+   "year": 2027,
+   "plan_code": "634",
+   "field": "rx_tier1",
+   "raw_fields": [
+    "Tier 1"
+   ],
+   "sheet": "Preferred Generic - $15 Copayment",
+   "brochure_value": {
+    "kind": "usd",
+    "value": 5
+   },
+   "brochure_text": "$5 Copayment - generic maintenance drugs",
+   "brochure": "73-005",
+   "page": 74,
+   "quote": "$5 per generic maintenance drug prescription",
+   "reason": "The brochure prints no tier numbers; its Standard column lists $5 (generic maintenance) then $15 (all other generics) and the spreadsheet carries the same two prices with the numbers reversed (its own High Option row numbers them the other way).",
+   "source": "pipeline/rx_adjudication.json (ruling: brochure_correct, confidence: medium)"
+  },
+  {
+   "year": 2027,
+   "plan_code": "634",
+   "field": "rx_tier2",
+   "raw_fields": [
+    "Tier 2"
+   ],
+   "sheet": "Generic - $5 Copayment",
+   "brochure_value": {
+    "kind": "usd",
+    "value": 15
+   },
+   "brochure_text": "$15 Copayment - all other generic drugs",
+   "brochure": "73-005",
+   "page": 74,
+   "quote": "$15 for all other generic drug prescriptions",
+   "reason": "The brochure prints no tier numbers; its Standard column lists $5 (generic maintenance) then $15 (all other generics) and the spreadsheet carries the same two prices with the numbers reversed.",
+   "source": "pipeline/rx_adjudication.json (ruling: brochure_correct, confidence: medium)"
+  },
+  {
+   "year": 2027,
+   "plan_code": "644",
+   "field": "rx_tier4",
+   "raw_fields": [
+    "Tier 4"
+   ],
+   "sheet": "Non-Preferred Drugs - 50% Coinsurance",
+   "brochure_value": {
+    "kind": "pct",
+    "value": 25,
+    "cap": 500
+   },
+   "brochure_text": "25% Coinsurance up to $500 per prescription - specialty drugs",
+   "brochure": "73-017",
+   "page": 66,
+   "quote": "Tier 4 (Specialty Drugs): 25% up to $500 per prescription or refill",
+   "reason": "The brochure has only four tiers and Tier 4 is Specialty at 25% up to $500; the spreadsheet puts that 25% specialty price in its Tier 5 and fills its Tier 4 slot with a tier the brochure does not have (50%).",
+   "source": "pipeline/rx_adjudication.json (ruling: brochure_correct, confidence: high)"
+  },
+  {
+   "year": 2027,
+   "plan_code": "UX1",
+   "field": "rx_tier4",
+   "raw_fields": [
+    "Tier 4"
+   ],
+   "sheet": "Non-Preferred Drugs - 50% Coinsurance",
+   "brochure_value": {
+    "kind": "pct",
+    "value": 30,
+    "cap": 500
+   },
+   "brochure_text": "30% Coinsurance up to $500 per prescription - specialty drugs",
+   "brochure": "73-017",
+   "page": 66,
+   "quote": "Tier 4 (Specialty Drugs): 30% up to $500 per prescription or refill",
+   "reason": "Basic column Tier 4 (Specialty) is 30% up to $500; the spreadsheet puts the 30% in its Tier 5 and fills Tier 4 with a tier the brochure does not have (50%).",
+   "source": "pipeline/rx_adjudication.json (ruling: brochure_correct, confidence: high)"
+  },
+  {
+   "year": 2027,
+   "plan_code": "PS4",
+   "field": "rx_tier4",
+   "raw_fields": [
+    "Tier 4"
+   ],
+   "sheet": "Preferred Specialty Tier - 100% Coinsurance",
+   "brochure_value": {
+    "kind": "pct",
+    "value": 50,
+    "cap": 500
+   },
+   "brochure_text": "50% Coinsurance up to $500 per prescription - specialty drugs",
+   "brochure": "73-563",
+   "page": 115,
+   "quote": "Tier 4 - Specialty Pharmaceuticals 50% of the plan allowance up to a maximum out-of-pocket of $500 per prescription",
+   "reason": "The brochure states 50% (capped at $500 per prescription) for Tier 4 Specialty; the spreadsheet's 100% coinsurance is not supported anywhere in the brochure.",
+   "source": "pipeline/rx_adjudication.json (ruling: brochure_correct, confidence: high)"
+  },
+  {
+   "year": 2027,
+   "plan_code": "JK1",
+   "field": "rx_tier5",
+   "raw_fields": [
+    "Tier 5"
+   ],
+   "sheet": "Specialty Tier - $250 Copayment",
+   "brochure_value": {
+    "kind": "usd",
+    "value": 200
+   },
+   "brochure_text": "$200 Copayment - non-preferred specialty drugs",
+   "brochure": "73-776",
+   "page": 80,
+   "quote": "Non-Preferred Specialty drugs: $200 copayment",
+   "reason": "The High column (printed first) shows $200 for Non-Preferred Specialty and the Standard column $250; the spreadsheet's JK1 value of $250 is the Standard Option price.",
+   "source": "pipeline/rx_adjudication.json (ruling: brochure_correct, confidence: high)"
+  },
+  {
+   "year": 2027,
+   "plan_code": "A81",
+   "field": "rx_tier2",
+   "raw_fields": [
+    "Tier 2"
+   ],
+   "sheet": "Generic - $20 Copayment",
+   "brochure_value": {
+    "kind": "usd",
+    "value": 25
+   },
+   "brochure_text": "Non-Preferred Generic - $25 Copayment",
+   "brochure": "73-881",
+   "page": 65,
+   "quote": "Tier 2 (Non-Preferred Generic) $25 Tier 3 (Preferred Brand) $65 Tier 4 (Non-Preferred Brand) $120 Tier 5 (Preferred Generic Specialty) 20%, up to a maximum of $400",
+   "reason": "The Basic block (printed second, after Standard) is $8/$25/$65/$120/20% (up to $400)/$400/$600; the extraction matches it and the spreadsheet's Basic row ($20/$60/30%/injectable 50%) does not.",
+   "source": "pipeline/rx_adjudication.json (ruling: brochure_correct, confidence: high)"
+  },
+  {
+   "year": 2027,
+   "plan_code": "A81",
+   "field": "rx_tier3",
+   "raw_fields": [
+    "Tier 3"
+   ],
+   "sheet": "Preferred Brand - $60 Copayment",
+   "brochure_value": {
+    "kind": "usd",
+    "value": 65
+   },
+   "brochure_text": "Preferred Brand - $65 Copayment",
+   "brochure": "73-881",
+   "page": 65,
+   "quote": "Tier 2 (Non-Preferred Generic) $25 Tier 3 (Preferred Brand) $65 Tier 4 (Non-Preferred Brand) $120 Tier 5 (Preferred Generic Specialty) 20%, up to a maximum of $400",
+   "reason": "Retail $65 is right (Basic block) and the spreadsheet's $60 is wrong, but the extraction took the 90-day mail price from the Summary ($187.50) while Section 5(f) page 67 and the Section 2 change notice (page 18, $150 to $162.50) both give $162.50 for Basic.",
+   "source": "pipeline/rx_adjudication.json (ruling: both_wrong, confidence: high)"
+  },
+  {
+   "year": 2027,
+   "plan_code": "A81",
+   "field": "rx_tier4",
+   "raw_fields": [
+    "Tier 4"
+   ],
+   "sheet": "Non-Preferred Brand - 30% Coinsurance",
+   "brochure_value": {
+    "kind": "usd",
+    "value": 120
+   },
+   "brochure_text": "Non-Preferred Brand - $120 Copayment",
+   "brochure": "73-881",
+   "page": 65,
+   "quote": "Tier 2 (Non-Preferred Generic) $25 Tier 3 (Preferred Brand) $65 Tier 4 (Non-Preferred Brand) $120 Tier 5 (Preferred Generic Specialty) 20%, up to a maximum of $400",
+   "reason": "Retail $120 is right (Basic block) and the spreadsheet's 30% is wrong, but the extraction took the mail price from the Summary ($500) while the Basic column of Section 5(f) page 67 (second of three blocks) shows a flat $300.",
+   "source": "pipeline/rx_adjudication.json (ruling: both_wrong, confidence: medium)"
+  },
+  {
+   "year": 2027,
+   "plan_code": "A81",
+   "field": "rx_tier5",
+   "raw_fields": [
+    "Tier 5"
+   ],
+   "sheet": "Injectable Drugs - 50% Coinsurance",
+   "brochure_value": {
+    "kind": "pct",
+    "value": 20,
+    "cap": 400
+   },
+   "brochure_text": "Preferred Generic Specialty - 20% Coinsurance up to $400",
+   "brochure": "73-881",
+   "page": 65,
+   "quote": "Tier 2 (Non-Preferred Generic) $25 Tier 3 (Preferred Brand) $65 Tier 4 (Non-Preferred Brand) $120 Tier 5 (Preferred Generic Specialty) 20%, up to a maximum of $400",
+   "reason": "The Basic block (printed second, after Standard) is $8/$25/$65/$120/20% (up to $400)/$400/$600; the extraction matches it and the spreadsheet's Basic row ($20/$60/30%/injectable 50%) does not.",
+   "source": "pipeline/rx_adjudication.json (ruling: brochure_correct, confidence: high)"
+  },
+  {
+   "year": 2027,
+   "plan_code": "A84",
+   "field": "rx_tier1",
+   "raw_fields": [
+    "Tier 1"
+   ],
+   "sheet": "Preferred Generic - $5 Copayment",
+   "brochure_value": {
+    "kind": "usd",
+    "value": 8
+   },
+   "brochure_text": "Preferred Generic - $8 Copayment",
+   "brochure": "73-881",
+   "page": 65,
+   "quote": "Tier 1 (Preferred Generic) $8 Tier 2 (Non-Preferred Generic) $20 Tier 3 (Preferred Brand) 30%, up to a maximum of a $75 copay",
+   "reason": "The page prints three separate blocks in header order Standard, Basic, Value; the Standard block is $8/$20/30%/50%/20% (up to $400)/$400/$600 and the spreadsheet's Standard row ($5/$18, its Tier 5 being the $400 Tier 6 price) disagrees; the Value option, which matches the spreadsheet exactly, confirms the column order.",
+   "source": "pipeline/rx_adjudication.json (ruling: brochure_correct, confidence: high)"
+  },
+  {
+   "year": 2027,
+   "plan_code": "A84",
+   "field": "rx_tier2",
+   "raw_fields": [
+    "Tier 2"
+   ],
+   "sheet": "Generic - $18 Copayment",
+   "brochure_value": {
+    "kind": "usd",
+    "value": 20
+   },
+   "brochure_text": "Non-Preferred Generic - $20 Copayment",
+   "brochure": "73-881",
+   "page": 65,
+   "quote": "Tier 1 (Preferred Generic) $8 Tier 2 (Non-Preferred Generic) $20 Tier 3 (Preferred Brand) 30%, up to a maximum of a $75 copay",
+   "reason": "The page prints three separate blocks in header order Standard, Basic, Value; the Standard block is $8/$20/30%/50%/20% (up to $400)/$400/$600 and the spreadsheet's Standard row ($5/$18, its Tier 5 being the $400 Tier 6 price) disagrees; the Value option, which matches the spreadsheet exactly, confirms the column order.",
+   "source": "pipeline/rx_adjudication.json (ruling: brochure_correct, confidence: high)"
+  },
+  {
+   "year": 2027,
+   "plan_code": "A84",
+   "field": "rx_tier5",
+   "raw_fields": [
+    "Tier 5"
+   ],
+   "sheet": "Preferred Specialty Tier - $400 Copayment",
+   "brochure_value": {
+    "kind": "pct",
+    "value": 20,
+    "cap": 400
+   },
+   "brochure_text": "Preferred Generic Specialty - 20% Coinsurance up to $400",
+   "brochure": "73-881",
+   "page": 65,
+   "quote": "Tier 4 (Non-Preferred Brand) 50%, up to a maximum of a $200 copay Tier 5 (Preferred Generic Specialty) 20%, up to a maximum of $400",
+   "reason": "The page prints three separate blocks in header order Standard, Basic, Value; the Standard block is $8/$20/30%/50%/20% (up to $400)/$400/$600 and the spreadsheet's Standard row ($5/$18, its Tier 5 being the $400 Tier 6 price) disagrees; the Value option, which matches the spreadsheet exactly, confirms the column order.",
+   "source": "pipeline/rx_adjudication.json (ruling: brochure_correct, confidence: high)"
+  },
+  {
+   "year": 2027,
+   "plan_code": "P81",
+   "field": "rx_tier2",
+   "raw_fields": [
+    "Tier 2"
+   ],
+   "sheet": "Generic - $20 Copayment",
+   "brochure_value": {
+    "kind": "usd",
+    "value": 25
+   },
+   "brochure_text": "Non-Preferred Generic - $25 Copayment",
+   "brochure": "73-881",
+   "page": 65,
+   "quote": "Tier 2 (Non-Preferred Generic) $25 Tier 3 (Preferred Brand) $65 Tier 4 (Non-Preferred Brand) $120 Tier 5 (Preferred Generic Specialty) 20%, up to a maximum of $400",
+   "reason": "The Basic block (printed second, after Standard) is $8/$25/$65/$120/20% (up to $400)/$400/$600; the extraction matches it and the spreadsheet's Basic row ($20/$60/30%/injectable 50%) does not.",
+   "source": "pipeline/rx_adjudication.json (ruling: brochure_correct, confidence: high)"
+  },
+  {
+   "year": 2027,
+   "plan_code": "P81",
+   "field": "rx_tier3",
+   "raw_fields": [
+    "Tier 3"
+   ],
+   "sheet": "Preferred Brand - $60 Copayment",
+   "brochure_value": {
+    "kind": "usd",
+    "value": 65
+   },
+   "brochure_text": "Preferred Brand - $65 Copayment",
+   "brochure": "73-881",
+   "page": 65,
+   "quote": "Tier 2 (Non-Preferred Generic) $25 Tier 3 (Preferred Brand) $65 Tier 4 (Non-Preferred Brand) $120 Tier 5 (Preferred Generic Specialty) 20%, up to a maximum of $400",
+   "reason": "Retail $65 is right (Basic block) and the spreadsheet's $60 is wrong, but the extraction took the 90-day mail price from the Summary ($187.50) while Section 5(f) page 67 and the Section 2 change notice (page 18, $150 to $162.50) both give $162.50 for Basic.",
+   "source": "pipeline/rx_adjudication.json (ruling: both_wrong, confidence: high)"
+  },
+  {
+   "year": 2027,
+   "plan_code": "P81",
+   "field": "rx_tier4",
+   "raw_fields": [
+    "Tier 4"
+   ],
+   "sheet": "Non-Preferred Brand - 30% Coinsurance",
+   "brochure_value": {
+    "kind": "usd",
+    "value": 120
+   },
+   "brochure_text": "Non-Preferred Brand - $120 Copayment",
+   "brochure": "73-881",
+   "page": 65,
+   "quote": "Tier 2 (Non-Preferred Generic) $25 Tier 3 (Preferred Brand) $65 Tier 4 (Non-Preferred Brand) $120 Tier 5 (Preferred Generic Specialty) 20%, up to a maximum of $400",
+   "reason": "Retail $120 is right (Basic block) and the spreadsheet's 30% is wrong, but the extraction took the mail price from the Summary ($500) while the Basic column of Section 5(f) page 67 (second of three blocks) shows a flat $300.",
+   "source": "pipeline/rx_adjudication.json (ruling: both_wrong, confidence: medium)"
+  },
+  {
+   "year": 2027,
+   "plan_code": "P81",
+   "field": "rx_tier5",
+   "raw_fields": [
+    "Tier 5"
+   ],
+   "sheet": "Injectable Drugs - 50% Coinsurance",
+   "brochure_value": {
+    "kind": "pct",
+    "value": 20,
+    "cap": 400
+   },
+   "brochure_text": "Preferred Generic Specialty - 20% Coinsurance up to $400",
+   "brochure": "73-881",
+   "page": 65,
+   "quote": "Tier 2 (Non-Preferred Generic) $25 Tier 3 (Preferred Brand) $65 Tier 4 (Non-Preferred Brand) $120 Tier 5 (Preferred Generic Specialty) 20%, up to a maximum of $400",
+   "reason": "The Basic block (printed second, after Standard) is $8/$25/$65/$120/20% (up to $400)/$400/$600; the extraction matches it and the spreadsheet's Basic row ($20/$60/30%/injectable 50%) does not.",
+   "source": "pipeline/rx_adjudication.json (ruling: brochure_correct, confidence: high)"
+  },
+  {
+   "year": 2027,
+   "plan_code": "P84",
+   "field": "rx_tier1",
+   "raw_fields": [
+    "Tier 1"
+   ],
+   "sheet": "Preferred Generic - $5 Copayment",
+   "brochure_value": {
+    "kind": "usd",
+    "value": 8
+   },
+   "brochure_text": "Preferred Generic - $8 Copayment",
+   "brochure": "73-881",
+   "page": 65,
+   "quote": "Tier 1 (Preferred Generic) $8 Tier 2 (Non-Preferred Generic) $20 Tier 3 (Preferred Brand) 30%, up to a maximum of a $75 copay",
+   "reason": "The page prints three separate blocks in header order Standard, Basic, Value; the Standard block is $8/$20/30%/50%/20% (up to $400)/$400/$600 and the spreadsheet's Standard row ($5/$18, its Tier 5 being the $400 Tier 6 price) disagrees; the Value option, which matches the spreadsheet exactly, confirms the column order.",
+   "source": "pipeline/rx_adjudication.json (ruling: brochure_correct, confidence: high)"
+  },
+  {
+   "year": 2027,
+   "plan_code": "P84",
+   "field": "rx_tier2",
+   "raw_fields": [
+    "Tier 2"
+   ],
+   "sheet": "Generic - $18 Copayment",
+   "brochure_value": {
+    "kind": "usd",
+    "value": 20
+   },
+   "brochure_text": "Non-Preferred Generic - $20 Copayment",
+   "brochure": "73-881",
+   "page": 65,
+   "quote": "Tier 1 (Preferred Generic) $8 Tier 2 (Non-Preferred Generic) $20 Tier 3 (Preferred Brand) 30%, up to a maximum of a $75 copay",
+   "reason": "The page prints three separate blocks in header order Standard, Basic, Value; the Standard block is $8/$20/30%/50%/20% (up to $400)/$400/$600 and the spreadsheet's Standard row ($5/$18, its Tier 5 being the $400 Tier 6 price) disagrees; the Value option, which matches the spreadsheet exactly, confirms the column order.",
+   "source": "pipeline/rx_adjudication.json (ruling: brochure_correct, confidence: high)"
+  },
+  {
+   "year": 2027,
+   "plan_code": "P84",
+   "field": "rx_tier5",
+   "raw_fields": [
+    "Tier 5"
+   ],
+   "sheet": "Preferred Specialty Tier - $400 Copayment",
+   "brochure_value": {
+    "kind": "pct",
+    "value": 20,
+    "cap": 400
+   },
+   "brochure_text": "Preferred Generic Specialty - 20% Coinsurance up to $400",
+   "brochure": "73-881",
+   "page": 65,
+   "quote": "Tier 4 (Non-Preferred Brand) 50%, up to a maximum of a $200 copay Tier 5 (Preferred Generic Specialty) 20%, up to a maximum of $400",
+   "reason": "The page prints three separate blocks in header order Standard, Basic, Value; the Standard block is $8/$20/30%/50%/20% (up to $400)/$400/$600 and the spreadsheet's Standard row ($5/$18, its Tier 5 being the $400 Tier 6 price) disagrees; the Value option, which matches the spreadsheet exactly, confirms the column order.",
+   "source": "pipeline/rx_adjudication.json (ruling: brochure_correct, confidence: high)"
+  },
+  {
+   "year": 2027,
+   "plan_code": "YF1",
+   "field": "rx_tier4",
+   "raw_fields": [
+    "Tier 4"
+   ],
+   "sheet": "Non-Preferred Drugs - 50% Coinsurance",
+   "brochure_value": {
+    "kind": "pct",
+    "value": 30,
+    "cap": 500
+   },
+   "brochure_text": "30% Coinsurance up to $500 per prescription - specialty drugs",
+   "brochure": "73-899",
+   "page": 66,
+   "quote": "Tier 4 (Specialty Drugs): 30% up to $500 per prescription or refill",
+   "reason": "Basic column Tier 4 (Specialty) is 30% up to $500; the spreadsheet puts the 30% in its Tier 5 and fills Tier 4 with a tier the brochure does not have (50%).",
+   "source": "pipeline/rx_adjudication.json (ruling: brochure_correct, confidence: high)"
+  }
+ ],
+ "not_applied": [
+  {
+   "year": 2027,
+   "plan_code": "654",
+   "reason": "Tier numbering only: the brochure prints no tier numbers and its prices equal the spreadsheet's next tier (the spreadsheet counts the $5 preventive-maintenance line as a tier). No price is wrong, so nothing is patched."
+  },
+  {
+   "year": 2027,
+   "plan_code": "N41",
+   "reason": "Tier numbering only: the brochure prints no tier numbers and its prices equal the spreadsheet's next tier (the spreadsheet counts the $5 preventive-maintenance line as a tier). No price is wrong, so nothing is patched."
+  },
+  {
+   "year": 2027,
+   "plan_code": "JP1",
+   "reason": "The brochure's separate Specialty schedule was compared with the spreadsheet's non-specialty tiers, which the brochure's non-specialty prices match. The spreadsheet is right for these tiers."
+  },
+  {
+   "year": 2027,
+   "plan_code": "L11",
+   "reason": "Pharmacy channel, not an error: page 73 lists Tier 1 at $10 at a Plan medical office pharmacy and $30 at a Plan-participating community pharmacy. The spreadsheet carries the medical office price, a real brochure price, so it is kept."
+  },
+  {
+   "year": 2027,
+   "plan_code": "L14",
+   "reason": "Pharmacy channel, not an error: page 137 lists Tier 1 at $10 at a Plan medical office pharmacy and $30 at a Plan-participating community pharmacy. The spreadsheet carries the medical office price, a real brochure price, so it is kept."
+  }
+ ]
+}

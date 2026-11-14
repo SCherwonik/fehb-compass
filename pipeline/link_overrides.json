@@ -1,0 +1,17 @@
+{
+ "about": "Corrections to links printed in a 2027 plan brochure, applied by pipeline/validate_extractions.py when it builds data/brochure_facts.json. The verified quote stays as printed; the fact gets a corrected `url` and a `corrected` note (printed text, page, reason) that the app shows. Each entry's `printed` must match the verified quote or the build stops. No correction was checked online (the pipeline makes no network requests).",
+ "overrides": [
+  {
+   "brochure": "73-937",
+   "fields": ["drug_lookup_url", "formulary_url"],
+   "printed": "www.sharphealtplan.com/search-drug-list",
+   "url": "https://www.sharphealthplan.com/search-drug-list",
+   "page": 64,
+   "reason": "Misprinted host: \"sharphealtplan.com\" (missing h) appears once, in the drug search sentence. The same brochure prints the plan's own site as www.sharphealthplan.com more than 20 times (e.g. page 1, and page 15: www.sharphealthplan.com/findaprovider), so the host is corrected and the printed path is kept.",
+   "evidence": [
+    {"page": 1, "quote": "www.sharphealthplan.com"},
+    {"page": 64, "quote": "Please see our online formulary and drug pricing search tools at the following: www. sharphealtplan.com/search-drug-list."}
+   ]
+  }
+ ]
+}
