@@ -81,12 +81,16 @@ export function initSituation({ bar, editor, store, expanded = false, chipOpts =
       if (!motion) { finish(); return; }
       // keep the summary in view while the form folds away above the results
       const hgt = editor.offsetHeight;
-      anim = editor.animate(
+      const duration = Math.min(380, 180 + hgt / 10);
+      const a = editor.animate(
         [{ height: `${hgt}px`, opacity: 1, overflow: 'hidden' }, { height: '0px', opacity: 0, overflow: 'hidden' }],
-        { duration: Math.min(380, 180 + hgt / 10), easing: 'cubic-bezier(0.4, 0, 1, 1)' },
+        { duration, easing: 'cubic-bezier(0.4, 0, 1, 1)' },
       );
-      anim.onfinish = finish;
-      anim.oncancel = () => { if (!open) editor.hidden = true; };
+      anim = a;
+      a.onfinish = finish;
+      a.oncancel = () => { if (!open) editor.hidden = true; };
+      // a background tab may never run the animation: hide on time regardless
+      setTimeout(() => { if (anim === a && !open) { a.cancel(); finish(); } }, duration + 120);
     }
   }
 

@@ -5,6 +5,11 @@ yearly total**: premium plus expected out-of-pocket care, minus any HSA or HRA m
 from 2026, compares plans side by side or on a horizontal ranked board with the full benefit details, prices
 your own medications from the plan brochures' drug tiers, and adds FEDVIP dental and vision for your ZIP code.
 
+Layout: "Your situation" is a one-line summary under the top bar; "Edit your situation" opens the inputs inline
+at full width (they follow the tab: health plan inputs on Health plans, dental and vision inputs on Dental &
+Vision). Results use the full width below it. Both tabs offer the same views: ranked cards (default) or the
+board, which takes its full height (the page scrolls it) and has a Full screen mode.
+
 It is a static site (no server, no build step, no tracking). Everything you enter stays in your browser: the
 comparison lives in the URL hash (so a link reproduces it) and in localStorage; your medication list lives
 only in localStorage and is never put in a link.
@@ -102,7 +107,8 @@ Everything else is external (`src/`, `styles/`); `style-src` would also need `ht
     src/share.js              the share link
     src/data.js               data loading
     src/engine/               pure cost engine: premiums, deductibles, coinsurance, OOP max, scenarios, dental
-    src/ui/                   input panel, results cards, compare, board, matrix, medications, dental/vision, dialog
+    src/ui/                   situation bar and input panel, results cards, compare, board, matrix, medications,
+                              dental/vision, dialog
     styles/                   tokens.css (design tokens, light/dark), component styles, print.css
     assets/                   favicon
     data/                     generated JSON (see Data)
