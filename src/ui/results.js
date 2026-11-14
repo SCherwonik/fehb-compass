@@ -1,7 +1,7 @@
 // Ranked results: header + toolbar, savings banner, compare view, keyed card list, compare tray.
 // Cards are keyed by plan code and updated in place; reordering uses FLIP limited to visible cards.
 import { h, svg, segmented, ICON_CHECK, describeScenario } from './inputs.js';
-import { computeRows, sortRows, savingsVsCurrent, SORTS } from './model.js';
+import { computeRows, sortRows, savingsVsCurrent, availablePlans, SORTS } from './model.js';
 import { renderCompare, revealCompare } from './compare.js';
 import { FLAG_TEXT } from '../engine/diff.js';
 import { ASSUMED_PRICES, ASSUMPTIONS_NOTE } from '../engine/assumptions.js';
@@ -50,6 +50,18 @@ export function createResults(main, { store }) {
   // ---------- static frame ----------
   const title = h('h2', { class: 'rhead-title', id: 'results-title' });
   const sub = h('p', { class: 'rhead-sub' });
+  const filtered = h('p', { class: 'rhead-filtered', hidden: true });
+  const infoBtn = h('button', { type: 'button', class: 'info-toggle', 'aria-expanded': 'false', 'aria-controls': 'counted-note' }, 'What’s counted?');
+  const infoNote = h('p', { class: 'counted-note', id: 'counted-note', hidden: true });
+  const countRow = h('div', { class: 'rhead-count' }, filtered, infoBtn);
+  infoBtn.addEventListener('click', () => {
+    const open = infoNote.hidden;
+    infoNote.hidden = !open;
+    infoBtn.setAttribute('aria-expanded', String(open));
+    if (open && !reduceMotion()) {
+      infoNote.animate([{ opacity: 0, transform: 'translateY(-3px)' }, { opacity: 1, transform: 'none' }], { duration: 220, easing: EASE_OUT });
+    }
+  });
   const sortCtl = segmented({
     name: 'sort', legend: 'Sort by',
     options: Object.entries(SORTS).map(([k, v]) => [k, k === 'oopMax' ? 'OOP max' : v.label.replace('Total cost', 'Total')]),
@@ -58,7 +70,7 @@ export function createResults(main, { store }) {
   sortCtl.el.classList.add('tool');
   typeCtl.el.classList.add('tool');
   const head = h('header', { class: 'rhead' },
-    h('div', { class: 'rhead-copy' }, title, sub),
+    h('div', { class: 'rhead-copy' }, title, countRow, infoNote, sub),
     h('div', { class: 'rtools' }, sortCtl.el, typeCtl.el));
 
   const savings = h('section', { class: 'savings', hidden: true, 'aria-live': 'polite' });
@@ -391,8 +403,18 @@ export function createResults(main, { store }) {
     typeCtl.sync(ui.type);
 
     const st = state.location.state;
-    title.textContent = rows.length === 0 ? 'No plans' : rows.length === 1 ? '1 plan' : `${rows.length} plans`;
-    title.append(st ? ` in ${STATE_NAMES[st] ?? st}` : ' available nationwide');
+    // Headline = every plan open to this state (before filters); the line below says how many survive them.
+    const avail = availablePlans(data.plans.filter((p) => p.year === 2027), data.serviceArea, st).length;
+    const where = st ? STATE_NAMES[st] ?? st : null;
+    title.textContent = where
+      ? `${avail} ${avail === 1 ? 'plan' : 'plans'} available in ${where}`
+      : `${avail} nationwide ${avail === 1 ? 'plan' : 'plans'}`;
+    const filtersOn = state.networks.length > 0 || state.account !== 'any' || ui.type !== 'all';
+    filtered.hidden = !filtersOn;
+    if (filtersOn) filtered.textContent = `${rows.length} of ${avail} ${avail === 1 ? 'plan' : 'plans'} after filters`;
+    infoNote.textContent = where
+      ? 'FEHB plans open to you in this state: nationwide plans plus regional plans serving it.'
+      : 'Nationwide FEHB plans only, because no state is chosen. Choose a state to add regional plans serving it.';
     sub.textContent = st
       ? `Ranked by ${SORTS[ui.sort].label.toLowerCase()} for ${ENROLLMENT_TEXT[state.enrollment]} coverage and a ${SCENARIO_TEXT[state.scenario]} year.`
       : 'Choose your state to add regional HMO plans. Nationwide plans are shown now.';
@@ -433,7 +455,7 @@ export function createResults(main, { store }) {
     }
 
     status.textContent = rows.length
-      ? `${rows.length} plans. Lowest ${SORTS[ui.sort].label.toLowerCase()}: ${rows[0].plan.name}, ${usd(rows[0].cost.total)} a year.`
+      ? `${rows.length} of ${avail} plans. Lowest ${SORTS[ui.sort].label.toLowerCase()}: ${rows[0].plan.name}, ${usd(rows[0].cost.total)} a year.`
       : 'No plans match these filters.';
   }
 

@@ -1,6 +1,7 @@
 // Input panel: builds controls once, then syncs them from state in place (no re-render churn).
 import { SCENARIOS } from '../engine/scenarios.js';
 import { STATE_NAMES, statesFromServiceArea, plansForYear, networkFamilies } from '../data.js';
+import { countsByFamily, groupCurrentPlanOptions } from './model.js';
 
 const VISIBLE_NETWORKS = 8;
 const reduceMotion = () => globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
@@ -81,6 +82,184 @@ function selectField({ id, label, hint, placeholder, groups }) {
   };
 }
 
+/**
+ * Searchable single-select (ARIA 1.2 editable combobox with a listbox popup).
+ * Type to filter, ArrowUp/Down to move, Enter to choose, Esc to close and restore, Tab to leave.
+ * setModel({ groups: [{ id, label, options: [{ code, name, carrier, continues }] }] }); sync(code).
+ */
+export function combobox({ id, label, hint, placeholder, emptyLabel, onSelect }) {
+  const listId = `${id}-list`;
+  const hintId = hint ? nextId('hint') : null;
+  const input = h('input', {
+    type: 'text', id, class: 'select cb-input is-empty', role: 'combobox', autocomplete: 'off', spellcheck: 'false',
+    'aria-autocomplete': 'list', 'aria-expanded': 'false', 'aria-controls': listId, 'aria-describedby': hintId,
+    placeholder,
+  });
+  const list = h('div', { class: 'cb-list', id: listId, role: 'listbox', 'aria-label': label, hidden: true });
+  const live = h('p', { class: 'sr-only', role: 'status' });
+  const chevron = svg(ICON_CHEVRON);
+  const el = h('div', { class: 'field cb' },
+    h('label', { class: 'field-label', for: id }, label),
+    h('div', { class: 'select-wrap cb-wrap' }, input, chevron, list),
+    hint && h('p', { class: 'field-hint', id: hintId }, hint),
+    live);
+
+  let model = { groups: [] };
+  let selected = '';
+  let dirty = false; // the text box holds a search, not the chosen plan's name
+  let open = false;
+  let active = -1;
+  let flat = []; // [{ code, node }] in display order, including the clear option
+
+  const nameOf = (code) => {
+    for (const g of model.groups) for (const o of g.options) if (o.code === code) return o.name;
+    return '';
+  };
+  const showSelected = () => {
+    input.value = nameOf(selected);
+    input.classList.toggle('is-empty', !selected);
+    dirty = false;
+  };
+
+  function optionNode(o, optId) {
+    const badge = o.continues === undefined ? null
+      : h('span', { class: `cb-badge ${o.continues ? 'is-continues' : 'is-ended'}` }, o.continues ? 'continues in 2027' : 'ended in 2027');
+    return h('div', { class: 'cb-option', role: 'option', id: optId, 'data-code': o.code, 'aria-selected': String(o.code === selected) },
+      h('span', { class: 'cb-name' }, o.name),
+      (o.code || badge) && h('span', { class: 'cb-sub' },
+        o.code && h('span', { class: 'cb-meta' }, o.carrier ? `${o.carrier} · plan ${o.code}` : `Plan ${o.code}`),
+        badge));
+  }
+
+  function render() {
+    const tokens = dirty ? input.value.toLowerCase().split(/\s+/).filter(Boolean) : [];
+    const match = (o) => {
+      const hay = `${o.name} ${o.carrier} ${o.code}`.toLowerCase();
+      return tokens.every((t) => hay.includes(t));
+    };
+    flat = [];
+    const nodes = [];
+    let n = 0;
+    if (!tokens.length) {
+      const node = optionNode({ code: '', name: emptyLabel }, `${id}-o${n++}`);
+      node.classList.add('cb-clear');
+      flat.push({ code: '', node });
+      nodes.push(node);
+    }
+    for (const g of model.groups) {
+      const opts = g.options.filter(match);
+      if (!opts.length) continue;
+      const gid = `${id}-g-${g.id}`;
+      const body = opts.map((o) => {
+        const node = optionNode(o, `${id}-o${n++}`);
+        flat.push({ code: o.code, node });
+        return node;
+      });
+      nodes.push(h('div', { class: 'cb-group', role: 'group', 'aria-labelledby': gid },
+        h('div', { class: 'cb-group-label', id: gid, role: 'presentation' }, g.label), body));
+    }
+    const count = flat.filter((f) => f.code).length;
+    if (!count) nodes.push(h('p', { class: 'cb-empty' }, `No 2026 plan matches “${input.value.trim()}”.`));
+    list.replaceChildren(...nodes);
+    live.textContent = count ? `${count} ${count === 1 ? 'plan' : 'plans'} available` : 'No matching plans';
+    active = tokens.length ? (count ? 0 : -1) : Math.max(0, flat.findIndex((f) => f.code === selected));
+    paintActive(false);
+  }
+
+  function paintActive(scroll = true) {
+    flat.forEach((f, i) => f.node.classList.toggle('is-active', i === active));
+    const cur = flat[active]?.node;
+    if (cur) {
+      input.setAttribute('aria-activedescendant', cur.id);
+      if (scroll) cur.scrollIntoView({ block: 'nearest' });
+    } else input.removeAttribute('aria-activedescendant');
+  }
+
+  function setOpen(next) {
+    if (next === open) return;
+    open = next;
+    input.setAttribute('aria-expanded', String(open));
+    chevron.classList.toggle('is-open', open);
+    if (open) {
+      list.hidden = false;
+      render();
+      flat[active]?.node.scrollIntoView({ block: 'nearest' });
+      if (!reduceMotion()) {
+        list.animate(
+          [{ opacity: 0, transform: 'translateY(-4px) scale(0.985)' }, { opacity: 1, transform: 'none' }],
+          { duration: 200, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' },
+        );
+      }
+    } else {
+      list.hidden = true;
+      input.removeAttribute('aria-activedescendant');
+      showSelected();
+    }
+  }
+
+  function choose(code) {
+    selected = code;
+    showSelected();
+    setOpen(false);
+    onSelect(code || null);
+  }
+
+  input.addEventListener('click', () => setOpen(true));
+  input.addEventListener('focus', () => input.select());
+  input.addEventListener('blur', () => setOpen(false));
+  input.addEventListener('input', () => {
+    dirty = true;
+    input.classList.remove('is-empty');
+    if (open) render(); else setOpen(true);
+  });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (!open) { setOpen(true); return; }
+      if (!flat.length) return;
+      const d = e.key === 'ArrowDown' ? 1 : -1;
+      active = (active + d + flat.length) % flat.length;
+      paintActive();
+    } else if (e.key === 'Enter') {
+      if (open) {
+        e.preventDefault();
+        if (flat[active]) choose(flat[active].code);
+      }
+    } else if (e.key === 'Escape') {
+      if (open) { e.preventDefault(); e.stopPropagation(); setOpen(false); }
+    }
+  });
+  // mousedown (not click) keeps focus in the input so blur does not close the list first
+  list.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    const opt = e.target.closest('.cb-option');
+    if (opt) choose(opt.dataset.code);
+  });
+  list.addEventListener('mousemove', (e) => {
+    const opt = e.target.closest('.cb-option');
+    const i = flat.findIndex((f) => f.node === opt);
+    if (i >= 0 && i !== active) { active = i; paintActive(false); }
+  });
+  chevron.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    input.focus();
+    setOpen(!open);
+  });
+
+  return {
+    el,
+    input,
+    setModel(m) {
+      model = m;
+      if (open) render(); else showSelected();
+    },
+    sync(code) {
+      selected = code ?? '';
+      if (open) render(); else showSelected();
+    },
+  };
+}
+
 // ---------- panel ----------
 
 /**
@@ -109,23 +288,19 @@ export function renderInputs(form, { data, store }) {
     groups: [{ options: states.map((c) => [c, STATE_NAMES[c] ?? c]) }],
   });
 
-  // -- current plan, grouped by network family
-  const byFamily = new Map();
-  for (const p of plans2026) {
-    const f = p.network_family || 'Other';
-    if (!byFamily.has(f)) byFamily.set(f, []);
-    byFamily.get(f).push(p);
-  }
-  const current = selectField({
-    id: 'in-current', label: 'Your 2026 plan', placeholder: 'Not enrolled or skip',
-    hint: 'Used to show what changes for you in 2027.',
-    groups: [...byFamily.keys()].sort((a, b) => a.localeCompare(b)).map((f) => ({
-      label: f,
-      options: byFamily.get(f)
-        .slice().sort((a, b) => a.name.localeCompare(b.name))
-        .map((p) => [p.code, `${p.name} (${p.code})`]),
-    })),
+  // -- current plan: searchable, grouped by whether it carries into 2027 for the chosen state
+  const plans27 = plansForYear(data.plans, 2027);
+  const current = combobox({
+    id: 'in-current', label: 'Your 2026 plan', placeholder: 'Search plans, or skip', emptyLabel: 'Not enrolled or skip',
+    hint: 'Shows 2026 plans; plans marked ended have no 2027 version.',
+    onSelect: (code) => store.set({ currentPlan2026: code }),
   });
+  let currentFor; // state the combobox groups were last built for
+  function syncCurrentModel(st) {
+    if (st === currentFor) return;
+    currentFor = st;
+    current.setModel(groupCurrentPlanOptions(plans2026, plans27, data.serviceArea, st, STATE_NAMES[st] ?? st));
+  }
 
   const account = segmented({
     name: 'account', legend: 'Savings account',
@@ -133,24 +308,28 @@ export function renderInputs(form, { data, store }) {
     hint: 'HSA and HRA plans put money toward your costs each year.',
   });
 
-  // -- networks: multi-select chips; none selected means every network
+  // -- networks: multi-select chips; none selected means every network.
+  // Counts follow the chosen state and savings account (not the network choice itself).
   const chipsId = nextId('chips');
   const chipWrap = h('div', { class: 'chips', id: chipsId });
-  const chipEls = families.map(({ name, count }, idx) => {
+  const chipEls = networkFamilies(data.plans, 2027).map(({ name }) => {
     const input = h('input', { type: 'checkbox', class: 'chip-input', value: name });
-    const label = h('label', { class: 'chip', 'data-rank': idx },
-      input, svg(ICON_CHECK), h('span', { class: 'chip-text' }, name), h('span', { class: 'chip-count' }, count));
+    const count = h('span', { class: 'chip-count' }, '0');
+    const label = h('label', { class: 'chip' }, input, svg(ICON_CHECK), h('span', { class: 'chip-text' }, name), count);
     chipWrap.append(label);
-    return { name, label, input, idx };
+    return { name, label, input, count, rank: 0, n: null };
   });
+  const chipByName = new Map(chipEls.map((c) => [c.name, c]));
   let expanded = false;
+  let order = '';
   const more = h('button', { type: 'button', class: 'chip-more', 'aria-expanded': 'false', 'aria-controls': chipsId });
-  const hiddenCount = Math.max(0, families.length - VISIBLE_NETWORKS);
+  const scope = h('p', { class: 'field-hint chip-scope' });
   const networks = h('fieldset', { class: 'field' },
     h('legend', { class: 'field-label' }, 'Networks'),
-    h('p', { class: 'field-hint field-hint-top' }, 'Leave all off to include every network. Numbers are 2027 plan options.'),
+    h('p', { class: 'field-hint field-hint-top' }, 'Leave all off to include every network.'),
+    scope,
     chipWrap,
-    hiddenCount > 0 && more);
+    more);
 
   // -- scenario
   const scenario = segmented({
@@ -189,7 +368,6 @@ export function renderInputs(form, { data, store }) {
     else if (t.name === 'account') store.set({ account: t.value });
     else if (t.name === 'scenario') store.set({ scenario: t.value });
     else if (t === location.select) store.set({ location: { state: t.value || null } });
-    else if (t === current.select) store.set({ currentPlan2026: t.value || null });
     else if (t === dentalInput) store.set({ dental: t.checked });
     else if (t.classList.contains('chip-input')) {
       store.set({ networks: chipEls.filter((c) => c.input.checked).map((c) => c.name) });
@@ -202,19 +380,55 @@ export function renderInputs(form, { data, store }) {
 
   // ---------- sync ----------
   function syncChips(s, animate = false) {
+    const st = s.location.state;
+    const counts = countsByFamily(plans27, data.serviceArea, { state: st, account: s.account });
     const selected = new Set(s.networks);
+    const where = st ? (STATE_NAMES[st] ?? st) : null;
+    scope.textContent = where
+      ? `Numbers are plans open to you in ${where}${s.account === 'any' ? '' : `, ${s.account.toUpperCase()} only`}.`
+      : 'Numbers are nationwide plans. Choose a state to add regional plans.';
+
+    counts.families.forEach((f, i) => {
+      const c = chipByName.get(f.name);
+      c.rank = i;
+      c.input.checked = selected.has(f.name);
+      const zero = f.count === 0;
+      c.input.disabled = zero && !selected.has(f.name); // a selected empty chip stays clickable so it can be cleared
+      c.label.classList.toggle('is-zero', zero);
+      if (c.n !== f.count) {
+        const changed = c.n !== null;
+        c.n = f.count;
+        c.count.textContent = f.count;
+        if (changed && animate && !reduceMotion()) {
+          c.count.animate(
+            [{ opacity: 0, transform: 'translateY(3px)' }, { opacity: 1, transform: 'none' }],
+            { duration: 260, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' },
+          );
+        }
+      }
+    });
+    // Most plans first, empty families last. Reorder the DOM only when the order changed (never on a chip
+    // toggle, since counts ignore the network choice), so focus is not lost mid-click.
+    const nextOrder = counts.families.map((f) => f.name).join('|');
+    if (nextOrder !== order) {
+      order = nextOrder;
+      chipWrap.append(...counts.families.map((f) => chipByName.get(f.name).label));
+    }
+
+    let hiddenCount = 0;
     for (const c of chipEls) {
-      c.input.checked = selected.has(c.name);
-      const show = expanded || c.idx < VISIBLE_NETWORKS || selected.has(c.name);
+      const show = expanded || c.rank < VISIBLE_NETWORKS || selected.has(c.name);
+      if (!show) hiddenCount += 1;
       const wasHidden = c.label.hidden;
       c.label.hidden = !show;
       if (animate && wasHidden && show && !reduceMotion()) {
         c.label.animate(
           [{ opacity: 0, transform: 'scale(0.92)', filter: 'blur(4px)' }, { opacity: 1, transform: 'none', filter: 'none' }],
-          { duration: 320, delay: (c.idx - VISIBLE_NETWORKS) * 18, easing: 'cubic-bezier(0.16, 1, 0.3, 1)', fill: 'backwards' },
+          { duration: 320, delay: Math.max(0, c.rank - VISIBLE_NETWORKS) * 18, easing: 'cubic-bezier(0.16, 1, 0.3, 1)', fill: 'backwards' },
         );
       }
     }
+    more.hidden = hiddenCount === 0 && !expanded;
     more.setAttribute('aria-expanded', String(expanded));
     more.textContent = expanded ? 'Show fewer' : `Show ${hiddenCount} more`;
   }
@@ -238,9 +452,10 @@ export function renderInputs(form, { data, store }) {
     status.sync(s.status);
     enrollment.sync(s.enrollment);
     location.sync(s.location.state);
+    syncCurrentModel(s.location.state);
     current.sync(s.currentPlan2026);
     account.sync(s.account);
-    syncChips(s);
+    syncChips(s, true);
     syncScenario(s);
     dentalInput.checked = s.dental;
   }

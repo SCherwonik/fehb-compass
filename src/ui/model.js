@@ -83,11 +83,76 @@ export function makeRow(data, state, code) {
   };
 }
 
-function servesState(data, code, st) {
-  const area = data.serviceArea?.[code];
+/** True when a plan (by code) is open to someone in `st`: nationwide, or a service area that lists the state. */
+export function servesState(serviceArea, code, st) {
+  const area = serviceArea?.[code];
   if (!area) return false;
   if (area.nationwide) return true;
   return Boolean(st) && (area.states ?? []).includes(st);
+}
+
+const familyOf = (p) => p.network_family || 'Other';
+
+/** Plans open to this state (no state: nationwide plans only), before any network/account/type filter. */
+export function availablePlans(plans27, serviceArea, state) {
+  return (plans27 ?? []).filter((p) => servesState(serviceArea, p.code, state ?? null));
+}
+
+/**
+ * Network chip counts for the plans that pass the location and account filters, but NOT the network
+ * filter (so toggling a chip never changes another chip's count).
+ * -> { scope: 'state'|'nationwide', state, total, families: [{ name, count }] }
+ * Families with zero plans stay in the list, last; the rest are most plans first, then by name.
+ * Counts sum to `total`, the number of plans the results show when no network is selected.
+ */
+export function countsByFamily(plans27, serviceArea, { state = null, account = 'any' } = {}) {
+  const all = new Map();
+  for (const p of plans27 ?? []) all.set(familyOf(p), 0);
+  let total = 0;
+  for (const p of availablePlans(plans27, serviceArea, state)) {
+    if (account === 'hsa' && !p.hsa) continue;
+    if (account === 'hra' && !p.hra) continue;
+    all.set(familyOf(p), all.get(familyOf(p)) + 1);
+    total += 1;
+  }
+  const families = [...all]
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => (b.count > 0) - (a.count > 0) || b.count - a.count || a.name.localeCompare(b.name));
+  return { scope: state ? 'state' : 'nationwide', state: state ?? null, total, families };
+}
+
+/**
+ * Options for the "your 2026 plan" combobox, grouped by whether the plan carries into 2027 (matched by plan code).
+ * With a state: 'available' = continues and its 2027 service area covers the state (or is nationwide);
+ * 'other' = everything else (regional elsewhere, or ended). Without a state: 'continuing' / 'ended'.
+ * -> { mode: 'state'|'all', groups: [{ id, label, options: [{ code, name, carrier, family, continues }] }] }
+ * Empty groups are omitted. Options sort by name.
+ */
+export function groupCurrentPlanOptions(plans26, plans27, serviceArea, state, stateName = state) {
+  const codes27 = new Set((plans27 ?? []).map((p) => p.code));
+  const opt = (p) => ({
+    code: p.code, name: p.name, carrier: p.carrier ?? '', family: familyOf(p), continues: codes27.has(p.code),
+  });
+  const byName = (a, b) => a.name.localeCompare(b.name) || a.code.localeCompare(b.code);
+  const options = (plans26 ?? []).map(opt).sort(byName);
+  let groups;
+  let mode;
+  if (state) {
+    mode = 'state';
+    groups = [
+      { id: 'available', label: `Available in ${stateName} (continuing into 2027)`,
+        options: options.filter((o) => o.continues && servesState(serviceArea, o.code, state)) },
+      { id: 'other', label: `Other 2026 plans (not matched to ${stateName} in 2027)`,
+        options: options.filter((o) => !(o.continues && servesState(serviceArea, o.code, state))) },
+    ];
+  } else {
+    mode = 'all';
+    groups = [
+      { id: 'continuing', label: 'Continuing in 2027', options: options.filter((o) => o.continues) },
+      { id: 'ended', label: 'Ended', options: options.filter((o) => !o.continues) },
+    ];
+  }
+  return { mode, groups: groups.filter((g) => g.options.length) };
 }
 
 /**
@@ -100,7 +165,7 @@ export function computeRows(data, state, { type = 'all' } = {}) {
   const nets = new Set(state.networks ?? []);
   const rows = [];
   for (const [code, meta] of index(data)[2027]) {
-    if (!servesState(data, code, st)) continue;
+    if (!servesState(data.serviceArea, code, st)) continue;
     if (nets.size && !nets.has(meta.network_family || 'Other')) continue;
     if (type !== 'all' && meta.type !== type) continue;
     const row = makeRow(data, state, code);
