@@ -35,7 +35,6 @@ export function summaryChips(state, { planName = () => null, medsCount = 0, dvFi
     out.push({ id: 'scenario', text: `${SCENARIO[s.scenario]}${adjusted ? ', adjusted' : ''}` });
     if (s.currentPlan2026) {
       out.push({ id: 'plan', text: `2026 plan: ${planName(s.currentPlan2026) ?? s.currentPlan2026}` });
-      if (s.includeMine) out.push({ id: 'mine', text: 'Includes my plan’s 2027 version' });
     }
     if (s.account !== 'any') out.push({ id: 'account', text: `${s.account.toUpperCase()} plans only` });
     if (s.networks.length) out.push({ id: 'networks', text: list(s.networks, 'Network', 'networks'), title: s.networks.join(', ') });

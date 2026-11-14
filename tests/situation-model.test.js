@@ -20,13 +20,13 @@ test('summary chips: medical inputs read as plain chips, medications only as a c
   const chips = summaryChips(s, { planName: (c) => (c === '104' ? 'Blue Cross Basic' : null), medsCount: 2 });
   assert.deepEqual(texts(chips), [
     'Self and family, retiree', 'Virginia, ZIP 22030', 'Worst case, adjusted', '2026 plan: Blue Cross Basic',
-    'Includes my plan’s 2027 version', 'HSA plans only', '2 networks', 'Covers GLP-1 for weight loss',
+    'HSA plans only', '2 networks', 'Covers GLP-1 for weight loss',
     'Dental and vision added', '2 medications',
   ]);
   assert.equal(chips.find((c) => c.id === 'networks').title, 'Aetna, Kaiser');
   assert.equal(summaryChips({ ...s, networks: ['Aetna'] }).find((c) => c.id === 'networks').text, 'Network: Aetna');
   assert.equal(summaryChips({ ...s, currentPlan2026: '104' }).find((c) => c.id === 'plan').text, '2026 plan: 104');
-  assert.equal(summaryChips({ ...s, includeMine: false }).some((c) => c.id === 'mine'), false);
+  assert.equal(summaryChips(s).some((c) => c.id === 'mine'), false); // the results toolbar has the switch
   assert.equal(summaryChips(s, { medsCount: 1 }).at(-1).text, '1 medication');
 });
 

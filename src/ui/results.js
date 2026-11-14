@@ -69,17 +69,7 @@ export function createResults(main, { store, onRanked }) {
   const title = h('h2', { class: 'rhead-title', id: 'results-title' });
   const sub = h('p', { class: 'rhead-sub' });
   const filtered = h('p', { class: 'rhead-filtered', hidden: true });
-  const infoBtn = h('button', { type: 'button', class: 'info-toggle', 'aria-expanded': 'false', 'aria-controls': 'counted-note' }, 'What’s counted?');
-  const infoNote = h('p', { class: 'counted-note', id: 'counted-note', hidden: true });
-  const countRow = h('div', { class: 'rhead-count' }, filtered, infoBtn);
-  infoBtn.addEventListener('click', () => {
-    const open = infoNote.hidden;
-    infoNote.hidden = !open;
-    infoBtn.setAttribute('aria-expanded', String(open));
-    if (open && !reduceMotion()) {
-      infoNote.animate([{ opacity: 0, transform: 'translateY(-3px)' }, { opacity: 1, transform: 'none' }], { duration: 220, easing: EASE_OUT });
-    }
-  });
+  const countRow = h('div', { class: 'rhead-count' }, filtered);
   const sortCtl = segmented({
     name: 'sort', legend: 'Sort by',
     options: Object.entries(SORTS).map(([k, v]) => [k, k === 'oopMax' ? 'OOP max' : v.label.replace('Total cost', 'Total')]),
@@ -103,7 +93,9 @@ export function createResults(main, { store, onRanked }) {
     if (e.target.closest('[data-dismiss="dropped"]')) store.set({ droppedCustom: 0 });
   });
   const head = h('header', { class: 'rhead' },
-    h('div', { class: 'rhead-copy' }, title, countRow, infoNote, sub, assume, mineNote),
+    h('div', { class: 'rhead-copy' }, title, countRow, sub,
+      // the assumption chips and the "your plan ranks #N" note share one line (they wrap on a narrow screen)
+      h('div', { class: 'rhead-meta' }, assume, mineNote)),
     h('div', { class: 'rtools' }, viewCtl.el, groupCtl, sortCtl.el, typeCtl.el, mineCtl.el));
   const board = createResultsBoard();
 
@@ -632,9 +624,6 @@ export function createResults(main, { store, onRanked }) {
     const filtersOn = state.networks.length > 0 || state.account !== 'any' || ui.type !== 'all' || (state.glp1 && Boolean(data.brochure));
     filtered.hidden = !filtersOn;
     if (filtersOn) filtered.textContent = `${filteredRows.length} of ${avail} ${avail === 1 ? 'plan' : 'plans'} after filters`;
-    infoNote.textContent = where
-      ? 'FEHB plans open to you in this state: nationwide plans plus regional plans serving all or part of it. Plans marked “Serves part of …” cover only some counties: confirm yours in the plan’s brochure.'
-      : 'Nationwide FEHB plans only, because no state is chosen. Choose a state to add regional plans serving it.';
     mineWhere = res.mineStatus === 'included' && res.notInState ? (where ?? 'nationwide') : '';
     renderMineNote(state, res, where);
     // say when the ranking also carries the user's priced medications or the dental/vision add-on
