@@ -2,7 +2,7 @@
 // Cards are keyed by plan code and updated in place; reordering uses FLIP limited to visible cards.
 import { h, svg, segmented, ICON_CHECK, ICON_CHEVRON, mineSwitch } from './inputs.js';
 import { assumptionChips, describeUsage, effectiveUsage, overrideChanges, inNetworkAtMax } from './assumptions.js';
-import { computeRows, savingsVsCurrent, availablePlans, SORTS, rankWithMine } from './model.js';
+import { computeRows, savingsVsCurrent, availablePlans, SORTS, rankWithMine, baseTotal } from './model.js';
 import { GROUP_LABELS, GROUP_MODES } from './grouping.js';
 import { createResultsBoard, mineNoteText } from './results-board.js';
 import { renderCompare, revealCompare } from './compare.js';
@@ -312,22 +312,24 @@ export function createResults(main, { store, onRanked }) {
     setText(r.share, costShareSummary(row.benefits, row.facts.coinsurance) || 'Cost sharing varies; see the plan brochure.');
 
     // chips: your plan / vs your plan, firmness, status, warnings (rebuilt only when their content changes)
-    const vsMine = mine && !row.isMine ? Math.round(row.cost.total - mine.cost.total) : null;
+    // compared without medications when the user has any (they are priced only where tiers are recorded)
+    const vsExcl = Boolean(data.meds);
+    const vsMine = mine && !row.isMine ? Math.round(baseTotal(row) - baseTotal(mine)) : null;
     rec.el.classList.toggle('is-mine', Boolean(row.isMine));
     // the pinned plan sits outside the ranking: its number is the overall rank in the state
     const rankTag = row.isMine && Number.isInteger(row.globalRank)
       ? `#${row.globalRank} overall${mineFiltersOn ? (row.viewRank ? ` · #${row.viewRank} in this view` : ' · outside your filters') : ''}`
       : '';
     const oon = row.cost.breakdown.oonEstimate === true;
-    const key = `${row.isMine ? `mine:${mineWhere}:${rankTag}` : ''}|${vsMine}|${row.cost.firmness}|${row.diff.status}|${row.diff.flags.join(',')}|${oon}`;
+    const key = `${row.isMine ? `mine:${mineWhere}:${rankTag}` : ''}|${vsMine}:${vsExcl}|${row.cost.firmness}|${row.diff.status}|${row.diff.flags.join(',')}|${oon}`;
     if (key !== rec.chipsKey) {
       rec.chipsKey = key;
       const items = [
         row.isMine && h('li', { class: 'tag tag-mine' }, 'Your plan · 2027'),
         rankTag && h('li', { class: 'tag' }, rankTag),
         row.isMine && mineWhere && h('li', { class: 'tag' }, `Not listed for ${mineWhere}`),
-        vsMine != null && h('li', { class: `tag tag-vs tag-vs-${deltaTone(vsMine)}`, title: 'Estimated yearly total compared with your plan in 2027' },
-          deltaTone(vsMine) === 'flat' ? 'Same as your plan' : `${signedUsd(vsMine)} vs your plan`),
+        vsMine != null && h('li', { class: `tag tag-vs tag-vs-${deltaTone(vsMine)}`, title: vsExcl ? 'Estimated yearly totals compared without your medications, which are priced only on plans where you recorded tiers' : 'Estimated yearly total compared with your plan in 2027' },
+          deltaTone(vsMine) === 'flat' ? `Same as your plan${vsExcl ? ' (excl. meds)' : ''}` : `${signedUsd(vsMine)} vs your plan${vsExcl ? ' (excl. meds)' : ''}`),
         row.cost.firmness === 'fixed'
           ? h('li', { class: 'tag tag-fixed', title: 'Every service in this scenario is a flat copay, so this total does not depend on assumed prices.' }, 'Fixed cost')
           : h('li', { class: 'tag tag-est', title: 'Part of this total depends on assumed prices for care. See the math.' }, 'Estimated'),
@@ -443,29 +445,41 @@ export function createResults(main, { store, onRanked }) {
     const num = h('span', { class: 'savings-num' });
     let headline;
     let detail;
+    // With medications priced on some plans, every figure here is WITHOUT them (2026 plans and plans with no
+    // recorded tiers cannot carry them); what they add is said separately below.
+    const excl = v.basis === 'excl-meds';
+    const tot = (r) => (excl ? baseTotal(r) : r.cost.total);
+    let medsNote = '';
     if (v.kind === 'continuing') {
       const same = v.best.code === v.current.code;
       if (same || v.amount <= 0.5) {
         headline = h('p', { class: 'savings-title' }, same
           ? 'Your current plan is still your cheapest match.'
           : 'Staying put is the cheapest choice shown.');
-        detail = `${v.current.plan.name} comes to about ${usd(v.current.cost.total)} in 2027 for your situation.`;
+        detail = `${v.current.plan.name} comes to about ${usd(tot(v.current))} in 2027 for your situation${excl ? ', excluding your medications' : ''}.`;
       } else {
         headline = h('p', { class: 'savings-title' }, 'You’d save ', num, ' a year vs your current plan');
-        detail = `${v.best.plan.name} at ${usd(v.best.cost.total)}, versus ${usd(v.current.cost.total)} for ${v.current.plan.name} in 2027.`;
+        detail = `${v.best.plan.name} at ${usd(tot(v.best))}, versus ${usd(tot(v.current))} for ${v.current.plan.name} in 2027${excl ? ', both excluding your medications' : ''}.`;
+      }
+      if (excl) {
+        medsNote = same
+          ? `Your medications add ${usd(v.currentMeds)} on this plan.`
+          : `Your medications add ${usd(v.bestMeds)} on ${v.best.plan.name} and ${usd(v.currentMeds)} on your plan, for the drugs whose tiers you recorded on each.`;
       }
     } else {
       const name = v.currentPlan?.name ?? `plan ${state.currentPlan2026}`;
       headline = h('p', { class: 'savings-title' }, `${name} is not offered in 2027.`);
       detail = v.amount == null
-        ? `The cheapest 2027 match is ${v.best.plan.name} at ${usd(v.best.cost.total)}.`
-        : `The cheapest 2027 match, ${v.best.plan.name}, comes to ${usd(v.best.cost.total)}: ${usd(Math.abs(v.amount))} ${v.amount >= 0 ? 'less' : 'more'} than your plan would have cost in 2026 (${usd(v.current2026Total)}).`;
+        ? `The cheapest 2027 match is ${v.best.plan.name} at ${usd(tot(v.best))}${excl ? ', excluding your medications' : ''}.`
+        : `The cheapest 2027 match, ${v.best.plan.name}, comes to ${usd(tot(v.best))}: ${usd(Math.abs(v.amount))} ${v.amount >= 0 ? 'less' : 'more'} than your plan would have cost in 2026 (${usd(v.current2026Total)})${excl ? '. Both exclude your medications' : ''}.`;
+      if (excl) medsNote = `Plus your medications: ${usd(v.bestMeds)} on ${v.best.plan.name}, not yet priced for 2026.`;
     }
     const prevNum = savings.querySelector('.savings-num');
     if (prevNum) num._num = prevNum._num;
     savings.replaceChildren(
       h('span', { class: 'savings-glow', 'aria-hidden': 'true' }),
-      h('div', { class: 'savings-body' }, headline, h('p', { class: 'savings-detail' }, detail)));
+      h('div', { class: 'savings-body' }, headline, h('p', { class: 'savings-detail' }, detail),
+        medsNote && h('p', { class: 'savings-detail savings-meds' }, medsNote)));
     if (v.kind === 'continuing' && v.amount > 0.5) tweenNumber(num, v.amount, usd, { animate: !savings.hidden });
     savings.hidden = false;
   }
@@ -540,7 +554,7 @@ export function createResults(main, { store, onRanked }) {
     title.textContent = where
       ? `${avail} ${avail === 1 ? 'plan' : 'plans'} available in ${where}`
       : `${avail} nationwide ${avail === 1 ? 'plan' : 'plans'}`;
-    const filtersOn = state.networks.length > 0 || state.account !== 'any' || ui.type !== 'all' || state.glp1;
+    const filtersOn = state.networks.length > 0 || state.account !== 'any' || ui.type !== 'all' || (state.glp1 && Boolean(data.brochure));
     filtered.hidden = !filtersOn;
     if (filtersOn) filtered.textContent = `${filteredRows.length} of ${avail} ${avail === 1 ? 'plan' : 'plans'} after filters`;
     infoNote.textContent = where

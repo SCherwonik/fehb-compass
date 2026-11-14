@@ -2,7 +2,7 @@
 // cards, the board, the compare view and the quick look-up render. Private data: see meds-store.js.
 import { h, svg, ICON_CHECK, ICON_CHEVRON } from './inputs.js';
 import { MAX_DRUGS, MAX_NAME } from './meds-store.js';
-import { rxFor, glp1Covered, planMeds } from './rx-model.js';
+import { rxFor, glp1Status, planMeds } from './rx-model.js';
 import { availablePlans } from './model.js';
 import { usdExact } from './format.js';
 import { lookupButton, tierSelect, channelLabel, wireBadges } from './rx-render.js';
@@ -68,10 +68,14 @@ export function glp1Filter({ store, meds, data }) {
     input.disabled = false;
     const open = availablePlans(plans27, data.serviceArea, s.location.state)
       .filter((p) => (s.account === 'hsa' ? p.hsa : s.account === 'hra' ? p.hra : true));
-    const n = open.filter((p) => glp1Covered(p.code, facts)).length;
+    const said = open.map((p) => glp1Status(p.code, facts));
+    const n = said.filter((v) => v === true).length;
+    const unknown = said.filter((v) => v === null).length;
     count.textContent = String(n);
     label.classList.toggle('is-zero', n === 0);
-    hint.textContent = 'Only plans whose 2027 brochure says drugs like Wegovy or Zepbound are covered for weight loss. Each plan sets its own rules.';
+    hint.textContent = `Only plans whose 2027 brochure says drugs like Wegovy or Zepbound are covered for weight loss. ${unknown
+      ? `${unknown} of ${open.length} ${open.length === 1 ? 'plan does' : 'plans do'} not say either way: the filter leaves them out, so check their drug lookup if one matters to you.`
+      : 'Each plan sets its own rules.'}`;
   }
   meds.subscribe((_, reason) => { if (reason === 'facts') sync(); });
   return { el, sync };
@@ -104,6 +108,8 @@ export function createMedsPanel({ meds }) {
   const submit = h('button', { type: 'submit', class: 'btn btn-primary md-add' }, svg(ICON_PLUS), h('span', { class: 'btn-text' }, 'Add drug'));
   const cancel = h('button', { type: 'button', class: 'btn btn-quiet', hidden: true }, 'Cancel');
   const msg = h('p', { class: 'md-msg', role: 'status' });
+  const fillsWarn = h('p', { class: 'md-fills-warn', 'aria-live': 'polite' });
+  const copyLive = h('p', { class: 'sr-only', role: 'status', 'aria-live': 'polite' });
   const form = h('form', { class: 'md-form', novalidate: true },
     h('div', { class: 'cl-cell md-cell-name' }, h('label', { class: 'cl-cap', for: 'md-name' }, 'Drug'), nameIn),
     h('div', { class: 'cl-grid' },
@@ -112,6 +118,7 @@ export function createMedsPanel({ meds }) {
       h('div', { class: 'cl-cell' }, h('label', { class: 'cl-cap', for: 'md-fills' }, 'Fills a year'), fillsIn),
       h('div', { class: 'cl-cell cl-cell-tier' }, h('label', { class: 'cl-cap', for: 'md-chan' }, 'Where you fill it'),
         h('div', { class: 'select-wrap' }, chanSel, svg(ICON_CHEVRON)))),
+    fillsWarn,
     h('p', { class: 'md-hint' }, 'Price is optional. It is needed when a tier is a percentage, when a drug is not covered, and before an HDHP deductible is met. Use 4 fills for 90-day supplies.'),
     h('div', { class: 'md-actions' }, submit, cancel),
     msg);
@@ -121,9 +128,10 @@ export function createMedsPanel({ meds }) {
     h('p', {}, 'Add the drugs you take. Then open each plan’s drug lookup, find your drug, and record the tier it shows.'),
     h('p', {}, 'Each plan is priced from its own 2027 brochure. Nothing leaves this browser.'));
   const quickEl = h('section', { class: 'md-quick', hidden: true, 'aria-label': 'Check a drug on your top plans', 'data-rx-scope': 'quick' });
-  const undoEl = h('p', { class: 'md-undo', hidden: true });
+  // always in the page (empty when there is nothing to undo) so screen readers hear it appear
+  const undoEl = h('p', { class: 'md-undo', role: 'status', 'aria-live': 'polite' });
 
-  const body = h('div', { class: 'md-body', id: 'md-body' }, h('div', { class: 'md-clip' }, privacy, empty, list, undoEl, quickEl, form));
+  const body = h('div', { class: 'md-body', id: 'md-body' }, h('div', { class: 'md-clip' }, privacy, empty, list, undoEl, quickEl, copyLive, form));
   const el = h('section', { class: `md${open ? ' is-open' : ''}`, 'aria-labelledby': 'md-h' },
     h('h3', { class: 'md-h', id: 'md-h' }, toggle), body);
   body.inert = !open;
@@ -136,10 +144,18 @@ export function createMedsPanel({ meds }) {
     if (open && !meds.get().drugs.length) setTimeout(() => nameIn.focus({ preventScroll: true }), reduceMotion() ? 0 : 200);
   });
 
+  // 90-day channels: 4 fills is a year. Default to it, and flag more than that (12 fills of 90 days = 3 years).
+  function checkFills() {
+    const n = Number(fillsIn.value);
+    fillsWarn.textContent = NINETY.has(chanSel.value) && Number.isFinite(n) && n > 4
+      ? `${n} fills of a 90-day supply is about ${Math.round((n * 90) / 30)} months of medicine. Most people need 4.`
+      : '';
+  }
   chanSel.addEventListener('change', () => {
     if (!fillsTouched) fillsIn.value = NINETY.has(chanSel.value) ? '4' : '12';
+    checkFills();
   });
-  fillsIn.addEventListener('input', () => { fillsTouched = true; });
+  fillsIn.addEventListener('input', () => { fillsTouched = true; checkFills(); });
 
   function resetForm() {
     editing = null;
@@ -147,6 +163,7 @@ export function createMedsPanel({ meds }) {
     form.reset();
     fillsIn.value = '12';
     chanSel.value = 'retail30';
+    fillsWarn.textContent = '';
     submit.querySelector('.btn-text').textContent = 'Add drug';
     cancel.hidden = true;
     nameIn.removeAttribute('aria-invalid');
@@ -192,6 +209,7 @@ export function createMedsPanel({ meds }) {
       costIn.value = d.monthlyCost ?? '';
       fillsIn.value = String(d.fillsPerYear);
       chanSel.value = d.channel;
+      checkFills();
       submit.querySelector('.btn-text').textContent = 'Save changes';
       cancel.hidden = false;
       msg.textContent = `Editing ${d.name}.`;
@@ -230,6 +248,7 @@ export function createMedsPanel({ meds }) {
     }
     const label = copy.querySelector('.btn-text');
     label.textContent = ok ? 'Copied' : 'Copy failed';
+    copyLive.textContent = ok ? `Copied ${name}` : 'Copy failed: select the name and copy it yourself';
     copy.classList.toggle('is-done', ok);
     setTimeout(() => { label.textContent = 'Copy name'; copy.classList.remove('is-done'); }, 1600);
   });
@@ -240,7 +259,7 @@ export function createMedsPanel({ meds }) {
         h('span', { class: 'md-drug-name' }, d.name),
         h('span', { class: 'md-drug-meta' }, [
           d.monthlyCost != null ? `${usdExact(d.monthlyCost)} a month` : 'no price',
-          `${d.fillsPerYear} ${d.fillsPerYear === 1 ? 'fill' : 'fills'} a year`,
+          `${d.fillsPerYear} ${d.fillsPerYear === 1 ? 'fill' : 'fills'} a year${NINETY.has(d.channel) && d.fillsPerYear > 4 ? ' (over a year of 90-day fills?)' : ''}`,
           channelLabel(d.channel),
         ].join(' · '))),
       h('div', { class: 'md-drug-acts' },
@@ -290,9 +309,8 @@ export function createMedsPanel({ meds }) {
     empty.hidden = n > 0;
     list.replaceChildren(...state.drugs.map(drugRow));
     if (undo) {
-      undoEl.hidden = false;
       undoEl.replaceChildren(`Removed ${undo.name}. `, h('button', { type: 'button', class: 'md-undo-btn' }, 'Undo'));
-    } else undoEl.hidden = true;
+    } else undoEl.replaceChildren();
     const full = n >= MAX_DRUGS && !editing;
     submit.disabled = full;
     if (full) msg.textContent = `That is the limit of ${MAX_DRUGS} drugs.`;

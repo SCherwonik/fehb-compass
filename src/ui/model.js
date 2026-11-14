@@ -74,10 +74,13 @@ export function makeRow(data, state, code) {
   if (!meta || !input || !input.rate[state.enrollment]) return null;
   const inputs = costInputs(state);
   const meds = data.meds ? planMeds(data.brochure ?? null, data.meds, code, input.benefits) : null;
-  if (meds?.entries.length) inputs.drugs = meds.entries;
   let cost;
-  try { cost = planTotal(input, inputs); } catch { return null; }
-  if (!Number.isFinite(cost.total)) return null;
+  let base;
+  try {
+    base = planTotal(input, inputs);
+    cost = meds?.entries.length ? planTotal(input, { ...inputs, drugs: meds.entries }) : base;
+  } catch { return null; }
+  if (!Number.isFinite(cost.total) || !Number.isFinite(base.total)) return null;
   const facts = planFacts(input, inputs);
   const facts2026 = planFacts(planInput(data, 2026, code), inputs);
   return {
@@ -91,8 +94,25 @@ export function makeRow(data, state, code) {
     diff: diffPlan(facts2026, facts),
     account: input.accountType ?? null,
     meds,
+    // total without the user's medications: the like-for-like basis for comparisons (see baseTotal)
+    baseTotal: base.total,
   };
 }
+
+/**
+ * Comparison basis. Medications are priced only on 2027 plans where the user recorded tiers, so any comparison
+ * with a 2026 figure, or between plans with different records, uses totals WITHOUT medications on both sides.
+ * baseTotal(row): the total without medications; medsCost(row): what the medications add on this plan (engine
+ * figure: deductible, OOP max and HRA effects included).
+ */
+export function baseTotal(row) {
+  return Number.isFinite(row?.baseTotal) ? row.baseTotal : row?.cost?.total ?? null;
+}
+export function medsCost(row) {
+  return row?.meds?.entries?.length && Number.isFinite(row.cost?.total) ? cents(row.cost.total - baseTotal(row)) : 0;
+}
+/** True when any of these rows has priced medications (comparisons then say they exclude them). */
+export const anyMeds = (rows) => (rows ?? []).some((r) => r?.meds?.entries?.length > 0);
 
 /** True when a plan (by code) is open to someone in `st`: nationwide, or a service area that lists the state. */
 export function servesState(serviceArea, code, st) {
@@ -208,8 +228,9 @@ export function sortRows(rows, key = 'total') {
 }
 
 /** True when any results filter is narrowing the plans open in the state (network, account or plan type). */
-export function filtersActive(state, type = 'all') {
-  return (state.networks?.length ?? 0) > 0 || (state.account ?? 'any') !== 'any' || (type ?? 'all') !== 'all' || state.glp1 === true;
+export function filtersActive(state, type = 'all', { glp1Applies = true } = {}) {
+  return (state.networks?.length ?? 0) > 0 || (state.account ?? 'any') !== 'any' || (type ?? 'all') !== 'all'
+    || (state.glp1 === true && glp1Applies);
 }
 
 /**
@@ -233,7 +254,8 @@ export function filtersActive(state, type = 'all') {
  */
 export function rankWithMine(data, state, rows, sortKey = 'total', { type = 'all' } = {}) {
   const code = state.currentPlan2026;
-  const filtersOn = filtersActive(state, type);
+  // the GLP-1 filter only narrows anything once the brochure facts are loaded
+  const filtersOn = filtersActive(state, type, { glp1Applies: Boolean(data.brochure) });
   const rank = (list) => sortRows(list, sortKey).map((r, i) => ({ ...r, rank: i + 1 }));
   const plain = (mineStatus) => {
     const ranked = rank(rows);
@@ -304,17 +326,25 @@ export function boardGroups(data, state, rows, n = 3) {
 /**
  * Savings banner model.
  * {kind:'none'} | {kind:'continuing', current, best, amount} | {kind:'ended', currentPlan, current2026Total, best, amount}
- * amount = current minus best (positive = you'd save). best = cheapest eligible row by total, or null.
+ * amount = current minus best (positive = you'd save). best = cheapest eligible row, or null.
+ * basis: 'total', or 'excl-meds' when any row has priced medications: best and amount then use baseTotal (no
+ * medications on either side, since 2026 plans and plans without recorded tiers cannot carry them);
+ * bestTotal / currentTotal are those totals, bestMeds / currentMeds (2027 only) what the medications add.
  */
 export function savingsVsCurrent(data, state, rows) {
   const code = state.currentPlan2026;
   if (!code) return { kind: 'none' };
-  let best = null;
-  for (const r of rows) if (!best || r.cost.total < best.cost.total) best = r;
-
   const current = rows.find((r) => r.code === code) ?? (planMeta(data, 2027, code) ? makeRow(data, state, code) : null);
+  const basis = anyMeds(rows) || anyMeds([current]) ? 'excl-meds' : 'total';
+  let best = null;
+  for (const r of rows) if (!best || baseTotal(r) < baseTotal(best)) best = r;
+  const bestInfo = { basis, bestTotal: best ? baseTotal(best) : null, bestMeds: best ? medsCost(best) : null };
+
   if (current) {
-    return { kind: 'continuing', current, best, amount: best ? cents(current.cost.total - best.cost.total) : null };
+    return {
+      kind: 'continuing', current, best, amount: best ? cents(baseTotal(current) - baseTotal(best)) : null,
+      ...bestInfo, currentTotal: baseTotal(current), currentMeds: medsCost(current),
+    };
   }
   const currentPlan = planMeta(data, 2026, code);
   const input2026 = planInput(data, 2026, code);
@@ -327,6 +357,7 @@ export function savingsVsCurrent(data, state, rows) {
     currentPlan,
     current2026Total,
     best,
-    amount: best && current2026Total !== null ? cents(current2026Total - best.cost.total) : null,
+    amount: best && current2026Total !== null ? cents(current2026Total - baseTotal(best)) : null,
+    ...bestInfo,
   };
 }

@@ -1,6 +1,6 @@
 // Side-by-side compare for up to MAX_COMPARE pinned 2027 plans, each showing 2026 -> 2027.
 import { h, svg } from './inputs.js';
-import { makeRow, planInput, costInputs } from './model.js';
+import { makeRow, planInput, costInputs, baseTotal } from './model.js';
 import { planTotal } from '../engine/cost.js';
 import { FLAG_TEXT } from '../engine/diff.js';
 import { usd, signedUsd, deltaTone, DASH } from './format.js';
@@ -57,7 +57,12 @@ export function renderCompare(section, { data, state, onRemove, onClose }) {
   }
 
   const best = {};
-  for (const m of METRICS) {
+  // With medications listed, the year-over-year total compares WITHOUT them (2026 cannot be priced with them);
+  // what they add on each 2027 plan is its own row below.
+  const metrics = data.meds
+    ? METRICS.map((m) => (m.key === 'total' ? { ...m, label: 'Estimated yearly total, excl. medications', get: (r, side) => (side === '2027' ? baseTotal(r) : r.total2026) } : m))
+    : METRICS;
+  for (const m of metrics) {
     const vals = rows.map((r) => m.get(r, '2027')).filter((v) => v != null);
     if (vals.length > 1) best[m.key] = m.higherIsBetter ? Math.max(...vals) : Math.min(...vals);
   }
@@ -74,7 +79,7 @@ export function renderCompare(section, { data, state, onRemove, onClose }) {
         onclick: () => onRemove(r.code),
       }, svg(ICON_X))))));
 
-  for (const m of METRICS) {
+  for (const m of metrics) {
     grid.append(h('div', { class: `cg-row${m.strong ? ' cg-strong' : ''}`, role: 'row' },
       h('div', { class: 'cg-label', role: 'rowheader' }, m.label),
       rows.map((r) => {
@@ -114,7 +119,7 @@ export function renderCompare(section, { data, state, onRemove, onClose }) {
       grid.append(h('div', { class: 'cg-row cg-rx', role: 'row' },
         h('div', { class: 'cg-label', role: 'rowheader' }, 'Your medications'),
         rows.map((r) => {
-          const s = medsSummary(r.meds);
+          const s = medsSummary(r);
           return h('div', { class: 'cg-cell', role: 'cell', 'data-rx-scope': `cmp-${r.code}` },
             s && h('span', { class: `cg-now${s.warn ? ' is-warn' : ''}` }, s.text),
             s && h('span', { class: 'cg-was' }, s.sub),

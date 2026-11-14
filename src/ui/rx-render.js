@@ -3,6 +3,7 @@
 import { h, svg } from './inputs.js';
 import { usd } from './format.js';
 import { normalizeUrl, CHANNELS } from './rx-model.js';
+import { medsCost } from './model.js';
 
 const ICON_EXT = '<svg viewBox="0 0 16 16" aria-hidden="true" class="rx-ext"><path d="M6.5 3.5H4A1.5 1.5 0 0 0 2.5 5v7A1.5 1.5 0 0 0 4 13.5h7a1.5 1.5 0 0 0 1.5-1.5V9.5"/><path d="M9 2.5h4.5V7M13.5 2.5L7.5 8.5"/></svg>';
 const ICON_DOC = '<svg viewBox="0 0 16 16" aria-hidden="true" class="rx-doc"><path d="M4 1.8h5.2L12.5 5v9.2H4z"/><path d="M9 1.8V5h3.5"/></svg>';
@@ -148,14 +149,21 @@ export function medsStatusText(meds) {
   return bits.length ? `${bits.join('; ')}: left out of the total.` : '';
 }
 
-/** Short summary for a board cell / compare cell: "$1,284 a year · 2 of 3 priced". */
-export function medsSummary(meds) {
+/**
+ * Short summary of a costed row's medications for a board / compare cell: "$1,284 a year · 2 of 3 priced".
+ * The figure is the engine's (what the drugs add to this plan's total, deductible and OOP max applied), so it
+ * matches See the math. value: that figure when every drug is priced (else null: not comparable).
+ */
+export function medsSummary(row) {
+  const meds = row?.meds;
   if (!meds) return null;
   const priced = meds.entries.length;
+  const added = priced ? medsCost(row) : null;
   return {
-    text: meds.factsMissing ? 'Loading…' : priced ? `${usd(meds.estimate)} a year` : 'Not priced yet',
-    sub: meds.factsMissing ? 'brochure tiers' : `${priced} of ${meds.count} priced`,
+    text: meds.factsMissing ? 'Loading…' : priced ? `+ ${usd(added)} a year` : 'Not priced yet',
+    sub: meds.factsMissing ? 'brochure tiers' : `${priced} of ${meds.count} priced, in this plan’s total`,
     warn: !meds.factsMissing && priced < meds.count,
+    value: !meds.factsMissing && priced === meds.count ? added : null,
   };
 }
 

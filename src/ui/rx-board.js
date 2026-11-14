@@ -28,12 +28,11 @@ export function rxBoardSections({ codes = [], factsStatus = 'loading', meds = nu
   if (drugs.length) {
     rows.push({
       key: 'rxMeds', label: 'Your medications', strong: true, best: 'min',
-      hint: 'What your drugs cost a year on each plan, from the tiers you recorded and the brochure’s tier terms. Drugs not looked up yet are left out.',
+      hint: 'What your drugs add to each plan’s yearly total (deductible and out-of-pocket max applied), from the tiers you recorded and the brochure’s tier terms. Drugs not looked up yet are left out; best-in-row only compares plans where every drug is priced.',
       cell: (r) => {
-        const s = medsSummary(r.meds);
+        const s = medsSummary(r);
         if (!s) return { text: DASH, tone: 'muted', value: null };
-        const complete = r.meds.entries.length === r.meds.count;
-        return { text: s.text, sub: s.sub, tone: s.warn ? 'warn' : undefined, value: complete ? r.meds.estimate : null };
+        return { text: s.text, sub: s.sub, tone: s.warn ? 'warn' : undefined, value: s.value };
       },
     });
     for (const d of drugs) {

@@ -11,6 +11,7 @@
 // The dental/vision board (Task 7) supplies its own sections and header in this same shape.
 import { usd, signedUsd, signedPct, deltaTone, DASH } from './format.js';
 import { FLAG_TEXT } from '../engine/diff.js';
+import { baseTotal, medsCost, anyMeds } from './model.js';
 
 const fin = (n) => typeof n === 'number' && Number.isFinite(n);
 const cents = (n) => Math.round(n * 100) / 100;
@@ -97,6 +98,8 @@ export function boardContext(rankedRows, state, mine = null, baseline = null) {
     // fine-tune overrides or custom lines change the scenario's care
     adjusted: (state?.custom?.length ?? 0) > 0 || Object.keys(state?.overrides ?? {}).length > 0,
     values: valueScores(rows, state?.enrollment ?? 'self'),
+    // medications priced on some plan: the "vs" totals compare without them (rows with `when: medsOn` say so)
+    medsOn: anyMeds(mine ? [...rows, mine] : rows),
     minTotal: totals.length ? Math.min(...totals) : null,
     mine, // the user's 2027 plan row when "include my plan" is on: baseline for the "vs your plan" rows
     // when the user's 2026 plan ended (no 2027 version): its 2026 figures, for the "vs your 2026 plan (ended)" rows
@@ -105,8 +108,10 @@ export function boardContext(rankedRows, state, mine = null, baseline = null) {
   };
 }
 
-/** Sections that apply to this context (a section with when(ctx) false is left out). */
-export const sectionsFor = (sections, ctx) => sections.filter((s) => !s.when || s.when(ctx));
+/** Sections (and rows) that apply to this context: anything with when(ctx) false is left out. */
+export const sectionsFor = (sections, ctx) => sections
+  .filter((s) => !s.when || s.when(ctx))
+  .map((s) => (s.rows.some((r) => r.when) ? { ...s, rows: s.rows.filter((r) => !r.when || r.when(ctx)) } : s));
 
 // ---------- cells ----------
 const money = (n, extra = {}) => ({ text: usd(n), value: fin(n) ? n : null, ...extra });
@@ -126,38 +131,49 @@ function changeCell(field, extra) {
 const ACCOUNT_TEXT = { HSA: 'Health savings account', HRA: 'Health reimbursement arrangement' };
 
 // "vs your plan": each column minus the user's own 2027 plan (negative = cheaper than staying put).
-function vsMineCell(get) {
+// `excl`: a total compared without medications (when any are priced), and the cell says so.
+function vsMineCell(get, excl = false) {
   return (row, ctx) => {
     if (!ctx.mine) return { text: DASH, value: null, tone: 'muted' };
     const a = get(row);
     const b = get(ctx.mine);
-    if (row.code === ctx.mine.code) return { text: usd(b), sub: 'your baseline', tone: 'muted', value: null };
+    const basis = excl && ctx.medsOn ? 'excl. medications' : '';
+    if (row.code === ctx.mine.code) return { text: usd(b), sub: basis ? `your baseline, ${basis}` : 'your baseline', tone: 'muted', value: null };
     if (!fin(a) || !fin(b)) return { text: DASH, value: null, tone: 'muted' };
     const n = a - b;
     const tone = deltaTone(n);
-    if (tone === 'flat') return { text: 'Same', tone: 'flat', value: 0 };
-    return { text: signedUsd(n), sub: n < 0 ? 'less than yours' : 'more than yours', tone, value: n };
+    if (tone === 'flat') return { text: 'Same', sub: basis || undefined, tone: 'flat', value: 0 };
+    return { text: signedUsd(n), sub: `${n < 0 ? 'less than yours' : 'more than yours'}${basis ? ` · ${basis}` : ''}`, tone, value: n };
   };
 }
 
 // "vs your 2026 plan (ended)": each column minus what the user's ended plan cost in 2026.
-function vsEndedCell(get, key) {
+function vsEndedCell(get, key, excl = false) {
   return (row, ctx) => {
     const a = get(row);
     const b = ctx.baseline?.[key];
     if (!fin(a) || !fin(b)) return { text: DASH, value: null, tone: 'muted' };
     const n = a - b;
     const tone = deltaTone(n);
-    if (tone === 'flat') return { text: 'Same', tone: 'flat', value: 0 };
-    return { text: signedUsd(n), sub: n < 0 ? `less than ${usd(b)} in 2026` : `more than ${usd(b)} in 2026`, tone, value: n };
+    const basis = excl && ctx.medsOn ? 'excl. your medications' : '';
+    if (tone === 'flat') return { text: 'Same', sub: basis || undefined, tone: 'flat', value: 0 };
+    return { text: signedUsd(n), sub: `${n < 0 ? `less than ${usd(b)} in 2026` : `more than ${usd(b)} in 2026`}${basis ? `, ${basis}` : ''}`, tone, value: n };
   };
+}
+
+// Medications shown apart from the "vs" totals they are left out of.
+function medsApartCell(why) {
+  return (row) => (row.meds?.entries?.length
+    ? { text: `+ ${usd(medsCost(row))}`, sub: why, value: null }
+    : { text: DASH, sub: row.meds ? 'no tiers recorded for this plan' : undefined, tone: 'muted', value: null });
 }
 
 export const MEDICAL_SECTIONS = [
   {
     key: 'vsEnded', label: 'Vs your 2026 plan (ended)', when: (ctx) => !ctx.mine && Boolean(ctx.baseline),
     rows: [
-      { key: 'vsEndedTotal', label: 'Estimated total', strong: true, best: 'min', hint: 'Your 2026 plan has no 2027 version. Each plan is compared with what yours cost in 2026 for the same year of care.', cell: vsEndedCell((r) => r.cost?.total, 'total') },
+      { key: 'vsEndedTotal', label: 'Estimated total', strong: true, best: 'min', hint: 'Your 2026 plan has no 2027 version. Each plan is compared with what yours cost in 2026 for the same year of care.', cell: vsEndedCell(baseTotal, 'total', true) },
+      { key: 'vsEndedMeds', label: 'Your medications', when: (ctx) => ctx.medsOn, best: null, hint: 'Left out of the line above: 2026 plans cannot be priced with your medications.', cell: medsApartCell('on this plan, not yet priced for 2026') },
       { key: 'vsEndedPremium', label: 'Premium', best: 'min', cell: vsEndedCell((r) => r.cost?.premium, 'premium') },
       { key: 'vsEndedDeductible', label: 'Deductible', best: 'min', cell: vsEndedCell((r) => r.facts?.deductible, 'deductible') },
       { key: 'vsEndedOopMax', label: 'Out-of-pocket max', best: 'min', cell: vsEndedCell((r) => r.facts?.oopMax, 'oopMax') },
@@ -166,7 +182,8 @@ export const MEDICAL_SECTIONS = [
   {
     key: 'vsMine', label: 'Vs your plan in 2027', when: (ctx) => Boolean(ctx.mine),
     rows: [
-      { key: 'vsTotal', label: 'Estimated total', strong: true, best: 'min', cell: vsMineCell((r) => r.cost?.total) },
+      { key: 'vsTotal', label: 'Estimated total', strong: true, best: 'min', hint: 'When any medications are priced, this compares totals without them: they are priced only on plans where you recorded tiers.', cell: vsMineCell(baseTotal, true) },
+      { key: 'vsMeds', label: 'Your medications', when: (ctx) => ctx.medsOn, best: null, hint: 'Left out of the line above, so plans with and without recorded tiers compare fairly.', cell: medsApartCell('on this plan, not in the line above') },
       { key: 'vsPremium', label: 'Premium', best: 'min', cell: vsMineCell((r) => r.cost?.premium) },
       { key: 'vsDeductible', label: 'Deductible', best: 'min', cell: vsMineCell((r) => r.facts?.deductible) },
       { key: 'vsOopMax', label: 'Out-of-pocket max', best: 'min', cell: vsMineCell((r) => r.facts?.oopMax) },

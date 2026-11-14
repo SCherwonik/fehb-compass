@@ -190,11 +190,17 @@ export function rxFor(code, option, facts = FACTS) {
     const only = raw.filter((t) => sameOption(t.option, option));
     if (only.length) raw = only;
   }
+  // Some brochures list two tiers under one name (plans 541/544/PT4: 'Tier 3' for non-preferred generics and for
+  // non-preferred brands): keep both, told apart by their label ('Tier 3 (other)', 'Tier 3 (non-preferred brand)').
+  const baseName = (t) => str(t.tier) || (str(t.label) ? `${t.label[0].toUpperCase()}${t.label.slice(1)} tier` : 'Other tier');
+  const counts = new Map();
+  for (const t of raw) counts.set(baseName(t), (counts.get(baseName(t)) ?? 0) + 1);
   const seen = new Set();
   const tiers = [];
   for (const t of raw) {
-    const name = str(t.tier) || (str(t.label) ? `${t.label[0].toUpperCase()}${t.label.slice(1)} tier` : 'Other tier');
-    if (seen.has(name)) continue;
+    let name = baseName(t);
+    if (counts.get(name) > 1 && str(t.label)) name = `${name} (${str(t.label)})`;
+    for (let k = 2; seen.has(name); k++) name = `${baseName(t)} (${k})`;
     seen.add(name);
     tiers.push({
       name,
@@ -254,6 +260,12 @@ export function lookupFor(code, facts = FACTS) {
     if (href) return { href, kind, text, cite: citation(f, code, facts) };
   }
   return null;
+}
+
+/** GLP-1 for weight loss per the brochure: true (covered), false (not covered), null (not stated / unknown plan). */
+export function glp1Status(code, facts = FACTS) {
+  const c = own(facts?.plans, code)?.rx?.glp1_weight_loss?.covered;
+  return c === true ? true : c === false ? false : null;
 }
 
 /** True only when the plan's brochure says GLP-1 drugs for weight loss are covered. */
