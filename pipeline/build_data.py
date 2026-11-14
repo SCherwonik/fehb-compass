@@ -104,8 +104,8 @@ _FAMILY_ALIASES = (
 )
 
 
-def network_family(carrier: str, plan_name: str = "") -> str:
-    """Family label derived from the plan key's carrier name (plan_name is unused).
+def network_family(carrier: str) -> str:
+    """Family label derived from the plan key's carrier name.
 
     OPM publishes no provider networks, so this is name-based. Carrier names are
     normalized through a small alias table, then:
@@ -121,7 +121,7 @@ def network_family(carrier: str, plan_name: str = "") -> str:
     s = norm(carrier)
     if "cigna" in s:
         return "Cigna"
-    if "unitedhealthcare" in s or "united healthcare" in s or re.search(r"uhc", s):
+    if "unitedhealthcare" in s or "united healthcare" in s or re.search(r"\buhc\b", s):
         return "UnitedHealthcare"
     if "aetna" in s or "altius" in s:
         return "Aetna"
@@ -192,12 +192,16 @@ RATING_REGION_COLS = ["State", "State/ZIP(first 3)"]
 FEDVIP_ZIP_COLS = ["Plan Name", "Plan Code", "Option Type", "Region", "State Name", "ZIP Code"]
 
 
-def _group(plan_key_rows):
+def _group(plan_key_rows, source: str = "plan key"):
     """Collapse plan-key rows into plans keyed by (plan code, normalized option)."""
     plans: dict[tuple[str, str], dict] = {}
     for r in plan_key_rows:
         if not r[2]:
             continue
+        if clean(r[5]) not in ENROLL_KEYS:
+            raise ValueError(
+                f"{source}: plan {clean(r[2])!r} ({clean(r[1])!r}) has unknown enrollment type "
+                f"{clean(r[5])!r} in column 5; expected one of {sorted(ENROLL_KEYS)}")
         key = (clean(r[2]), norm(r[1]))
         p = plans.setdefault(key, {
             "plan_code": clean(r[2]), "carrier": clean(r[0]), "option": clean(r[1]),
@@ -205,7 +209,24 @@ def _group(plan_key_rows):
             "enrollment": {},
         })
         p["enrollment"][ENROLL_KEYS[clean(r[5])]] = clean(r[4])
+    for p in plans.values():
+        if not p["enrollment"].get("self"):
+            raise ValueError(
+                f"{source}: plan {p['plan_code']!r} ({p['option']!r}) has no 'Self' enrollment code "
+                f"(found {sorted(p['enrollment'])}); cannot key the plan")
     return plans
+
+
+def _payroll_amount(row, col: int, source: str, code: str, label: str) -> float:
+    """Parse a payroll rate cell, naming file, enrollment code and column when blank/invalid."""
+    v = row[col]
+    try:
+        if v is None or (isinstance(v, str) and not v.strip()):
+            raise ValueError("blank")
+        return float(v)
+    except (TypeError, ValueError):
+        raise ValueError(
+            f"{source}: enrollment code {code!r}: column {col} ({label}) is {v!r}, expected a number") from None
 
 
 def _tokens(s: str) -> set[str]:
@@ -363,14 +384,16 @@ def build_fehb(paths: dict):
     rates_out: dict = {}
     benefits_out: dict = {}
     service_out: dict = {}
+    warnings: list[str] = []
     for year in YEARS:
         hdr, key_rows = table(paths[f"FEHB_{year}_PLAN_KEY"])
         expect_header(paths[f"FEHB_{year}_PLAN_KEY"], hdr, PLAN_KEY_COLS)
-        plans = _group(key_rows)
+        plans = _group(key_rows, paths[f"FEHB_{year}_PLAN_KEY"].name)
         benefits = load_benefits(paths[f"FEHB_{year}_BENEFITS"])
         sa = load_service_area(paths[f"FEHB_{year}_SERVICE_AREA"])
         hdr, pay_rows = table(paths[f"FEHB_{year}_PAYROLL_RATES"])
         expect_header(paths[f"FEHB_{year}_PAYROLL_RATES"], hdr, PAYROLL_COLS)
+        pay_name = paths[f"FEHB_{year}_PAYROLL_RATES"].name
         payroll = {clean(r[0]): r for r in pay_rows}  # Emp_Pays = col 2, MEmp_Pays = col 6
 
         rates_out[str(year)] = {}
@@ -382,13 +405,17 @@ def build_fehb(paths: dict):
             hsa = "savings" in acct or p["option_type"].upper() == "HDHP"
             hra = "reimburs" in acct
             area = sa.get(pkey, {})
+            if not code[-1:].isdigit():
+                raise ValueError(
+                    f"{paths[f'FEHB_{year}_PLAN_KEY'].name}: plan {p['plan_code']!r} ({p['option']!r}): "
+                    f"enrollment code {code!r} does not end in a digit")
             first_digit = int(code[-1])
             plans_out.append({
                 "code": code,
                 "name": _display_name(p),
                 "year": year,
                 "type": _plan_type(p["option_type"], p["network"]),
-                "network_family": network_family(p["carrier"], p["plan_name"]),
+                "network_family": network_family(p["carrier"]),
                 "hsa": hsa,
                 "hra": hra,
                 "nationwide": bool(area.get("nationwide")),
@@ -403,11 +430,22 @@ def build_fehb(paths: dict):
             r = {}
             for etype, ecode in p["enrollment"].items():
                 row = payroll.get(ecode)
-                if row is not None:
-                    r[etype] = {"biweekly_active": float(row[2]), "monthly_retiree": float(row[6])}
+                if row is None:
+                    msg = (f"{pay_name}: enrollment code {ecode!r} ({etype}) of plan {code!r} "
+                           f"({_display_name(p)!r}) not found in payroll rates")
+                    if year == YEARS[-1]:
+                        raise ValueError(msg)
+                    warnings.append(f"{year}: {msg}; rate omitted")
+                    continue
+                r[etype] = {
+                    "biweekly_active": _payroll_amount(row, 2, pay_name, ecode, "Emp_Pays"),
+                    "monthly_retiree": _payroll_amount(row, 6, pay_name, ecode, "MEmp_Pays"),
+                }
             rates_out[str(year)][code] = r
             if sides:
                 benefits_out[str(year)][code] = benefit_entry(sides)
+            elif year != YEARS[-1]:
+                warnings.append(f"{year}: plan {code!r} ({_display_name(p)!r}) has no benefits rows")
             if year == YEARS[-1]:
                 service_out[code] = {
                     "nationwide": bool(area.get("nationwide")),
@@ -449,7 +487,7 @@ def build_fehb(paths: dict):
                         p["name"] += f" ({p['code']})"
     for p in plans_out:
         p.pop("_states", None)
-    return plans_out, rates_out, benefits_out, service_out
+    return plans_out, rates_out, benefits_out, service_out, warnings
 
 
 # --------------------------------------------------------------------------- FEDVIP
@@ -581,7 +619,7 @@ def write_json(name: str, obj) -> Path:
 
 def main() -> None:
     paths = fetch_opm.download_all()
-    plans, rates, benefits, service = build_fehb(paths)
+    plans, rates, benefits, service, warnings = build_fehb(paths)
     write_json("plans.json", plans)
     write_json("rates.json", rates)
     write_json("benefits.json", benefits)
@@ -589,7 +627,7 @@ def main() -> None:
     write_json("dental_vision.json", build_fedvip(paths))
     write_json("meta.json", {"files": {
         name: {"url": url, "published": published_from_filename(url.rsplit("/", 1)[1])}
-        for name, url in fetch_opm.FILES.items()}})
+        for name, url in fetch_opm.FILES.items()}, "warnings": warnings})
 
 
 if __name__ == "__main__":

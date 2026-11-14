@@ -56,16 +56,18 @@ def test_published_date_from_filename():
 
 def test_network_family():
     nf = build_data.network_family
-    assert nf("Aetna Open Access", "Aetna Open Access") == "Aetna"
-    assert nf("Blue Cross and Blue Shield", "Blue Cross and Blue Shield Service Benefit Plan Standard Option") == "Blue Cross"
-    assert nf("Anthem Blue Cross Select HMO", "Anthem Blue Cross - Select HMO") == "Blue Cross"
-    assert nf("UnitedHealthcare Insurance Company, Inc. (Choice Open Access)", "UnitedHealthcare Insurance Company, Inc.") == "UnitedHealthcare"
-    assert nf("Cigna HealthCare", "Cigna") == "Cigna"
+    assert nf("Aetna Open Access") == "Aetna"
+    assert nf("Blue Cross and Blue Shield") == "Blue Cross"
+    assert nf("Anthem Blue Cross Select HMO") == "Blue Cross"
+    assert nf("UnitedHealthcare Insurance Company, Inc. (Choice Open Access)") == "UnitedHealthcare"
+    assert nf("Cigna HealthCare") == "Cigna"
     assert nf("Kaiser Permanente - Colorado") == "Kaiser Permanente"
     assert nf("Kaiser Permanente Washington Options Federal") == "Kaiser Permanente"
     assert nf("GEHA") == nf("GEHA Indemnity Benefit Plan") == "GEHA"
     assert nf("Baylor Scott and White Health Plan") == "Baylor Scott & White"
     assert nf("Medical Mutual of Ohio (Northern)") == "Medical Mutual of Ohio"
+    assert nf("UHC Choice Plus") == "UnitedHealthcare"
+    assert nf("Fuhcia Health Plan") != "UnitedHealthcare"  # "uhc" inside a word is not UHC
 
 
 # ---- tests against generated data/ and raw files ----
@@ -176,7 +178,9 @@ def test_service_area_and_meta():
         if not p["nationwide"]:
             assert e["states"], p["code"]
     meta = load("meta.json")
-    assert len(meta["files"]) == 20
+    from fetch_opm import FILES
+    assert set(FILES) <= set(meta["files"]), sorted(set(FILES) - set(meta["files"]))
+    assert isinstance(meta["warnings"], list) and all(isinstance(w, str) for w in meta["warnings"])
     for name, f in meta["files"].items():
         assert f["url"].startswith("https://www.opm.gov/")
         assert len(f["published"]) == 10
@@ -185,9 +189,22 @@ def test_service_area_and_meta():
 @needs_data
 def test_dental_vision_shape():
     dv = load("dental_vision.json")
+    expected = {
+        "dental": {"plans": list, "rates": list, "benefits": list, "rating_regions": list, "zip3_coverage": dict},
+        "vision": {"plans": list, "rates": list, "benefits": list},
+    }
     for y in ("2026", "2027"):
-        assert dv[y]["dental"]["rates"] and dv[y]["vision"]["rates"]
-        assert dv[y]["dental"]["plans"] and dv[y]["vision"]["plans"]
+        for kind, keys in expected.items():
+            assert set(dv[y][kind]) >= set(keys), (y, kind)
+            for k, typ in keys.items():
+                assert isinstance(dv[y][kind][k], typ) and len(dv[y][kind][k]) > 0, (y, kind, k)
+            assert {"name", "option", "service_area"} <= set(dv[y][kind]["plans"][0])
+            r0 = dv[y][kind]["rates"][0]
+            assert {"plan", "option", "region", "biweekly", "monthly"} <= set(r0)
+            assert set(r0["biweekly"]) == {"self", "self_plus_one", "family"}
+            assert all(isinstance(v, (int, float)) for v in r0["monthly"].values())
+            b0 = dv[y][kind]["benefits"][0]
+            assert isinstance(b0["fields"], dict) and b0["fields"]
 
 
 @needs_data
@@ -237,11 +254,19 @@ def test_header_check_accepts_expected_and_rejects_swapped(name, cols):
     p = Path(f"{name}.xlsx")
     good = [c or "" for c in cols]
     build_data.expect_header(p, good, cols)  # no error
-    bad = list(good)
     idx = [i for i, c in enumerate(cols) if c]
-    bad[idx[0]], bad[idx[-1]] = bad[idx[-1]], bad[idx[0]]  # reordered columns
-    with pytest.raises(ValueError, match=rf"{name}\.xlsx: column"):
-        build_data.expect_header(p, bad, cols)
+    mid = len(idx) // 2
+    swaps = [(idx[0], idx[-1])]  # first <-> last
+    if len(idx) >= 3:
+        swaps.append((idx[mid - 1], idx[mid]))  # adjacent middle columns
+        swaps.append((idx[mid], idx[-1]))  # middle <-> last
+    for a, b in swaps:
+        if cols[a] == cols[b]:
+            continue  # identical labels: a swap is undetectable by design
+        bad = list(good)
+        bad[a], bad[b] = bad[b], bad[a]  # reordered columns
+        with pytest.raises(ValueError, match=rf"{name}\.xlsx: column"):
+            build_data.expect_header(p, bad, cols)
 
 
 def test_loader_raises_on_reordered_file(tmp_path):
@@ -254,3 +279,86 @@ def test_loader_raises_on_reordered_file(tmp_path):
     hdr, _ = build_data.table(f)
     with pytest.raises(ValueError, match="payroll.xlsx: column 1"):
         build_data.expect_header(f, hdr, build_data.PAYROLL_COLS)
+
+
+# ---- error messages and year handling ----
+
+def test_group_unknown_enrollment_type_names_file_plan_and_column():
+    rows = [["Carrier", "Opt", "AB", "Name", "AB1", "Bogus", "PPO", "Traditional"]]
+    with pytest.raises(ValueError, match=r"plan_key_2027\.xlsx.*'AB'.*'Bogus'.*column 5"):
+        build_data._group(rows, "plan_key_2027.xlsx")
+
+
+def test_group_missing_self_enrollment_is_clear_error():
+    rows = [["Carrier", "Opt", "AB", "Name", "AB2", "Self Plus One", "PPO", "Traditional"]]
+    with pytest.raises(ValueError, match=r"plan_key\.xlsx.*'AB'.*no 'Self' enrollment code"):
+        build_data._group(rows, "plan_key.xlsx")
+
+
+def test_payroll_amount_blank_and_invalid_name_file_code_column():
+    row = ["AB1", None, None, None, None, None, "x"]
+    for col, label in ((2, "Emp_Pays"), (6, "MEmp_Pays")):
+        with pytest.raises(ValueError, match=rf"payroll\.xlsx.*'AB1'.*column {col} \({label}\)"):
+            build_data._payroll_amount(row, col, "payroll.xlsx", "AB1", label)
+    assert build_data._payroll_amount(["AB1", 0, "12.5"], 2, "payroll.xlsx", "AB1", "Emp_Pays") == 12.5
+
+
+def _fake_paths(tmp_path, pay_code_by_year):
+    """Minimal FEHB workbooks: one plan whose Self code is A11; payroll lists the given code per year."""
+    def book(name, header, rows):
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.append(header)
+        for r in rows:
+            ws.append(r)
+        f = tmp_path / name
+        wb.save(f)
+        return f
+    b = build_data
+    paths = {}
+    for y in b.YEARS:
+        key_rows = [["Acme Health", "Basic", "A1", "Acme Basic", "A11", "Self", "HMO", "Traditional"]]
+        pay_rows = [[pay_code_by_year[y], 0, 1.0, 0, 0, 0, 2.0]]
+        paths[f"FEHB_{y}_PLAN_KEY"] = book(f"key{y}.xlsx", [c or "" for c in b.PLAN_KEY_COLS], key_rows)
+        paths[f"FEHB_{y}_PAYROLL_RATES"] = book(f"pay{y}.xlsx", [c or "" for c in b.PAYROLL_COLS], pay_rows)
+        paths[f"FEHB_{y}_BENEFITS"] = paths[f"FEHB_{y}_SERVICE_AREA"] = tmp_path / "unused.xlsx"
+    return paths
+
+
+def test_missing_payroll_code_raises_for_2027_and_warns_for_2026(tmp_path, monkeypatch):
+    monkeypatch.setattr(build_data, "load_benefits", lambda p: {})
+    monkeypatch.setattr(build_data, "load_service_area", lambda p: {})
+    last = build_data.YEARS[-1]
+    bad_last = _fake_paths(tmp_path, {y: "ZZZ" for y in build_data.YEARS})
+    with pytest.raises(ValueError, match=rf"pay{last}\.xlsx.*'A11'.*not found in payroll"):
+        build_data.build_fehb(bad_last)
+    ok = _fake_paths(tmp_path, {y: ("A11" if y == last else "ZZZ") for y in build_data.YEARS})
+    _plans, rates, _b, _s, warnings = build_data.build_fehb(ok)
+    assert rates["2026"]["A11"] == {}
+    assert any(w.startswith("2026") and "A11" in w for w in warnings)
+    assert "biweekly_active" in rates[str(last)]["A11"]["self"]
+
+
+@needs_data
+def test_2026_plans_have_rates_and_benefits_or_are_warned():
+    plans = load("plans.json")
+    rates, benefits = load("rates.json")["2026"], load("benefits.json")["2026"]
+    warnings = load("meta.json")["warnings"]
+    for p in (p for p in plans if p["year"] == 2026):
+        c = p["code"]
+        warned = any(f"'{c}'" in w for w in warnings)
+        assert (rates.get(c) and all("biweekly_active" in v for v in rates[c].values())) or warned, f"2026 {c}: no rates"
+        assert c in benefits or warned, f"2026 {c}: no benefits"
+
+
+@needs_data
+def test_new_and_ended_plans_are_handled():
+    plans = load("plans.json")
+    codes = {y: {p["code"] for p in plans if p["year"] == y} for y in (2026, 2027)}
+    rates, benefits = load("rates.json"), load("benefits.json")
+    ended, new = codes[2026] - codes[2027], codes[2027] - codes[2026]
+    assert ended or new, "expected at least one plan present in only one year"
+    for c in ended:  # 2026-only: described in 2026, absent from 2027 outputs
+        assert c in rates["2026"] and c not in rates["2027"] and c not in benefits["2027"]
+    for c in new:  # 2027-only: rates and benefits present, nothing in 2026
+        assert c in rates["2027"] and c in benefits["2027"] and c not in rates["2026"]
