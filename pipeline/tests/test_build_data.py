@@ -519,3 +519,19 @@ def test_benefits_json_carries_the_brochure_values():
     # channel difference, not an error: the spreadsheet's plan-pharmacy price is kept
     assert b["L11"]["copays"]["rx_tier1"]["value"] == 10.0 and "overrides" not in b["L11"]
     assert b["YJ4"]["deductible"]["self"] == 0.0 and "overrides" not in b["YJ4"]
+
+
+def test_amount_not_applicable_deductible():
+    assert build_data._amount("Not applicable", True, na_is_zero=True) == 0.0
+    assert build_data._amount("Not applicable", True) is None  # out of network: no benefit, not a $0 deductible
+    assert build_data._amount("Not applicable", False) is None
+
+
+@needs_data
+def test_not_applicable_in_network_deductible_is_zero_and_raw_kept():
+    b = load("benefits.json")
+    for y, code in (("2027", "891"), ("2027", "DH4"), ("2026", "431")):
+        e = b[y][code]
+        assert e["deductible"] == {"self": 0.0, "self_plus_one": 0.0, "family": 0.0}, (y, code)
+        assert e["raw"]["Annual deductible (Self)"] == "Not applicable"
+        assert e["out_of_network"]["deductible"]["self"] is None  # no out-of-network benefit: stays "not listed"

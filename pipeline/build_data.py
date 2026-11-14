@@ -337,14 +337,16 @@ def _field(d: dict, prefix: str):
     return None
 
 
-def _amount(cell: object, none_is_zero: bool) -> float | None:
+def _amount(cell: object, none_is_zero: bool, na_is_zero: bool = False) -> float | None:
     if none_is_zero and norm(cell) in ("none", "no deductible"):
         return 0.0  # OPM writes "None" for a plan with no deductible
+    if na_is_zero and norm(cell) == "not applicable":
+        return 0.0  # in network, "Not applicable" = the plan has no deductible (891, DH4); the raw text is kept
     return money(cell)
 
 
-def _per_enrollment(d: dict, stem: str, none_is_zero: bool = False) -> dict:
-    return {k: _amount(d.get(f"{stem} {suf}"), none_is_zero) for k, suf in ENROLL_SUFFIX}
+def _per_enrollment(d: dict, stem: str, none_is_zero: bool = False, na_is_zero: bool = False) -> dict:
+    return {k: _amount(d.get(f"{stem} {suf}"), none_is_zero, na_is_zero) for k, suf in ENROLL_SUFFIX}
 
 
 def benefit_entry(sides: dict) -> dict:
@@ -356,7 +358,7 @@ def benefit_entry(sides: dict) -> dict:
             coins = copays[k]["value"]
             break
     return {
-        "deductible": _per_enrollment(inn, "Annual deductible", True),
+        "deductible": _per_enrollment(inn, "Annual deductible", True, na_is_zero=True),
         "oop_max": _per_enrollment(inn, "Annual out-of-pocket maximum"),
         "coinsurance": coins,
         "copays": copays,
