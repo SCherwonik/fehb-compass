@@ -33,6 +33,7 @@ import openpyxl
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import fetch_opm  # noqa: E402
+import textfix  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "data"
@@ -632,6 +633,35 @@ def build_fedvip(paths: dict):
 
 # --------------------------------------------------------------------------- main
 
+def apply_text_fixes(plans: list, benefits: dict) -> None:
+    """Repair PDF-extraction spacing in benefit text and plan names, in place.
+
+    Runs after parsing, so numeric fields (deductibles, copay values, oop_max,
+    coinsurance) are never affected; only display strings change.
+    """
+    def entries():
+        for year in benefits.values():
+            yield from year.values()
+
+    texts: list[str] = []
+    for e in entries():
+        texts += [v for v in e["raw"].values() if isinstance(v, str)]
+        texts += [c["raw"] for c in e["copays"].values() if isinstance(c.get("raw"), str)]
+    texts += [p[k] for p in plans for k in ("name", "plan_name", "option") if p.get(k)]
+    vocab = textfix.build_vocab(texts)
+    for e in entries():
+        for k, v in e["raw"].items():
+            if isinstance(v, str):
+                e["raw"][k] = textfix.fix_spacing(v, vocab)
+        for c in e["copays"].values():
+            if isinstance(c.get("raw"), str):
+                c["raw"] = textfix.fix_spacing(c["raw"], vocab)
+    for p in plans:
+        for k in ("name", "plan_name", "option"):
+            if p.get(k):
+                p[k] = textfix.fix_spacing(p[k], vocab)
+
+
 def write_json(name: str, obj) -> Path:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     p = DATA_DIR / name
@@ -643,6 +673,7 @@ def write_json(name: str, obj) -> Path:
 def main() -> None:
     paths = fetch_opm.download_all()
     plans, rates, benefits, service, warnings = build_fehb(paths)
+    apply_text_fixes(plans, benefits)
     write_json("plans.json", plans)
     write_json("rates.json", rates)
     write_json("benefits.json", benefits)
