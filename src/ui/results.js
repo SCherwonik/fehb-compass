@@ -2,7 +2,7 @@
 // Cards are keyed by plan code and updated in place; reordering uses FLIP limited to visible cards.
 import { h, svg, segmented, ICON_CHECK, ICON_CHEVRON, mineSwitch } from './inputs.js';
 import { assumptionChips, describeUsage, effectiveUsage, overrideChanges, inNetworkAtMax } from './assumptions.js';
-import { computeRows, savingsVsCurrent, availablePlans, SORTS, rankWithMine, baseTotal, dvCost, dvLabel, basisOf, basisNote, anyMeds } from './model.js';
+import { computeRows, savingsVsCurrent, availablePlans, SORTS, rankWithMine, baseTotal, dvCost, dvLabel, basisOf, basisNote, anyMeds, personLimitsNote } from './model.js';
 import { dvMathLines } from './dental-board.js';
 import { GROUP_LABELS, GROUP_MODES } from './grouping.js';
 import { createResultsBoard, mineNoteText } from './results-board.js';
@@ -384,7 +384,8 @@ export function createResults(main, { store, onRanked }) {
       row.meds && mathLine(h('span', {}, 'Your medications ',
         h('span', { class: 'math-how' }, `${row.meds.entries.length} of ${row.meds.count} priced${b.notCoveredPaid > 0 ? `, ${usd(b.notCoveredPaid)} not covered` : ''}`)),
       usd(b.drugsPaid || 0), 'math-sub math-meds'),
-      hitMax &&mathLine(`Capped at the ${usd(b.oopMax)} out-of-pocket max`, '', 'math-sub math-note'),
+      hitMax && mathLine(`Capped at the ${usd(b.oopMax)} out-of-pocket max${b.onePerson ? ' for one person' : ''}`, '', 'math-sub math-note'),
+      b.onePerson && mathLine(personLimitsNote(b), '', 'math-sub math-note math-person'),
       Math.abs(careSum - cost.oop) > 1 && mathLine('Rounding', usd(cost.oop - careSum), 'math-sub'),
       row.account && mathLine(
         h('span', {}, h('i', { class: 'dot dot-dep' }), row.account === 'HRA' ? 'HRA credit used ' : 'HSA deposit ',

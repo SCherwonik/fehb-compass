@@ -38,6 +38,7 @@ function content() {
     h('section', {},
       h('h3', {}, 'Scenarios'),
       h('p', {}, 'Each scenario is a year of care for one person. “Fine-tune your year” and your own cost lines adjust it.'),
+      h('p', {}, 'With Self Plus One or Self and Family coverage, the premium is the one for your coverage, but the care is still one covered person’s, so one person’s limits apply: the self-only deductible and the self-only out-of-pocket maximum (most plans set these inside the family amounts). OPM’s data does not say how each family deductible works, so this is an assumption. HSA plans whose family deductible is exactly twice the self-only one are treated as a single shared family deductible (one person must meet all of it), and every other high-deductible plan the same way, to be cautious; one person’s out-of-pocket costs are still capped at the self-only maximum. The board’s “Deductible type” row shows which rule each plan gets. If several family members need care, real family costs can be higher than these estimates.'),
       h('div', { class: 'ab-scroll' }, table('Care counted in each scenario',
         ['Scenario', ...USAGE_COLS.map(([, l]) => l)],
         SCENARIO_ROWS.map(([k, l]) => [l, ...USAGE_COLS.map(([f]) => String(SCENARIOS[k][f] ?? 0))])))),

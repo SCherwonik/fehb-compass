@@ -98,6 +98,9 @@ over the wire. The app paints the input panel from the small files first and loa
 
 - No provider networks: check that your doctors and hospitals are in network.
 - No formulary search: each plan has a drug lookup link; you record the tier you find.
+- Each scenario is one covered person's year of care. With Self Plus One or Self and Family coverage the premium is
+  the family one, but the self-only deductible and out-of-pocket max apply to that person (shared-deductible HSA
+  plans: the family deductible, capped at the self-only max). Households where several people use care can pay more.
 - Care is priced at assumed amounts (shown in "See the math" and "How it works"); real prices vary.
 - Out-of-network care is counted at full cost, because OPM publishes no out-of-network cost sharing.
 - OPM's spreadsheet has a few errors; where a brochure disagrees, the brochure is followed and the difference

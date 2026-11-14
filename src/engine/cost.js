@@ -27,6 +27,56 @@ export function resolveBenefits(benefits, enrollment) {
   };
 }
 
+const fin = (v) => typeof v === 'number' && Number.isFinite(v);
+
+/**
+ * How a plan's Self Plus One / Self and Family deductible works for one person (OPM data never says, and no
+ * 2027 benefits or brochure-fact text uses "embedded" or "aggregate"; see About > How it works):
+ *   'embedded'  every plan that is not an HDHP: each person has the self-only deductible and OOP max inside the family ones;
+ *   'aggregate' an HSA HDHP whose family deductible is exactly twice the self-only one (the IRS family minimum
+ *               rules this out as an embedded per-person amount): one person must meet the whole family deductible;
+ *   'unknown'   any other HDHP (e.g. an HDHP with an HRA): modeled like 'aggregate', the cautious choice.
+ */
+export function deductibleType(benefits) {
+  const account = String(benefits?.account_type ?? '');
+  const hsa = /savings/i.test(account);
+  const hdhp = hsa || /hdhp/i.test(String(benefits?.raw?.['Plan Option Type'] ?? ''));
+  if (!hdhp) return 'embedded';
+  const d = benefits?.deductible;
+  if (hsa && d && typeof d === 'object' && fin(d.self) && d.self > 0
+    && [d.self_plus_one, d.family].every((v) => v == null || v === 2 * d.self)) return 'aggregate';
+  return 'unknown';
+}
+
+/**
+ * The limits that apply to ONE covered person's care under this enrollment (each scenario is one person's year).
+ * -> {deductible, oopMax, oon: {deductible, oopMax}, type}. Self enrollment: the plan's self-only limits.
+ * Self Plus One / Family: embedded plans use the self-only deductible and OOP max; aggregate (and unknown) HDHPs
+ * use the enrollment's deductible, with the out-of-pocket max capped at the self-only one (ACA embedded OOP rule).
+ * Raw benefits with scalar limits (test fixtures) pass through unchanged.
+ */
+export function personLimits(benefits, enrollment) {
+  const type = deductibleType(benefits);
+  const one = (o) => {
+    if (!o || typeof o !== 'object') return { ded: o ?? null };
+    const own = o[enrollment] ?? null;
+    return { own, self: o.self ?? null };
+  };
+  const limits = (ded, max) => {
+    const d = one(ded);
+    const m = one(max);
+    if (!('own' in d)) return { deductible: d.ded, oopMax: m.own ?? m.ded ?? null };
+    if (enrollment === 'self') return { deductible: d.own, oopMax: m.own ?? null };
+    const deductible = type === 'embedded' ? (d.self ?? d.own) : d.own;
+    const caps = [m.own, m.self].filter(fin);
+    const oopMax = caps.length ? Math.min(...caps) : null;
+    return { deductible, oopMax };
+  };
+  const inNet = limits(benefits?.deductible, benefits?.oop_max);
+  const oon = limits(benefits?.out_of_network?.deductible, benefits?.out_of_network?.oop_max);
+  return { deductible: inNet.deductible, oopMax: inNet.oopMax, oon: { deductible: oon.deductible, oopMax: oon.oopMax }, type };
+}
+
 // Phrase classes found in every 2027 copay `raw` string (see tests/engine/deductible.test.js).
 const NO_DED = new RegExp([
   'no deductible',
@@ -336,7 +386,9 @@ export function planTotal(plan, inputs) {
   const { status, enrollment, usage, assumptions = {}, drugs = [] } = inputs;
   const premium = annualPremium(plan.rate, { status, enrollment });
   const resolved = resolveBenefits(plan.benefits, enrollment);
-  const o = expectedOop(resolved, usage, assumptions, drugs);
+  // One covered person's care: per-person limits (see personLimits); the premium follows the enrollment.
+  const person = personLimits(plan.benefits, enrollment);
+  const o = expectedOop({ ...resolved, deductible: person.deductible, oopMax: person.oopMax, oon: person.oon }, usage, assumptions, drugs);
   const deposit = inputs.hsaDeposit ?? plan.account?.[enrollment] ?? 0;
   const hra = isHra(plan);
   const cap = Math.max(0, deposit || 0);
@@ -351,8 +403,13 @@ export function planTotal(plan, inputs) {
       deductiblePaid: o.deductiblePaid,
       coinsurancePaid: o.coinsurancePaid,
       copays: o.copays,
-      deductible: resolved.deductible,
-      oopMax: resolved.oopMax,
+      // the limits applied to the one person's care, and the plan's limits for the whole enrollment
+      deductible: person.deductible,
+      oopMax: person.oopMax,
+      enrollmentDeductible: resolved.deductible,
+      enrollmentOopMax: resolved.oopMax,
+      deductibleType: person.type,
+      onePerson: enrollment !== 'self',
       accountType: hra ? 'HRA' : 'HSA',
       oonPaid: o.oonPaid,
       oonEstimate: o.oonEstimate,

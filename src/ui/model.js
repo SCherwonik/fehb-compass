@@ -139,6 +139,26 @@ const BASIS_NOTE = { 'excl-meds': 'excl. medications', 'excl-dv': 'excl. dental/
 /** Short label for a comparison basis ('' for plain totals). */
 export const basisNote = (basis) => BASIS_NOTE[basis] ?? '';
 
+const usd0 = (n) => (Number.isFinite(n) ? `$${Math.round(n).toLocaleString('en-US')}` : 'not listed');
+
+/**
+ * "See the math" sentence for Self Plus One / Family: the scenario is one covered person's care, so per-person
+ * limits apply (engine personLimits). `b` is planTotal's breakdown. '' for self-only coverage.
+ */
+export function personLimitsNote(b) {
+  if (!b?.onePerson) return '';
+  const lead = 'Modeled as one covered person’s care: ';
+  if (b.deductibleType === 'embedded') {
+    return `${lead}the self-only ${usd0(b.deductible)} deductible and ${usd0(b.oopMax)} out-of-pocket max apply; `
+      + `the family limits (${usd0(b.enrollmentDeductible)} and ${usd0(b.enrollmentOopMax)}) are not reached by one person.`;
+  }
+  const why = b.deductibleType === 'aggregate'
+    ? 'this HSA plan’s family deductible is shared'
+    : 'the data does not say how this plan’s family deductible works, so it is treated as shared (the cautious choice)';
+  return `${lead}${why}, so one person meets the whole ${usd0(b.deductible)} deductible; `
+    + `their costs stop at the ${usd0(b.oopMax)} self-only out-of-pocket max.`;
+}
+
 /** True when a plan (by code) is open to someone in `st`: nationwide, or a service area that lists the state. */
 export function servesState(serviceArea, code, st) {
   const area = serviceArea?.[code];
