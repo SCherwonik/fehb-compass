@@ -24,6 +24,8 @@ const ICON_L = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5L5.5
 const ICON_R = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5L10.5 8 6 12.5"/></svg>';
 const ICON_INFO = '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v4M8 4.9v.1"/></svg>';
 const ICON_CHEV = '<svg viewBox="0 0 16 16" aria-hidden="true" class="mx-chev"><path d="M4 6l4 4 4-4"/></svg>';
+const ICON_FULL = '<svg viewBox="0 0 16 16" aria-hidden="true" class="bd-full-open"><path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10"/></svg>';
+const ICON_CLOSE = '<svg viewBox="0 0 16 16" aria-hidden="true" class="bd-full-close"><path d="M4 4l8 8M12 4l-8 8"/></svg>';
 const NOTE_CLAMP = 90; // characters before a cell note gets a "More" toggle (CSS clamps it to 3 lines)
 
 let uid = 0;
@@ -62,8 +64,13 @@ export function createBoard({ label = 'Plan comparison board', hooks = {}, onSec
   const scroller = h('div', {
     class: 'bd-scroll', tabindex: '0', role: 'region', 'aria-label': label, 'aria-describedby': `${id}-hint`,
   }, table);
+  // The board has its natural height and the PAGE scrolls it; the scroller only scrolls sideways. A sideways
+  // scroller cannot hold a header sticky to the page, so a copy of the header (visual only: aria-hidden, inert)
+  // sticks under the situation bar while the real one is scrolled away, and follows the scroller sideways.
+  const stickIn = h('div', { class: 'bd-stick-in' });
+  const stick = h('div', { class: 'bd-stick', 'aria-hidden': 'true', inert: '' }, stickIn);
   const viewport = h('div', { class: 'bd-viewport' },
-    scroller, h('div', { class: 'bd-fade bd-fade-l', 'aria-hidden': 'true' }), h('div', { class: 'bd-fade bd-fade-r', 'aria-hidden': 'true' }));
+    stick, scroller, h('div', { class: 'bd-fade bd-fade-l', 'aria-hidden': 'true' }), h('div', { class: 'bd-fade bd-fade-r', 'aria-hidden': 'true' }));
 
   const summary = h('p', { class: 'bd-summary' });
   const pos = h('span', { class: 'bd-pos', 'aria-hidden': 'true' });
@@ -72,7 +79,9 @@ export function createBoard({ label = 'Plan comparison board', hooks = {}, onSec
   const prev = h('button', { type: 'button', class: 'bd-nav-btn', 'aria-label': 'Show earlier plans' }, svg(ICON_L));
   const next = h('button', { type: 'button', class: 'bd-nav-btn', 'aria-label': 'Show later plans' }, svg(ICON_R));
   const nav = h('div', { class: 'bd-nav' }, pos, track, prev, next);
-  const el = h('section', { class: 'board' }, h('div', { class: 'bd-top' }, summary, nav), viewport, hint);
+  const fullText = h('span', { class: 'bd-full-text' }, 'Full screen');
+  const fullBtn = h('button', { type: 'button', class: 'bd-full-btn', 'aria-pressed': 'false' }, svg(ICON_FULL), svg(ICON_CLOSE), fullText);
+  const el = h('section', { class: 'board' }, h('div', { class: 'bd-top' }, summary, nav, fullBtn), viewport, hint);
 
   // ---------- state ----------
   let cols = []; // column records in display order
@@ -323,11 +332,99 @@ export function createBoard({ label = 'Plan comparison board', hooks = {}, onSec
 
   let rafPending = 0;
   function onScroll() {
+    stickIn.scrollLeft = scroller.scrollLeft;
     if (rafPending) return;
     rafPending = requestAnimationFrame(() => { rafPending = 0; fillWindow(); updateNav(); });
   }
   scroller.addEventListener('scroll', onScroll, { passive: true });
-  new ResizeObserver(() => { metrics = null; onScroll(); }).observe(scroller);
+  new ResizeObserver(() => { metrics = null; onScroll(); stickDirty = true; checkStick(); }).observe(scroller);
+
+  // ---------- page-sticky header copy ----------
+  let stuck = false;
+  let stickDirty = true;
+  let stickTimer = 0;
+  const stickTop = () => parseFloat(getComputedStyle(stick).top) || 0;
+  function cloneHead() {
+    stickDirty = false;
+    const t = h('table', { class: 'bd-table', style: table.style.cssText }, colgroup.cloneNode(true), thead.cloneNode(true));
+    stickIn.replaceChildren(t);
+    stickIn.scrollLeft = scroller.scrollLeft;
+  }
+  function checkStick() {
+    if (full || el.hidden || !el.offsetParent || !cols.length) { setStuck(false); return; }
+    const top = stickTop();
+    const head = headRow.getBoundingClientRect();
+    const end = viewport.getBoundingClientRect().bottom;
+    setStuck(head.bottom < top && end > top + thead.offsetHeight);
+  }
+  function setStuck(on) {
+    if (on && (stickDirty || !stuck)) cloneHead();
+    if (on === stuck) return;
+    stuck = on;
+    el.classList.toggle('is-stuck', on);
+  }
+  let pageRaf = 0;
+  const onPage = () => { if (!pageRaf) pageRaf = requestAnimationFrame(() => { pageRaf = 0; checkStick(); }); };
+  window.addEventListener('scroll', onPage, { passive: true });
+  window.addEventListener('resize', onPage, { passive: true });
+
+  // ---------- full screen: the board (toolbar + columns) fills the window; Esc or Close returns ----------
+  // A fixed-position overlay (not the Fullscreen API): it behaves the same everywhere, keeps Esc ours, and the
+  // page underneath keeps its scroll position.
+  let full = false;
+  let pageY = 0;
+  let returnFocus = null;
+  function setFull(on) {
+    if (on === full) return;
+    full = on;
+    if (on) {
+      returnFocus = document.activeElement;
+      pageY = window.scrollY;
+      setStuck(false);
+    }
+    el.classList.toggle('is-full', on);
+    document.documentElement.classList.toggle('has-board-full', on);
+    if (on) {
+      el.setAttribute('role', 'dialog');
+      el.setAttribute('aria-modal', 'true');
+      el.setAttribute('aria-label', `${label} Full screen.`);
+    } else {
+      el.removeAttribute('role');
+      el.removeAttribute('aria-modal');
+      el.removeAttribute('aria-label');
+    }
+    fullBtn.setAttribute('aria-pressed', String(on));
+    fullText.textContent = on ? 'Close' : 'Full screen';
+    fullBtn.setAttribute('aria-label', on ? 'Close full screen' : 'Show the board full screen');
+    metrics = null;
+    fillWindow();
+    updateNav();
+    if (on) {
+      if (!reduceMotion()) el.animate([{ opacity: 0, transform: 'scale(0.985)' }, { opacity: 1, transform: 'none' }], { duration: 260, easing: EASE_OUT });
+      fullBtn.focus({ preventScroll: true });
+    } else {
+      window.scrollTo(0, pageY);
+      (returnFocus?.isConnected ? returnFocus : fullBtn).focus({ preventScroll: true });
+      returnFocus = null;
+      checkStick();
+    }
+  }
+  fullBtn.addEventListener('click', () => setFull(!full));
+  fullBtn.setAttribute('aria-label', 'Show the board full screen');
+  el.addEventListener('keydown', (e) => {
+    if (!full) return;
+    if (e.key === 'Escape' && !e.defaultPrevented) { e.preventDefault(); setFull(false); return; }
+    if (e.key !== 'Tab') return;
+    // keep focus inside the overlay
+    const f = [...el.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')]
+      .filter((n) => !n.disabled && !n.closest('[inert], [hidden]') && n.offsetParent !== null);
+    if (!f.length) return;
+    const i = f.indexOf(document.activeElement);
+    if (e.shiftKey && (i <= 0)) { e.preventDefault(); f.at(-1).focus(); }
+    else if (!e.shiftKey && (i === f.length - 1 || i < 0)) { e.preventDefault(); f[0].focus(); }
+  });
+  // a board hidden while full screen (tab change, view change) gives the page back
+  new MutationObserver(() => { if (full && el.hidden) setFull(false); }).observe(el, { attributes: true, attributeFilter: ['hidden'] });
   // section headers stick just under the column headers: keep that offset right when the header height changes
   new ResizeObserver(() => table.style.setProperty('--bd-thead-h', `${thead.offsetHeight}px`)).observe(thead);
 
@@ -535,6 +632,11 @@ export function createBoard({ label = 'Plan comparison board', hooks = {}, onSec
     for (const c of cols) if (!c.filled) clearColumn(c);
     updateNav();
     table.style.setProperty('--bd-thead-h', `${thead.offsetHeight}px`);
+    // refresh the sticky copy now and once the header numbers have finished counting
+    stickDirty = true;
+    checkStick();
+    clearTimeout(stickTimer);
+    stickTimer = setTimeout(() => { stickDirty = true; if (stuck) cloneHead(); }, 700);
 
     // FLIP "last/invert/play" for columns now in view
     if (motion || entering) {

@@ -16,7 +16,9 @@
   background: var(--board-bg);
   border: 1px solid var(--border);
   box-shadow: var(--glass-highlight), var(--elev-2);
+  /* clip, not hidden: a hidden overflow would become the sticky header's scroll container */
   overflow: hidden;
+  overflow: clip;
   isolation: isolate;
 }
 .board[hidden] { display: none; }
@@ -76,11 +78,11 @@
 .bd-nav-btn:active:not(:disabled) { transform: scale(0.9); }
 .bd-nav-btn:disabled { opacity: 0.35; cursor: default; }
 
-/* ---------- scroller ---------- */
+/* ---------- scroller: sideways only; the board has its natural height and the page scrolls it ---------- */
 .bd-viewport { position: relative; }
 .bd-scroll {
-  overflow: auto;
-  max-height: max(440px, calc(100dvh - 150px));
+  overflow-x: auto;
+  overflow-y: hidden;
   overscroll-behavior-x: contain;
   scroll-snap-type: x mandatory;
   scroll-padding-left: calc(var(--bw-label) + var(--pin-w));
@@ -105,6 +107,79 @@
 .bd-fade-l { left: calc(var(--bw-label) + var(--pin-w)); background: linear-gradient(90deg, color-mix(in srgb, var(--board-bg) 92%, transparent), transparent); }
 .bd-fade-r { right: 0; background: linear-gradient(270deg, color-mix(in srgb, var(--board-bg) 92%, transparent), transparent); }
 .can-l .bd-fade-l, .can-r .bd-fade-r { opacity: 1; }
+
+/* the copy of the column headers that sticks under the situation bar (src/ui/board.js); zero height in the flow */
+.bd-stick {
+  position: sticky;
+  top: calc(var(--topbar-h, 65px) + var(--space-2) + var(--sit-h, 60px) + var(--space-1));
+  z-index: 9;
+  height: 0;
+}
+.bd-stick-in {
+  position: absolute;
+  inset: 0 0 auto 0;
+  overflow: hidden;
+  visibility: hidden;
+  background: var(--board-bg);
+  border-bottom: 1px solid var(--border-strong);
+  box-shadow: 0 10px 18px -12px rgba(10, 17, 34, 0.35);
+  pointer-events: none;
+}
+.board.is-stuck .bd-stick-in { visibility: visible; }
+/* compact copy: rank, name and total stay; the bar, the "why" line and the legend are on the real header */
+.bd-stick .bd-why, .bd-stick .bd-bar, .bd-stick .bd-legend, .bd-stick .bd-chips { display: none; }
+.bd-stick .bd-h { padding-block: var(--space-2); }
+.bd-stick .bd-name { min-height: 0; -webkit-line-clamp: 1; }
+.bd-stick .bd-total { margin-top: 2px; }
+@media (prefers-reduced-motion: no-preference) {
+  .board.is-stuck .bd-stick-in { animation: bd-stick-in var(--dur-base) var(--ease-out); }
+}
+@keyframes bd-stick-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* ---------- full screen (src/ui/board.js): the board fills the window, the page waits underneath ---------- */
+.bd-full-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 34px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-control);
+  background: var(--surface-glass-strong);
+  box-shadow: var(--glass-highlight), var(--elev-1);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--dur-fast) var(--ease-out), transform var(--dur-base) var(--ease-spring);
+}
+.bd-full-btn:hover { background: var(--accent-soft); }
+.bd-full-btn:active { transform: scale(0.95); }
+.bd-full-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.bd-full-btn svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.bd-full-close, .board.is-full .bd-full-open { display: none; }
+.board.is-full .bd-full-close { display: block; }
+@media (pointer: coarse) { .bd-full-btn { min-height: 44px; } }
+
+.board.is-full {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  border: 0;
+  border-radius: 0;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+.board.is-full > * { flex: none; }
+.board.is-full .bd-viewport { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.board.is-full .bd-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; }
+.board.is-full .bd-stick { display: none; }
+.board.is-full .bd-full-btn { background: var(--p-cobalt-600); border-color: transparent; color: #fff; box-shadow: var(--accent-glow); }
+html.has-board-full { overflow: hidden; }
+html.has-board-full .topbar, html.has-board-full .sit-bar, html.has-board-full .footer, html.has-board-full .tray { visibility: hidden; }
 
 /* ---------- table ---------- */
 .bd-table {
