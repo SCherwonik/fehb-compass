@@ -67,6 +67,17 @@ test('Roanoke (24011): the savings banner never names an unconfirmed plan as the
   assert.equal(on.skipped, 0);
 });
 
+test('the banner counts how many skipped plans are a ZIP that spans counties (for its wording)', () => {
+  const base = S({ location: { state: 'VA', zip: '24011' }, currentPlan2026: '104' });
+  const rows = computeRows(data, base);
+  const v = savingsVsCurrent(data, base, rows);
+  // without the ZIP->county lookup nothing is a split ZIP: all skipped plans are state-partial
+  assert.equal(v.skippedSplit, 0);
+  assert.ok(v.skipped >= v.skippedSplit);
+  const fake = rows.map((r) => (r.area === 'partial' ? { ...r, areaSplit: { served: ['x'], unserved: ['y'] } } : r));
+  assert.equal(savingsVsCurrent(data, base, fake).skippedSplit, v.skipped);
+});
+
 test('a ZIP OPM lists for T71 confirms it, so it may be the banner best', () => {
   const base = S({ location: { state: 'VA', zip: '22508' }, currentPlan2026: '104' });
   const rows = computeRows(data, base);

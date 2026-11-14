@@ -515,8 +515,11 @@ export function savingsVsCurrent(data, state, rows) {
   const open = (r) => state.includeUnconfirmed === true || r.area == null || areaConfirmed(r.area);
   let best = null;
   for (const r of rows) if (open(r) && (!best || baseTotal(r) < baseTotal(best))) best = r;
-  const skipped = rows.filter((r) => !open(r) && (!best || baseTotal(r) < baseTotal(best))).length;
-  const bestInfo = { basis, bestTotal: best ? baseTotal(best) : null, bestMeds: best ? medsAdded(best) : null, skipped };
+  const skippedRows = rows.filter((r) => !open(r) && (!best || baseTotal(r) < baseTotal(best)));
+  const skipped = skippedRows.length;
+  // how many of them are a ZIP that spans a served and an unserved county (their chip says "your ZIP", not the state)
+  const skippedSplit = skippedRows.filter((r) => r.areaSplit).length;
+  const bestInfo = { basis, bestTotal: best ? baseTotal(best) : null, bestMeds: best ? medsAdded(best) : null, skipped, skippedSplit };
 
   if (current) {
     return {

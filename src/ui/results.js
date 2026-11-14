@@ -535,8 +535,13 @@ export function createResults(main, { store, onRanked }) {
     const on = state.includeUnconfirmed === true;
     let text = '';
     if (!on && v.skipped > 0) {
-      text = `${v.skipped === 1 ? 'One cheaper plan serves' : `${v.skipped} cheaper plans serve`} only part of ${where}, so `
-        + `${v.skipped === 1 ? 'it is' : 'they are'} left out here. ${v.skipped === 1 ? 'It stays' : 'They stay'} in the list, marked “Serves part of ${where}”.`;
+      // the plans' own chips read "Serves part of <state>" or, for a ZIP that spans counties, "Serves part of your ZIP"
+      const split = v.skippedSplit ?? 0;
+      const allSplit = split === v.skipped;
+      const area = allSplit ? 'your ZIP' : split > 0 ? `${where} or of your ZIP` : where;
+      const mark = allSplit ? 'your ZIP' : split > 0 ? `${where}” or “Serves part of your ZIP` : where;
+      text = `${v.skipped === 1 ? 'One cheaper plan serves' : `${v.skipped} cheaper plans serve`} only part of ${area}, so `
+        + `${v.skipped === 1 ? 'it is' : 'they are'} left out here. ${v.skipped === 1 ? 'It stays' : 'They stay'} in the list, marked “Serves part of ${mark}”.`;
     } else if (on && v.best?.area === 'partial') {
       text = v.best.areaSplit
         ? `${v.best.plan.name} serves only part of ZIP ${state.location.zip}: confirm your address is in its service area before choosing it.`
