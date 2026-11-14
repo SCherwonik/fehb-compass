@@ -43,6 +43,7 @@ const FULL = {
   dental: true,
   selectedPlans: ['104', '224', '8W4'],
   view: 'board',
+  dvView: 'board',
   group: 'carrier',
   includeMine: false,
   glp1: true,

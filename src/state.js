@@ -26,6 +26,7 @@
 //   dvGroup:         'top3' | 'carrier' | 'all'           which plans the dental/vision board shows ("Show")
 //   selectedPlans:   string[]                             2027 enrollment codes pinned for comparison
 //   view:            'cards' | 'board'                    results layout (ranked cards or the horizontal compare board)
+//   dvView:          'cards' | 'board'                    the same choice on the Dental & Vision tab (its own key: `dv`)
 //   group:           'top3' | 'carrier' | 'type' | 'account' | 'all'   which plans the board shows
 //   includeMine:     boolean                              always show the 2027 version of currentPlan2026 (pinned first)
 //   glp1:            boolean                              only plans whose 2027 brochure covers GLP-1 drugs for weight loss
@@ -67,6 +68,7 @@ export const DEFAULT_STATE = Object.freeze({
   dental: false,
   selectedPlans: Object.freeze([]),
   view: 'cards',
+  dvView: 'cards',
   group: 'top3',
   includeMine: true,
   glp1: false,
@@ -181,6 +183,7 @@ export function sanitizeState(input) {
     dental: s.dental === true,
     selectedPlans: validPlanList(s.selectedPlans),
     view: pickEnum(s.view, VIEW, DEFAULT_STATE.view),
+    dvView: pickEnum(s.dvView, VIEW, DEFAULT_STATE.dvView),
     group: pickEnum(s.group, GROUP, DEFAULT_STATE.group),
     includeMine: s.includeMine !== false,
     glp1: s.glp1 === true,
@@ -307,6 +310,7 @@ export function encodeHash(state) {
   if (s.dental) p.set('d', '1');
   if (s.selectedPlans.length) p.set('p', s.selectedPlans.join(','));
   if (s.view !== DEFAULT_STATE.view) p.set('v', VIEW[s.view]);
+  if (s.dvView !== DEFAULT_STATE.dvView) p.set('dv', VIEW[s.dvView]);
   if (s.group !== DEFAULT_STATE.group) p.set('g', GROUP[s.group]);
   if (!s.includeMine) p.set('m', '0');
   if (s.glp1) p.set('w', '1');
@@ -411,6 +415,7 @@ export function decodeState(hash, opts = {}) {
     dental: one('d') === '1',
     selectedPlans: (one('p') ?? '').split(',').filter(Boolean),
     view: has(VIEW_IN, one('v')) ? VIEW_IN[one('v')] : undefined,
+    dvView: has(VIEW_IN, one('dv')) ? VIEW_IN[one('dv')] : undefined,
     group: has(GROUP_IN, one('g')) ? GROUP_IN[one('g')] : undefined,
     includeMine: one('m') !== '0',
     glp1: one('w') === '1',

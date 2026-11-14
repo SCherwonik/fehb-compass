@@ -416,6 +416,56 @@ export function dvHeader(row, group, ctx, scope = '') {
   };
 }
 
+// ---------- ranked cards (the default Dental & Vision view, same look as the health plan cards) ----------
+/** Key benefits a card shows, per kind: OPM benefit cell keys with short labels. */
+export const DV_CARD_FACTS = {
+  dental: [['deductible', 'Deductible'], ['annual_max', 'Annual maximum'], ['class_b', 'Basic care, you pay'], ['class_c', 'Major care, you pay'], ['class_d', 'Orthodontia, you pay']],
+  vision: [['exam', 'Eye exam'], ['lenses', 'Lenses'], ['frames', 'Frames'], ['copay', 'Copays']],
+};
+
+/**
+ * One card's content: dvCard(row, ctx) -> { code, rankText, isTop, isMine, title, meta, total, totalLabel, why,
+ *   chips, premium: {text, sub}, oop: {label, text, sub, tone}, facts: [{key, label, text, sub, title}],
+ *   vsMine: {text, tone, title} | null, links: [{href, text}], bar: {p, o} }.
+ * Built from the board's own header and cells, so cards and board never disagree.
+ */
+export function dvCard(row, ctx) {
+  const hd = dvHeader(row, [], ctx);
+  const oc = oopCell(row, ctx);
+  const facts = (DV_CARD_FACTS[ctx.kind] ?? []).map(([key, label]) => {
+    const c = benefitCell(row, key);
+    return { key, label, text: c.text, sub: c.sub, title: c.note ?? (c.kind === 'long' ? c.text : undefined), tone: c.tone };
+  });
+  let vsMine = null;
+  if (ctx.mine && !row.isMine && fin(ctx.mine.cost?.total)) {
+    const n = cents(row.cost.total - ctx.mine.cost.total);
+    const tone = deltaTone(n);
+    vsMine = { text: tone === 'flat' ? 'Same as your plan' : `${signedUsd(n)} vs your plan`, tone, title: 'Estimated yearly total compared with your plan in 2027, same ZIP, coverage and usage' };
+  }
+  const links = [
+    { href: normalizeUrl(row.plan.website), text: 'Plan website' },
+    { href: normalizeUrl(row.plan.directory), text: ctx.kind === 'dental' ? 'Find a dentist' : 'Find an eye doctor' },
+  ].filter((l) => l.href);
+  return {
+    code: row.code,
+    rankText: hd.rankText,
+    isTop: row.rank === 1 && !row.isMine,
+    isMine: row.isMine === true,
+    title: hd.title,
+    meta: [row.plan.carrier, row.plan.nationwide ? 'Nationwide' : 'Regional', `plan ${row.code}`].filter(Boolean).join(' · '),
+    total: row.cost.total,
+    totalLabel: hd.totalLabel,
+    why: hd.why,
+    chips: hd.chips.filter((c) => c.tone !== 'type' && c.tone !== 'acct'),
+    premium: { text: usd(row.cost.premium), sub: premiumHow(row) },
+    oop: { label: ctx.kind === 'dental' ? 'Expected out-of-pocket' : 'Expected copays', text: oc.text, sub: oc.sub, tone: oc.tone, title: oc.title },
+    facts,
+    vsMine,
+    links,
+    bar: hd.bar,
+  };
+}
+
 // ---------- add dental/vision to my total ----------
 const addCache = new WeakMap();
 
