@@ -35,10 +35,10 @@ VOCAB = Counter({
     ("Tier 1 : $10", "Tier 1: $10"),
     ("20 % coinsurance", "20% coinsurance"),
     ("Occupational Therapy )", "Occupational Therapy)"),
-    ("supply( $150 Max), $400", "supply($150 Max), $400"),
+    ("supply( $150 Max), $400", "supply ($150 Max), $400"),
     ("our allowance. .One hearing aid", "our allowance. One hearing aid"),
     ("Specialist Visit;$50 Outpatient", "Specialist Visit; $50 Outpatient"),
-    ("ForXRays:Copayment $20", "ForXRays: Copayment $20"),
+    ("ForXRays:Copayment $20", "For X-Rays: Copayment $20"),
     # digits
     ("Brand Retail:3 0-day supply: 40", "Brand Retail:30-day supply: 40"),
     ("Retail:9 0 days supply", "Retail:90 days supply"),
@@ -48,6 +48,15 @@ VOCAB = Counter({
     ("Specialt y: Filled through a Contract ed Specialt y Pharma cy.",
      "Specialty: Filled through a Contracted Specialty Pharmacy."),
     ("Standar d Plus", "Standard Plus"),
+    ("Accidental Emerge ncy waives", "Accidental Emergency waives"),
+    ("Intrauter ine (IUI) and Intravagi nal (IVI)", "Intrauterine (IUI) and Intravaginal (IVI)"),
+    ("diabetes program participa nts receive", "diabetes program participants receive"),
+    ("20% of thePlan allowance", "20% of the Plan allowance"),
+    ("up to a $350 maximumfor up to", "up to a $350 maximum for up to"),
+    ("per adminss ion hospital copay", "per admission hospital copay"),
+    ("deductible 30%coinsurance ded", "deductible 30% coinsurance ded"),
+    ("OT,PT, and ST services", "OT, PT, and ST services"),
+    ("$5,000 - : $2,500 Self Only/$5,000 Self Plus One", "$5,000 - $2,500 Self Only/$5,000 Self Plus One"),
     ("Medicar e payment", "Medicare payment"),
     ("Generic s Only", "Generics Only"),
 ])
@@ -62,7 +71,8 @@ def test_fixes(before, after):
     "Retail: $10", "30% Coinsurance", "$1,500 Copayment", "RI-73 899", "20% after deductible",
     "Specialist Office Visit: $40 per day", "Primary care a visit", "Preferred Brand",
     "at least 30 days", "w/in 72 hours", "Mail Order", "co ins is $0", "HMO s",
-    "e.g. $5 or 10% of cost", "Up to $50 - $75 a month", "$5,000 - : $2,500 Self Only",
+    "e.g. $5 or 10% of cost", "Up to $50 - $75 a month",
+    "primary Assumes A & B", "the Plan allowance", "Self Plus One/ Self & Family", "1,500 PT, OT",
     "1-800-555-1234", "9:30 am", "http://example.com/a b", "Plan 104", "R 11 plan",
 ])
 def test_unchanged(text):

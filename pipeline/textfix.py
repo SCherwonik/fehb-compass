@@ -28,6 +28,25 @@ FUNCTION_WORDS = frozenset(
     "also only more most such less over into upon plus max min limit visit visits day days "
     "year years month months other others self family tier".split())
 
+# Healthcare / benefit words that may occur intact fewer than MIN_JOINED_COUNT times in
+# the corpus, so split copies of them ('Emerge ncy') still join.
+HAND_WORDS = frozenset(
+    "essential emergency allowance occupational participants participant admission "
+    "intrauterine intravaginal inseminations insemination chiropractic deductible "
+    "copayment coinsurance preventive medications specialty pharmacy medicare "
+    "outpatient inpatient combined accidental".split())
+
+# Exact glued / garbled strings seen in OPM sheets (high confidence, whole-token match).
+GLUED = {
+    "maximumfor": "maximum for",
+    "thePlan": "the Plan",
+    "ForXRays": "For X-Rays",
+    "primaryAssumes": "primary Assumes",
+    "adminss ion": "admission",
+}
+_GLUED = re.compile(
+    "(?<![A-Za-z])(" + "|".join(re.escape(k) for k in GLUED) + ")(?![a-z])")
+
 MIN_JOINED_COUNT = 3     # joined word must appear intact in >= 3 distinct corpus strings
 MIN_JOINED_LEN = 6
 KNOWN_FRAGMENT_COUNT = 8  # a 3+ letter fragment counts as a real word from this many strings
@@ -60,7 +79,7 @@ def _should_join(a: str, b: str, vocab: Counter) -> bool:
         return False
     al = a.lower()
     joined = al + b
-    if len(joined) < MIN_JOINED_LEN or vocab.get(joined, 0) < MIN_JOINED_COUNT:
+    if len(joined) < MIN_JOINED_LEN or (vocab.get(joined, 0) < MIN_JOINED_COUNT and joined not in HAND_WORDS):
         return False
     if al in FUNCTION_WORDS or b in FUNCTION_WORDS:
         return False
@@ -88,12 +107,17 @@ _PUNCT_RULES = (
     (re.compile(r"\.\s+\.(?=[A-Z])"), ". "),
     (re.compile(r"(?<=[a-z]);(?=[A-Za-z$\d])"), "; "),
     (re.compile(r"(?<=[a-z]):(?=[A-Z$])"), ": "),
+    (re.compile(r"(?<=%)(?=[A-Za-z]{3})"), " "),          # '30%coinsurance'
+    (re.compile(r"(?<=[A-Z]),(?=[A-Z])"), ", "),           # 'PT,OT' abbreviation lists
+    (re.compile(r"(?<=[a-z])\((?=\$)"), " ("),              # 'supply($150' (after '( ' fix)
+    (re.compile(r" - : "), " - "),                          # stray ':' after a dash
 )
 
 
 def fix_spacing(text: str, vocab: Counter | None = None) -> str:
     """Repair spacing artifacts in `text`; word joins need a `vocab` from build_vocab()."""
     t = re.sub(r"\s+", " ", text.replace("\u00a0", " ")).strip()
+    t = _GLUED.sub(lambda m: GLUED[m.group(1)], t)
     t = _DIGITS.sub(r"\1\2", t)
     for rx, rep in _PUNCT_RULES:
         t = rx.sub(rep, t)
