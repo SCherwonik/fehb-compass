@@ -88,6 +88,8 @@ VOCAB = Counter({
     ("only combined OOPM applies", "only combined out-of-pocket maximum applies"),
     ("received w/in 72 hours", "received within 72 hours"),
     ("Per Calendar Yr combined", "Per Calendar Year combined"),
+    ("$500 Copayment - per day uper admission", "$500 Copayment - per day per admission"),
+    ("$15 Copayment - ro primary care, $25 copay", "$15 Copayment - to primary care, $25 copay"),
     ("$0 copaymen", "$0 copayment"),
     ("10% of the Plan allowanc", "10% of the Plan allowance"),
     ("60% Coinsurance - Non-Preferre d Brand", "60% Coinsurance - Non-Preferred Brand"),
@@ -117,7 +119,7 @@ def test_fixes(before, after):
     "e.g. $5 or 10% of cost", "Up to $50 - $75 a month",
     "primary Assumes A & B", "the Plan allowance", "Self Plus One/ Self & Family", "1,500 PT, OT",
     "plan plans", "Tier Tiers", "HMO PPO", "Plan allowance", "per admission", "admission and visit",
-    "per admission after", "per day uper admission", "$15 Copayment - ro primary care", "admi is clipped mid-sentence", "annual visit", "co-insurance applies",
+    "per admission after", "per day per admission", "$15 Copayment - to primary care", "admi is clipped mid-sentence", "annual visit", "co-insurance applies",
     "Added", "Deductible applies", "MO", "Auth123", "Prevention", "Mo Jones", "provided", "Combined", "per month", "Visit", "office visit", "Calendar Year", "eyeglasses",
     "1-800-555-1234", "9:30 am", "http://example.com/a b", "Plan 104", "R 11 plan",
 ])

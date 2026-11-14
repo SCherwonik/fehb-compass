@@ -59,6 +59,8 @@ TYPOS = {
     "calendary": "calendar", "hopsital": "hospital", "maxiumum": "maximum",
     "nnual": "annual", "surery": "surgery", "co ins": "coinsurance",
     "per aper admission": "per admission",
+    "per day uper admission": "per day per admission",
+    "copayment - ro primary care": "copayment - to primary care",
     "upto": "up to", "inpat cost": "inpatient cost",
 }
 # Cell shorthand spelled out. Exact-case, whole-word only (never 'Added', 'MO', 'Prevention').
