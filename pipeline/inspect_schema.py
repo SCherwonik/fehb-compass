@@ -12,6 +12,23 @@ def _fmt(row) -> str:
     return " | ".join("" if v is None else str(v) for v in row)
 
 
+def _is_header(row) -> bool:
+    """>= 3 non-empty cells, mostly text (not numbers)."""
+    cells = [v for v in row if v is not None and str(v).strip() != ""]
+    if len(cells) < 3:
+        return False
+    text = sum(1 for v in cells if isinstance(v, str))
+    return text / len(cells) > 0.5
+
+
+def find_header_index(rows) -> int:
+    """Index of the first header-looking row in the first ~5 rows; falls back to 0."""
+    for i, row in enumerate(rows[:5]):
+        if _is_header(row):
+            return i
+    return 0
+
+
 def build_report(raw: Path = DEFAULT_DEST) -> str:
     lines: list[str] = []
     for name, url in FILES.items():
@@ -26,13 +43,14 @@ def build_report(raw: Path = DEFAULT_DEST) -> str:
             rows = []
             for i, row in enumerate(ws.iter_rows(values_only=True)):
                 rows.append(row)
-                if i >= 3:
+                if i >= 8:
                     break
             if not rows:
                 lines.append("   (empty)")
                 continue
-            lines.append("   header: " + _fmt(rows[0]))
-            for n, r in enumerate(rows[1:], 1):
+            h = find_header_index(rows)
+            lines.append(f"   header (row {h + 1}): " + _fmt(rows[h]))
+            for n, r in enumerate(rows[h + 1:h + 4], 1):
                 lines.append(f"   row{n}:   " + _fmt(r))
         wb.close()
         lines.append("")

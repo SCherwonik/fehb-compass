@@ -1,5 +1,5 @@
 """Download OPM FEHB / FEDVIP public-use files into pipeline/raw/."""
-import sys
+import os
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -74,7 +74,13 @@ def download_all(dest: Path = DEFAULT_DEST) -> dict[str, Path]:
         path = dest / url.rsplit("/", 1)[1]
         if not path.exists():
             print(f"downloading {name}")
-            path.write_bytes(fetch(url))
+            data = fetch(url)
+            part = path.with_name(path.name + ".part")
+            try:
+                part.write_bytes(data)
+                os.replace(part, path)
+            finally:
+                part.unlink(missing_ok=True)
         out[name] = path
     return out
 
@@ -82,4 +88,3 @@ def download_all(dest: Path = DEFAULT_DEST) -> dict[str, Path]:
 if __name__ == "__main__":
     paths = download_all()
     print(f"{len(paths)} files in {DEFAULT_DEST}")
-    sys.exit(0)
