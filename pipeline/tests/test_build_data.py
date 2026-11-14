@@ -61,7 +61,11 @@ def test_network_family():
     assert nf("Anthem Blue Cross Select HMO", "Anthem Blue Cross - Select HMO") == "Blue Cross"
     assert nf("UnitedHealthcare Insurance Company, Inc. (Choice Open Access)", "UnitedHealthcare Insurance Company, Inc.") == "UnitedHealthcare"
     assert nf("Cigna HealthCare", "Cigna") == "Cigna"
-    assert nf("Kaiser Permanente - Colorado", "Kaiser Permanente - Colorado") == "Other"
+    assert nf("Kaiser Permanente - Colorado") == "Kaiser Permanente"
+    assert nf("Kaiser Permanente Washington Options Federal") == "Kaiser Permanente"
+    assert nf("GEHA") == nf("GEHA Indemnity Benefit Plan") == "GEHA"
+    assert nf("Baylor Scott and White Health Plan") == "Baylor Scott & White"
+    assert nf("Medical Mutual of Ohio (Northern)") == "Medical Mutual of Ohio"
 
 
 # ---- tests against generated data/ and raw files ----
@@ -200,3 +204,53 @@ def test_no_deductible_is_zero():
     # EP1 (Aetna CDHP) has a $1,000 deductible; a plan with "None" deductible must be 0.0
     assert b["EP1"]["deductible"]["self"] == 1000.0
     assert any(v["deductible"]["self"] == 0.0 for v in b.values())
+
+
+@needs_data
+def test_network_family_is_informative():
+    plans = [p for p in load("plans.json") if p["year"] == 2027]
+    fam = {}
+    for p in plans:
+        fam.setdefault(p["network_family"], []).append(p["code"])
+    other = len(fam.get("Other", []))
+    assert other / len(plans) < 0.35, (other, len(plans))
+    for f in ("Aetna", "Blue Cross", "UnitedHealthcare", "Kaiser Permanente", "GEHA"):
+        assert f in fam, f
+    # every family value (other than Other) is shared by 2+ plans; Other = singleton carriers
+    assert all(len(v) > 1 for k, v in fam.items() if k != "Other")
+    assert all(p["network_family"] for p in plans)
+
+
+def _hdr_cases():
+    b = build_data
+    return [
+        ("plan_key", b.PLAN_KEY_COLS), ("payroll", b.PAYROLL_COLS),
+        ("service_area", b.SERVICE_AREA_COLS), ("benefits", b.BENEFITS_COLS),
+        ("fedvip_key", b.FEDVIP_KEY_COLS), ("fedvip_benefits", b.FEDVIP_BENEFITS_COLS),
+        ("fedvip_rates", b.FEDVIP_RATE_COLS), ("rating_regions", b.RATING_REGION_COLS),
+        ("fedvip_zip", b.FEDVIP_ZIP_COLS),
+    ]
+
+
+@pytest.mark.parametrize("name,cols", _hdr_cases())
+def test_header_check_accepts_expected_and_rejects_swapped(name, cols):
+    p = Path(f"{name}.xlsx")
+    good = [c or "" for c in cols]
+    build_data.expect_header(p, good, cols)  # no error
+    bad = list(good)
+    idx = [i for i, c in enumerate(cols) if c]
+    bad[idx[0]], bad[idx[-1]] = bad[idx[-1]], bad[idx[0]]  # reordered columns
+    with pytest.raises(ValueError, match=rf"{name}\.xlsx: column"):
+        build_data.expect_header(p, bad, cols)
+
+
+def test_loader_raises_on_reordered_file(tmp_path):
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(["Gov_Pays", "Enrl_Code", "Emp_Pays", "SE_Pays", "TCC_Pays", "MGov_Pays", "MEmp_Pays"])
+    ws.append([1, "AB1", 2, 3, 4, 5, 6])
+    f = tmp_path / "payroll.xlsx"
+    wb.save(f)
+    hdr, _ = build_data.table(f)
+    with pytest.raises(ValueError, match="payroll.xlsx: column 1"):
+        build_data.expect_header(f, hdr, build_data.PAYROLL_COLS)

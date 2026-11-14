@@ -94,25 +94,61 @@ def published_from_filename(name: str) -> str:
     return date(year, mm, dd).isoformat()
 
 
-def network_family(carrier: str, plan_name: str = "") -> str:
-    """Heuristic carrier family from the plan key's carrier / plan name.
+# Carrier-name prefixes that should collapse into one family label.
+_FAMILY_ALIASES = (
+    ("kaiser permanente", "Kaiser Permanente"),
+    ("geha", "GEHA"),
+    ("g.e.h.a", "GEHA"),
+    ("baylor scott", "Baylor Scott & White"),
+    ("medical mutual", "Medical Mutual of Ohio"),
+)
 
-    OPM publishes no provider networks, so this is name-based only:
-      Aetna (also Altius, Aetna Health of Utah), Blue Cross (Blue Cross and Blue
-      Shield, Anthem, CareFirst BlueChoice), Cigna, UnitedHealthcare (UnitedHealthcare,
-      UHC). Everything else (Kaiser, GEHA, MHBP, APWU, HMSA, union / employee-
-      association plans and independent HMOs) is "Other", i.e. plan-owned.
+
+def network_family(carrier: str, plan_name: str = "") -> str:
+    """Family label derived from the plan key's carrier name (plan_name is unused).
+
+    OPM publishes no provider networks, so this is name-based. Carrier names are
+    normalized through a small alias table, then:
+      Cigna, UnitedHealthcare (UnitedHealthcare / UHC), Aetna (also Altius, Aetna Health
+      of Utah) and Blue Cross (Blue Cross and Blue Shield, Anthem, CareFirst BlueChoice)
+      are the big carrier families;
+      known aliases collapse regional variants (e.g. "Kaiser Permanente - Colorado" ->
+      "Kaiser Permanente", GEHA and GEHA Indemnity -> "GEHA");
+      any other carrier is labelled with its own cleaned name (text before " - ", "(",
+      ":" or ","), which is "plan-owned".
+    build_fehb then relabels carriers that have only a single plan in a year as "Other".
     """
-    s = norm(f"{carrier} {plan_name}")
+    s = norm(carrier)
     if "cigna" in s:
         return "Cigna"
-    if "unitedhealthcare" in s or "united healthcare" in s or re.search(r"\buhc\b", s):
+    if "unitedhealthcare" in s or "united healthcare" in s or re.search(r"uhc", s):
         return "UnitedHealthcare"
     if "aetna" in s or "altius" in s:
         return "Aetna"
     if "blue cross" in s or "bluecross" in s or "anthem" in s or "carefirst" in s or "blue shield" in s:
         return "Blue Cross"
-    return "Other"
+    for prefix, label in _FAMILY_ALIASES:
+        if s.startswith(prefix):
+            return label
+    return clean(re.split(r" - |\(|:|,", clean(carrier))[0]) or "Other"
+
+
+def expect_header(path: Path, header: list, expected: list, start: int = 0) -> None:
+    """Fail loudly when a sheet's header row does not carry the expected column labels.
+
+    `expected` labels are compared (alphanumerics only, lower case) against the header
+    cells from index `start`; None in `expected` skips a column. Raised before any rows
+    are read by index, so a reordered OPM file cannot silently yield wrong values.
+    """
+    def key(x):
+        return re.sub(r"[^a-z0-9]", "", str(x if x is not None else "").lower())
+
+    for i, want in enumerate(expected, start):
+        if want is None:
+            continue
+        got = header[i] if i < len(header) else None
+        if key(got) != key(want):
+            raise ValueError(f"{path.name}: column {i + 1} header is {got!r}, expected {want!r}")
 
 
 def sheet_rows(path: Path, index: int = 0):
@@ -140,6 +176,21 @@ def table(path: Path, index: int = 0, marker: str | None = None):
 
 
 # --------------------------------------------------------------------------- FEHB
+
+PLAN_KEY_COLS = ["Carrier Name", "Plan Option Name", "Plan Code", "Plan Code Name",
+                 "Enrollment Code", "Enrollment Type", "Network Type", "Plan Option Type"]
+PAYROLL_COLS = ["Enrl_Code", "Gov_Pays", "Emp_Pays", "SE_Pays", "TCC_Pays", "MGov_Pays", "MEmp_Pays"]
+SERVICE_AREA_COLS = ["Option", "Plan Code", "Plan Name", "Enrollment Code", "Nationwide (Y/N)",
+                     "State code", "Statewide (Y/N)", "County", "County FIPS", "Countywide (Y/N)", "ZIP code"]
+BENEFITS_COLS = ["Plan Option Name", "Brochure Number", "Plan Code", "Plan Name", "In-network/out-of-network"]
+FEDVIP_KEY_COLS = ["Plan Code Name", "Service Area", "Plan Code Option Type", "Enrollment Type",
+                   "Brochure Number", "Phone Number", "Contract Website", "Contract Provider Directory"]
+FEDVIP_BENEFITS_COLS = ["Plan Code Name", "Contract Type", "Plan Code Option Type", "Network Type"]
+FEDVIP_RATE_COLS = ["Plan - Option", None, "Self Only", "Self Plus One", "Self & Family",
+                    "Self Only", "Self Plus One", "Self & Family"]
+RATING_REGION_COLS = ["State", "State/ZIP(first 3)"]
+FEDVIP_ZIP_COLS = ["Plan Name", "Plan Code", "Option Type", "Region", "State Name", "ZIP Code"]
+
 
 def _group(plan_key_rows):
     """Collapse plan-key rows into plans keyed by (plan code, normalized option)."""
@@ -185,6 +236,7 @@ def load_benefits(path: Path):
     Each 'X Additional Details' column is folded into X as 'value - details'.
     """
     header, rows = table(path)
+    expect_header(path, header, BENEFITS_COLS)
     hs = [clean(h) for h in header]
     out: dict = {}
     for r in rows:
@@ -282,6 +334,7 @@ def load_service_area(path: Path):
     zips     ZIP codes listed for partially covered counties
     """
     header, rows = table(path)
+    expect_header(path, header, SERVICE_AREA_COLS)
     out: dict = {}
     for r in rows:
         if not r[1]:
@@ -311,11 +364,13 @@ def build_fehb(paths: dict):
     benefits_out: dict = {}
     service_out: dict = {}
     for year in YEARS:
-        _, key_rows = table(paths[f"FEHB_{year}_PLAN_KEY"])
+        hdr, key_rows = table(paths[f"FEHB_{year}_PLAN_KEY"])
+        expect_header(paths[f"FEHB_{year}_PLAN_KEY"], hdr, PLAN_KEY_COLS)
         plans = _group(key_rows)
         benefits = load_benefits(paths[f"FEHB_{year}_BENEFITS"])
         sa = load_service_area(paths[f"FEHB_{year}_SERVICE_AREA"])
-        _, pay_rows = table(paths[f"FEHB_{year}_PAYROLL_RATES"])
+        hdr, pay_rows = table(paths[f"FEHB_{year}_PAYROLL_RATES"])
+        expect_header(paths[f"FEHB_{year}_PAYROLL_RATES"], hdr, PAYROLL_COLS)
         payroll = {clean(r[0]): r for r in pay_rows}  # Emp_Pays = col 2, MEmp_Pays = col 6
 
         rates_out[str(year)] = {}
@@ -361,6 +416,15 @@ def build_fehb(paths: dict):
                     "counties": sorted(area.get("counties", ())),
                     "zips": sorted(area.get("zips", ())),
                 }
+    # Carriers with a single plan in a year are not a family: label them "Other".
+    for year in YEARS:
+        ps = [p for p in plans_out if p["year"] == year]
+        counts_f: dict = defaultdict(int)
+        for p in ps:
+            counts_f[p["network_family"]] += 1
+        for p in ps:
+            if counts_f[p["network_family"]] == 1:
+                p["network_family"] = "Other"
     # Display names collide when options share a plan name, or one plan is sold in
     # several regions under different plan codes. Disambiguate by option, then by
     # service-area states, and finally by plan code, so each (year, name) is unique.
@@ -399,7 +463,8 @@ def _split_plan_option(s: str):
 
 
 def _fedvip_plans(path: Path, sheet: int):
-    _, rows = table(path, sheet)
+    hdr, rows = table(path, sheet)
+    expect_header(path, hdr, FEDVIP_KEY_COLS)
     seen: dict = {}
     for r in rows:
         if not r[0]:
@@ -414,7 +479,8 @@ def _fedvip_plans(path: Path, sheet: int):
 
 
 def _fedvip_rates(path: Path, sheet: int, region_col: bool):
-    _, rows = table(path, sheet, marker="Plan - Option")
+    hdr, rows = table(path, sheet, marker="Plan - Option")
+    expect_header(path, hdr, FEDVIP_RATE_COLS)
     out = []
     for r in rows:
         if not r[0] or not isinstance(r[2], (str, int, float)) or money(r[2]) is None:
@@ -432,6 +498,7 @@ def _fedvip_rates(path: Path, sheet: int, region_col: bool):
 
 def _fedvip_benefits(path: Path, sheet: int):
     header, rows = table(path, sheet)
+    expect_header(path, header, FEDVIP_BENEFITS_COLS)
     hs = [clean(h) for h in header]
     out = []
     for r in rows:
@@ -449,6 +516,7 @@ def _fedvip_benefits(path: Path, sheet: int):
 
 def _rating_regions(path: Path):
     header, rows = table(path, marker="State")
+    expect_header(path, header, RATING_REGION_COLS)
     carriers = [clean(h) for h in header[2:] if h]
     out = []
     for r in rows:
@@ -469,7 +537,7 @@ def zip_coverage(path: Path):
     """
     acc: dict = defaultdict(lambda: defaultdict(lambda: defaultdict(set)))
     it = iter(sheet_rows(path))
-    next(it)  # header
+    expect_header(path, next(it), FEDVIP_ZIP_COLS)
     for r in it:
         if not r or not r[0] or r[5] in (None, ""):
             continue
