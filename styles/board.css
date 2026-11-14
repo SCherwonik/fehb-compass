@@ -173,8 +173,13 @@
   border-radius: 0;
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
-.board.is-full > * { flex: none; }
-.board.is-full .bd-viewport { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+/* one slim top row: the find / differences / expand tools on the left, position and Close on the right;
+   the "Showing N plans" sentence is dropped (the viewport is for plans, not for captions) */
+.board.is-full { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto minmax(0, 1fr); align-content: stretch; }
+.board.is-full > .mx-tools { grid-column: 1; grid-row: 1; margin: 0; padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4); border: 0; }
+.board.is-full > .bd-top { grid-column: 2; grid-row: 1; padding: var(--space-2) var(--space-3) var(--space-2) var(--space-2); border: 0; }
+.board.is-full .bd-summary { display: none; }
+.board.is-full > .bd-viewport { grid-column: 1 / -1; grid-row: 2; min-height: 0; display: flex; flex-direction: column; border-top: 1px solid var(--board-line); }
 .board.is-full .bd-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; }
 .board.is-full .bd-stick { display: none; }
 .board.is-full .bd-full-btn { background: var(--p-cobalt-600); border-color: transparent; color: #fff; box-shadow: var(--accent-glow); }
@@ -301,7 +306,46 @@ html.has-board-full .topbar, html.has-board-full .sit-bar, html.has-board-full .
   color: var(--text);
   overflow-wrap: anywhere;
 }
-.bd-sub { font-size: var(--text-xs); color: var(--text-subtle); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bd-subline { display: flex; align-items: baseline; gap: var(--space-2); min-width: 0; }
+.bd-sub { flex: 1 1 auto; min-width: 0; font-size: var(--text-xs); color: var(--text-subtle); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bd-code { flex: none; font-size: 11px; font-weight: var(--weight-medium); font-variant-numeric: tabular-nums; letter-spacing: 0.02em; color: var(--text-muted); }
+.bd-code[hidden] { display: none; }
+
+/* thin one-line header (rank, name, code): hidden in the flow; visible in full screen and in the page-sticky copy */
+.bd-minis { display: none; }
+.bd-minis th {
+  position: sticky;
+  top: var(--band-h);
+  z-index: 3;
+  height: 32px;
+  padding: 0 var(--space-3);
+  background: var(--board-bg);
+  border-bottom: 1px solid var(--border-strong);
+  overflow: hidden;
+  text-align: left;
+}
+.bd-mini-corner { left: 0; z-index: 6 !important; }
+.bd-mini-in { display: flex; align-items: baseline; gap: var(--space-2); min-width: 0; white-space: nowrap; font-size: var(--text-xs); }
+.bd-mini-rank { flex: none; font-weight: var(--weight-semibold); color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.bd-mini-name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: var(--weight-semibold); color: var(--text); }
+.bd-mini-code { flex: none; margin-left: auto; font-variant-numeric: tabular-nums; color: var(--text-subtle); }
+.bd-minis th.is-gs { box-shadow: inset 1px 0 0 var(--border-strong); }
+.bd-minis th.is-mine { background-color: var(--mine-tint); box-shadow: inset -2px 0 0 color-mix(in srgb, var(--accent) 55%, transparent); }
+@media (min-width: 720px) {
+  .board.has-mine .bd-minis th.is-mine { left: var(--bw-label); z-index: 5; }
+}
+/* full screen: the board scrolls inside itself, so the tall header scrolls away and the thin row stays */
+.board.is-full .bd-minis { display: table-row; }
+.board.is-full .bd-minis th { border-bottom-color: transparent; }
+.board.is-full .bd-mini-in, .board.is-full .bd-mini-corner { opacity: 0; }
+.board.is-full.mini-on .bd-minis th { border-bottom-color: var(--border-strong); box-shadow: 0 8px 14px -12px rgba(10, 17, 34, 0.35); }
+.board.is-full.mini-on .bd-mini-in { opacity: 1; }
+.board.is-full .bd-heads th { top: auto; }
+/* section titles stuck under the thin row, not under the (now scrolling) tall header: that gap was blank space */
+.board.is-full .bd-sec-row th { top: calc(var(--band-h) + 32px); }
+/* the page-sticky copy shows only the thin row */
+.bd-stick .bd-minis { display: table-row; }
+.bd-stick .bd-bands, .bd-stick .bd-heads { display: none; }
 .bd-total { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px var(--space-2); margin-top: var(--space-2); }
 .bd-num {
   font-size: var(--text-xl);

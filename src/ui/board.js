@@ -58,7 +58,11 @@ export function createBoard({ label = 'Plan comparison board', hooks = {}, onSec
     h('span', { class: 'bd-legend', 'aria-hidden': 'true' },
       legend.map(([dot, text]) => h('span', {}, h('i', { class: `dot dot-${dot}` }), text))));
   const headRow = h('tr', { class: 'bd-heads' }, corner);
-  const thead = h('thead', {}, bandRow, headRow);
+  // A thin one-line row (rank, plan name, plan code) that stays in view while the tall header scrolls away:
+  // sticky inside the full screen board, and the only part of the page-sticky copy that shows.
+  const miniCorner = h('th', { class: 'bd-mini-corner', scope: 'col' }, h('span', { class: 'sr-only' }, 'Plan'));
+  const miniRow = h('tr', { class: 'bd-minis', 'aria-hidden': 'true' }, miniCorner);
+  const thead = h('thead', {}, bandRow, headRow, miniRow);
   const table = h('table', { class: 'bd-table' }, caption, colgroup, thead);
   const hint = h('p', { class: 'sr-only', id: `${id}-hint` }, 'Use the left and right arrow keys, Home and End to move between plans.');
   const scroller = h('div', {
@@ -192,14 +196,19 @@ export function createBoard({ label = 'Plan comparison board', hooks = {}, onSec
       bar: h('span', { class: 'bar bd-bar', 'aria-hidden': 'true' },
         h('span', { class: 'bar-seg bar-prem' }), h('span', { class: 'bar-seg bar-oop' }), h('span', { class: 'bar-seg bar-dep' })),
       why: h('span', { class: 'bd-why' }),
+      code: h('span', { class: 'bd-code' }),
+      mRank: h('span', { class: 'bd-mini-rank' }),
+      mName: h('span', { class: 'bd-mini-name' }),
+      mCode: h('span', { class: 'bd-mini-code' }),
     };
+    const mth = h('th', { scope: 'col', class: 'bd-mini', 'aria-hidden': 'true' }, h('div', { class: 'bd-mini-in' }, p.mRank, p.mName, p.mCode));
     const th = h('th', { scope: 'col', class: 'bd-head' },
       h('div', { class: 'bd-h' },
         h('div', { class: 'bd-h-top' }, p.rank, p.rankSub, p.chips),
-        p.name, p.sub,
+        p.name, h('div', { class: 'bd-subline' }, p.sub, p.code),
         h('div', { class: 'bd-total' }, p.num, p.numLabel),
         p.bar, p.why));
-    const col = { key, th, p, cells: new Map(), desc: new Map(), filled: false, base: 'bd-cell', item: null, idx: 0, chipsKey: '' };
+    const col = { key, th, mth, p, cells: new Map(), desc: new Map(), filled: false, base: 'bd-cell', item: null, idx: 0, chipsKey: '' };
     byKey.set(key, col);
     return col;
   }
@@ -213,6 +222,13 @@ export function createBoard({ label = 'Plan comparison board', hooks = {}, onSec
     p.rankSub.hidden = !hd.rankSub;
     if (p.name.textContent !== hd.title) { p.name.textContent = hd.title; p.name.title = hd.title; }
     p.sub.textContent = hd.subtitle ?? '';
+    // the plan code (three or four characters, e.g. 401 or V31): what the brochure and OPM's files call the plan
+    const code = typeof row.code === 'string' && /^[A-Za-z0-9]{2,5}$/.test(row.code) ? row.code : '';
+    p.code.textContent = code ? `Code ${code}` : '';
+    p.code.hidden = !code;
+    p.mRank.textContent = hd.rankText ?? `#${row.rank}`;
+    p.mName.textContent = hd.title ?? '';
+    p.mCode.textContent = code;
     const ck = (hd.chips ?? []).map((c) => `${c.tone}:${c.text}`).join('|');
     if (ck !== col.chipsKey) {
       col.chipsKey = ck;
@@ -275,6 +291,7 @@ export function createBoard({ label = 'Plan comparison board', hooks = {}, onSec
     for (const th of sectionHeads) th.colSpan = n + 1;
     const want = [corner, ...cols.map((c) => c.th)];
     syncChildren(headRow, want);
+    syncChildren(miniRow, [miniCorner, ...cols.map((c) => c.mth)]);
     for (const def of defs) {
       const tr = rowEls.get(def.key);
       syncChildren(tr, [tr.firstChild, ...cols.map((c) => cellOf(c, def.key))]);
@@ -333,8 +350,17 @@ export function createBoard({ label = 'Plan comparison board', hooks = {}, onSec
   let rafPending = 0;
   function onScroll() {
     stickIn.scrollLeft = scroller.scrollLeft;
+    updateMini(); // a class toggle: cheap enough to run on every scroll event, no frame wait
     if (rafPending) return;
     rafPending = requestAnimationFrame(() => { rafPending = 0; fillWindow(); updateNav(); });
+  }
+  // full screen: the thin plan row shows only once the tall header has scrolled up to it (it always keeps its
+  // 32px, so nothing jumps when it appears)
+  function updateMini() {
+    if (!full) { el.classList.remove('mini-on'); return; }
+    const band = bandRow.offsetHeight || 0;
+    const on = scroller.scrollTop > 0 && miniRow.getBoundingClientRect().top <= scroller.getBoundingClientRect().top + band + 0.5;
+    el.classList.toggle('mini-on', on);
   }
   scroller.addEventListener('scroll', onScroll, { passive: true });
   new ResizeObserver(() => { metrics = null; onScroll(); stickDirty = true; checkStick(); }).observe(scroller);
@@ -399,6 +425,7 @@ export function createBoard({ label = 'Plan comparison board', hooks = {}, onSec
     metrics = null;
     fillWindow();
     updateNav();
+    updateMini();
     if (on) {
       if (!reduceMotion()) el.animate([{ opacity: 0, transform: 'scale(0.985)' }, { opacity: 1, transform: 'none' }], { duration: 260, easing: EASE_OUT });
       fullBtn.focus({ preventScroll: true });
@@ -591,6 +618,7 @@ export function createBoard({ label = 'Plan comparison board', hooks = {}, onSec
       const mine = it.row.isMine === true;
       col.base = `bd-cell${it.firstInGroup && idx > 0 ? ' is-gs' : ''}${mine ? ' is-mine' : ''}${it.row.rank === 1 ? ' is-top' : ''}`;
       col.th.className = `bd-head${it.firstInGroup && idx > 0 ? ' is-gs' : ''}${mine ? ' is-mine' : ''}${it.row.rank === 1 ? ' is-top' : ''}`;
+      col.mth.className = `bd-mini${it.firstInGroup && idx > 0 ? ' is-gs' : ''}${mine ? ' is-mine' : ''}`;
       return col;
     });
     const keep = new Set(nextCols.map((c) => c.key));
