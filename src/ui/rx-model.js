@@ -117,6 +117,82 @@ export function tierNumber(name) {
   return /\d/.test(m[1]) ? Number(m[1]) : ROMAN[m[1].toUpperCase()];
 }
 
+
+// ---------- tier kinds ----------
+// Carriers name tiers their own way ("Tier 3", "Preferred Generic (PG)", "Low cost generic formulary"). A tier's
+// canonical kind lets plans with different schemes line up. The extracted `label` decides first; the name text only
+// when there is no usable label. The carrier's own name always stays the visible one.
+
+export const TIER_KINDS = Object.freeze([
+  { id: 'generic', label: 'Generic' },
+  { id: 'preferred-brand', label: 'Preferred brand' },
+  { id: 'non-preferred-brand', label: 'Non-preferred brand' },
+  { id: 'specialty', label: 'Specialty' },
+  { id: 'preferred-specialty', label: 'Preferred specialty' },
+  { id: 'non-preferred-specialty', label: 'Non-preferred specialty' },
+  { id: 'other', label: 'Other' },
+]);
+const KIND_IDX = new Map(TIER_KINDS.map((k, i) => [k.id, i]));
+const KIND_LABEL = new Map(TIER_KINDS.map((k) => [k.id, k.label]));
+const LABEL_KIND = { generic: 'generic', 'preferred brand': 'preferred-brand', 'non-preferred brand': 'non-preferred-brand', specialty: 'specialty', 'preferred specialty': 'preferred-specialty', 'non-preferred specialty': 'non-preferred-specialty', other: 'other' };
+const TOPIC_RE = /insulin|glp|obes|weight|preventive|contracepti|fertility|growth hormone|diabetic|opioid|chemotherapy|non-?formulary/i;
+const OTHER_TOPICS = [
+  [/insulin/i, 'insulin', 'Insulin'], [/glp|obes|weight/i, 'weight-loss', 'Weight-loss drugs (GLP-1)'], [/preventive/i, 'preventive', 'Preventive medications'],
+  [/contracepti/i, 'contraceptive', 'Contraceptives'], [/opioid/i, 'opioid-reversal', 'Opioid reversal agents'], [/non-?formulary/i, 'non-formulary', 'Non-formulary'],
+];
+
+/** The kind a tier NAME says on its own (null when the name has no cue words, e.g. 'Tier 2'). */
+function kindFromName(name) {
+  const n = str(name);
+  if (!n) return null;
+  if (TOPIC_RE.test(n)) return 'other';
+  if (/specialty/i.test(n)) return /non[-\s]?preferred/i.test(n) ? 'non-preferred-specialty' : /preferred/i.test(n) ? 'preferred-specialty' : 'specialty';
+  if (/non[-\s]?preferred/i.test(n)) return 'non-preferred-brand';
+  if (/brand/i.test(n)) return 'preferred-brand';
+  if (/generic/i.test(n)) return 'generic';
+  if (/^\s*(tier\s+\w+\s*)?preferred\b/i.test(n)) return 'preferred-brand';
+  return null;
+}
+const SPEC_FAMILY = new Set(['specialty', 'preferred-specialty', 'non-preferred-specialty']);
+const compatible = (a, b) => a === b || (SPEC_FAMILY.has(a) && SPEC_FAMILY.has(b) && (a === 'specialty' || b === 'specialty'));
+
+/**
+ * Where a tier's kind came from. tier: a name string, or { name | tier, label }.
+ * -> { kind, source: 'label'|'name'|'none', nameKind, conflict } (conflict: label and name text disagree)
+ */
+export function tierKindInfo(tier) {
+  const name = typeof tier === 'string' ? tier : str(tier?.name) || str(tier?.tier);
+  const label = typeof tier === 'string' ? '' : str(tier?.label).toLowerCase();
+  const fromLabel = own(LABEL_KIND, label) ?? null;
+  const nameKind = kindFromName(name);
+  return {
+    kind: fromLabel ?? nameKind ?? 'other',
+    source: fromLabel ? 'label' : nameKind ? 'name' : 'none',
+    nameKind,
+    // a topic word (insulin, preventive...) only scopes a labelled tier ('Insulin: Generic' is a generic-kind tier)
+    conflict: Boolean(fromLabel && nameKind && !(TOPIC_RE.test(str(name)) && fromLabel !== 'other') && !compatible(fromLabel, nameKind)),
+  };
+}
+
+/** Canonical kind id of a tier (see TIER_KINDS): generic, preferred-brand, non-preferred-brand, specialty,
+ *  preferred-specialty, non-preferred-specialty or other. Pure. */
+export function tierKind(tier) { return tierKindInfo(tier).kind; }
+export const kindLabel = (kind) => KIND_LABEL.get(kind) ?? 'Other';
+
+const slug = (s) => str(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'tier';
+/** Alignment key of a tier before the occurrence suffix: 'generic', 'generic:insulin', 'other:weight-loss'. */
+function slotBase(name, kind) {
+  const topic = OTHER_TOPICS.find(([re]) => re.test(name));
+  if (kind === 'other') return `other:${topic ? topic[1] : slug(name)}`;
+  return topic ? `${kind}:${topic[1]}` : kind;
+}
+const slotLabel = (base, fallbackName) => {
+  const [kind, scope] = base.split(':');
+  const topic = OTHER_TOPICS.find(([, id]) => id === scope);
+  if (kind === 'other') return topic ? topic[2] : fallbackName;
+  return `${KIND_LABEL.get(kind)}${topic ? ` ${topic[2].toLowerCase()}` : ''}`;
+};
+
 const money = (s) => Number(String(s).replace(/,/g, ''));
 /** Per-fill cap and floor stated in coinsurance wording ("up to a $150 maximum", "$30 minimum"). */
 export function parseCaps(text) {
@@ -130,6 +206,14 @@ function channelCell(c, code, facts) {
   if (!c || typeof c !== 'object') return null;
   const quote = str(c.quote);
   const cite = citation(c, code, facts);
+  // extraction slip: "50% up to $700 maximum" stored as unit usd, value 700 (the cap): read it as the coinsurance it states
+  const slip = c.unit === 'usd' && fin(c.value) ? /(\d+(?:\.\d+)?)\s*%\s*(?:of [^$;]*?)?up to (?:a )?\$\s?([\d,]+(?:\.\d+)?)\s*max/i.exec(quote) : null;
+  if (slip && money(slip[2]) === c.value) {
+    const pct = Number(slip[1]);
+    const { cap, floor } = parseCaps(quote);
+    const bits = [floor != null && `min ${usdExact(floor)}`, cap != null && `max ${usdExact(cap)}`].filter(Boolean);
+    return { value: pct, unit: 'pct', text: `${pct}%${bits.length ? ` (${bits.join(', ')})` : ''}`, quote, cap, floor, cite };
+  }
   if ((c.unit === 'usd' || c.unit === 'pct') && fin(c.value) && c.value >= 0) {
     if (c.unit === 'usd') return { value: c.value, unit: 'usd', text: usdExact(c.value), quote, cap: null, floor: null, cite };
     const { cap, floor } = parseCaps(quote);
@@ -215,10 +299,17 @@ export function rxFor(code, option, facts = FACTS) {
     if (counts.get(name) > 1 && str(t.label)) name = `${name} (${str(t.label)})`;
     for (let k = 2; seen.has(name); k++) name = `${baseName(t)} (${k})`;
     seen.add(name);
+    const info = tierKindInfo({ name, label: t.label });
     tiers.push({
       name,
       number: tierNumber(name),
       label: str(t.label) || null,
+      kind: info.kind,
+      kindLabel: KIND_LABEL.get(info.kind),
+      kindSource: info.source,
+      kindConflict: info.conflict,
+      slot: '',
+      occurrence: 1,
       deductibleApplies: t.deductible_applies === true ? true : t.deductible_applies === false ? false : null,
       crosscheck: str(t.crosscheck) || 'n/a',
       badge: badgeOf(t, code, facts),
@@ -226,6 +317,16 @@ export function rxFor(code, option, facts = FACTS) {
       retail90: channelCell(t.retail_90, code, facts),
       mail: channelCell(t.mail_90, code, facts),
     });
+  }
+  // alignment keys: two tiers of one plan with the same kind stay separate, numbered in brochure order
+  const slotCount = new Map();
+  for (const t of tiers) {
+    const base = slotBase(t.name, t.kind);
+    const n = (slotCount.get(base) ?? 0) + 1;
+    slotCount.set(base, n);
+    t.slotBase = base;
+    t.occurrence = n;
+    t.slot = n > 1 ? `${base}#${n}` : base;
   }
   const oop = (Array.isArray(rx.rx_oop_max) ? rx.rx_oop_max : [])
     .filter((f) => f && typeof f === 'object' && (!option || !f.option || sameOption(f.option, option)))
@@ -322,15 +423,19 @@ const CHANNELS_ROWS = [
   ['mail', 'mail order 90-day', ':mail'],
 ];
 
-function tierCell(t, ch) {
+const NOT_STATED = 'Not stated in the brochure';
+
+/** One tier's cell for a channel. Tier present but channel empty -> "Not stated in the brochure"; no tier -> null. */
+function tierCell(t, ch, { ownName = false } = {}) {
   if (!t) return null;
   const c = t[ch];
-  if (!c) return null;
+  const name = ownName ? t.name : t.label ?? undefined;
+  if (!c) return { text: NOT_STATED, kind: 'text', display: NOT_STATED, name, note: ownName && t.kind !== 'other' && t.number == null ? t.kindLabel : undefined };
   const notes = [];
   if (t.deductibleApplies === true) notes.push('Deductible applies first');
   else if (t.deductibleApplies === false) notes.push('No deductible');
   if (c.unit === 'pct' && c.quote) notes.push(c.quote);
-  const base = { text: c.quote || c.text, name: t.label ?? undefined, note: notes.join(' · ') || undefined, cite: c.cite, badge: t.badge ?? undefined };
+  const base = { text: c.quote || c.text, name, note: notes.join(' · ') || undefined, cite: c.cite, badge: t.badge ?? undefined };
   if (c.unit === 'text') return { ...base, kind: 'text', display: c.text };
   if (c.value === 0) return { ...base, kind: 'nothing', display: '$0', value: 0, unit: 'zero' };
   return { ...base, kind: 'value', display: c.text, value: c.value, unit: c.unit };
@@ -368,26 +473,38 @@ export function rxSummaryRows(codes, facts = FACTS) {
     note: [rx.lookup.kind === 'website' ? 'The brochure names no drug lookup page; this is the plan’s website.' : '', rx.lookup.corrected ? rx.lookup.note : ''].filter(Boolean).join(' ') || undefined,
   } : null), { hint: 'Opens the plan’s own drug search in a new tab. Check which tier each of your drugs is on.' });
 
-  const numbers = new Set();
-  let named = false;
-  for (const c of list) {
-    for (const t of rxFor(c, undefined, facts)?.tiers ?? []) (t.number == null ? (named = true) : numbers.add(t.number));
-  }
-  for (const n of [...numbers].sort((a, b) => a - b)) {
-    for (const [ch, words, suffix] of CHANNELS_ROWS) {
-      add(`br:tier${n}${suffix}`, `Tier ${n} · ${words}`, (rx) => tierCell(rx.tiers.find((t) => t.number === n), ch), {
-        dir: 'min', hint: 'What you pay per fill, from the brochure. A badge marks tiers where OPM’s spreadsheet says something else.',
-      });
+  const planTiers = list.map((c) => rxFor(c, undefined, facts)?.tiers ?? []);
+  const allNumbered = planTiers.every((ts) => ts.every((t) => t.number != null));
+  const hint = 'What you pay per fill, from the brochure. A badge marks tiers where OPM’s spreadsheet says something else.';
+  if (allNumbered) {
+    // every plan numbers its tiers: one row per tier number, as the brochures write them
+    const numbers = new Set(planTiers.flat().map((t) => t.number));
+    for (const n of [...numbers].sort((a, b) => a - b)) {
+      for (const [ch, words, suffix] of CHANNELS_ROWS) {
+        add(`br:tier${n}${suffix}`, `Tier ${n} · ${words}`, (rx) => tierCell(rx.tiers.find((t) => t.number === n), ch), { dir: 'min', hint });
+      }
     }
-  }
-  if (named) {
-    for (const [ch, words, suffix] of [CHANNELS_ROWS[0], CHANNELS_ROWS[2]]) {
-      add(`br:named${suffix}`, `Named tiers · ${words}`, (rx) => {
-        const ts = rx.tiers.filter((t) => t.number == null && t[ch]);
-        if (!ts.length) return null;
-        const line = ts.map((t) => `${t.name}: ${t[ch].unit === 'text' ? 'see brochure' : t[ch].text}`).join(' · ');
-        return { text: line, kind: 'text', display: line, cite: ts[0][ch].cite, badge: ts.find((t) => t.badge)?.badge };
-      }, { hint: 'Plans that name their tiers (Generic, Preferred brand…) instead of numbering them.' });
+  } else {
+    // plans name their tiers differently: rows line up by kind (Generic, Preferred brand, ...), each cell keeps the
+    // carrier's own tier name. Two tiers of one plan with the same kind stay separate rows, in brochure order.
+    const slots = new Map();
+    for (const ts of planTiers) {
+      for (const t of ts) {
+        if (!slots.has(t.slot)) slots.set(t.slot, { slot: t.slot, kind: t.kind, base: t.slotBase, occurrence: t.occurrence, name: t.name, order: slots.size });
+      }
+    }
+    const rank = (x) => [KIND_IDX.get(x.kind), x.base.includes(':') ? 1 : 0, x.kind === 'other' ? x.order : x.occurrence];
+    const sorted = [...slots.values()].sort((x, y) => {
+      const a = rank(x); const b = rank(y);
+      return a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+    });
+    for (const sl of sorted) {
+      const label = `${slotLabel(sl.base, sl.name)}${sl.occurrence > 1 ? ` (${sl.occurrence})` : ''}`;
+      for (const [ch, words, suffix] of CHANNELS_ROWS) {
+        add(`br:kind:${sl.slot}${suffix}`, `${label} · ${words}`, (rx) => tierCell(rx.tiers.find((t) => t.slot === sl.slot), ch, { ownName: true }), {
+          dir: 'min', hint: `${hint} Tiers are lined up by kind across plans; each cell shows the plan’s own tier name.`,
+        });
+      }
     }
   }
   add('br:mailorder', 'Mail-order pharmacy', (rx) => textCell(rx.mailOrder));
@@ -417,6 +534,23 @@ export const CHANNELS = Object.freeze({
   // specialty drugs are dispensed a month at a time; brochures state them as the tier's 30-day amount
   specialty: { cell: 'retail30', days: 30, label: 'specialty 30-day', short: 'Specialty pharmacy' },
 });
+
+/**
+ * The plan tier a recorded value points at, or undefined. Recorded values: the plan's own tier name ('Tier 2',
+ * 'Preferred Generic (PG)'), a tier number (2 -> 'Tier 2'; matches 'Tier 2' even when the plan writes 'Tier 2 (Brand)'),
+ * or 'kind:<slot>' (e.g. 'kind:non-preferred-brand', 'kind:specialty#2'): the plan's tier of that kind.
+ */
+export function findTier(planRx, recorded) {
+  const tiers = Array.isArray(planRx?.tiers) ? planRx.tiers : [];
+  const name = typeof recorded === 'number' && Number.isInteger(recorded) ? `Tier ${recorded}` : str(recorded);
+  if (!name) return undefined;
+  if (name.startsWith('kind:')) {
+    const want = name.slice(5);
+    return tiers.find((x) => x.slot === want);
+  }
+  return tiers.find((x) => x.name === name)
+    ?? (tierNumber(name) != null ? tiers.find((x) => x.number === tierNumber(name)) : undefined);
+}
 
 const clip = (s, n = 90) => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s);
 
@@ -453,12 +587,12 @@ export function annualDrugCost(drug, tier, planRx, { deductibleDefault = false }
   }
 
   const tierName = typeof tier === 'number' && Number.isInteger(tier) ? `Tier ${tier}` : str(tier);
-  const out = { ...base, tierName };
+  let out = { ...base, tierName };
   const miss = (missing, text) => ({ ...out, missing, text: text ?? `${tierName} · ${missing}` });
   if (!planRx || !Array.isArray(planRx.tiers)) return miss('this plan’s brochure tier terms are not available');
-  const t = planRx.tiers.find((x) => x.name === tierName)
-    ?? (tierNumber(tierName) != null ? planRx.tiers.find((x) => x.number === tierNumber(tierName)) : undefined);
+  const t = findTier(planRx, tierName);
   if (!t) return miss(`${tierName} is not in this plan’s brochure tier list`, `${tierName} · not in this plan’s brochure`);
+  if (t.name !== tierName) { out = { ...out, tierName: t.name }; }
   const cell = t[ch.cell];
   out.cite = cell?.cite ?? null;
   if (!cell) return miss(`the brochure lists no ${ch.label} amount for ${tierName}`, `${tierName} · no ${ch.label} amount in the brochure`);

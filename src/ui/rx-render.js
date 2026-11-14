@@ -97,13 +97,24 @@ export const changeCount = (groups) => (groups ?? []).reduce((n, g) => n + g.ite
 
 const STATUS_TONE = { priced: 'ok', notcovered: 'bad', pa: 'warn', missing: 'warn', lookup: 'todo', pending: 'muted' };
 
+/** The kind of an unnumbered tier, unless its own name already says it ('Preferred generic' needs no hint). */
+function optionKindHint(t) {
+  if (!t || t.number != null || t.kind === 'other' || !t.kindLabel) return '';
+  const words = (x) => x.toLowerCase().replace(/[^a-z]+/g, ' ').trim().split(' ');
+  const have = new Set(words(t.name));
+  return words(t.kindLabel).every((w) => have.has(w)) ? '' : t.kindLabel.toLowerCase();
+}
+
 /**
  * Tier picker for one (drug, plan): the plan's brochure tiers by name, then Not covered / Needs prior
  * authorization. Value '' = not looked up yet. data-drug / data-plan let the caller delegate 'change'.
  */
 export function tierSelect(item, rx, { code, planName } = {}) {
-  const names = (rx?.tiers ?? []).map((t) => t.name);
+  const tiers = rx?.tiers ?? [];
+  const names = tiers.map((t) => t.name);
   const opts = names.length ? names : ['Tier 0', 'Tier 1', 'Tier 2', 'Tier 3', 'Tier 4', 'Tier 5', 'Tier 6'];
+  // the option VALUE is always the carrier's own tier name (what is stored); named tiers get their kind as a hint
+  const kindHint = new Map(tiers.map((t) => [t.name, optionKindHint(t)]));
   const cur = item.tier ?? '';
   // a recorded tier the brochure list no longer has stays selectable, so it is never silently dropped
   if (cur && cur !== 'nc' && cur !== 'pa' && !opts.includes(cur)) opts.push(cur);
@@ -112,7 +123,7 @@ export function tierSelect(item, rx, { code, planName } = {}) {
     'aria-label': `What ${planName ?? 'this plan'}’s lookup says about ${item.name}`,
   },
   h('option', { value: '' }, 'Not looked up'),
-  h('optgroup', { label: 'Covered at' }, opts.map((n) => h('option', { value: n }, n))),
+  h('optgroup', { label: 'Covered at' }, opts.map((n) => h('option', { value: n }, kindHint.get(n) ? `${n} · ${kindHint.get(n)}` : n))),
   h('option', { value: 'nc' }, 'Not covered'),
   h('option', { value: 'pa' }, 'Needs prior authorization'));
   sel.value = cur;
