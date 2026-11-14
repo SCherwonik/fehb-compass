@@ -282,3 +282,14 @@ test('a blank plan field is described in plain English, not as "blank"', { skip 
   assert.ok(!/blank|""/.test(w), w);
   assert.match(w, /no tier 5 drug benefit|has no entry/i);
 });
+
+test('cleanLabel and the medications sanitizer share one rule: bidi and zero-width characters are stripped', async () => {
+  const { cleanLabel } = await import('../../src/engine/scenarios.js');
+  const { sanitizeName } = await import('../../src/ui/meds-store.js');
+  for (const s of ['Phys\u202Eio', 'Ph\u200Bysio', '\uFEFFPhysio', 'Physio\u2066', '<b>Physio</b>'.replace(/b>/g, '')]) {
+    assert.equal(cleanLabel(s), sanitizeName(s), JSON.stringify(s));
+  }
+  assert.equal(cleanLabel('Phys\u202Eio\u200B'), 'Physio');
+  assert.equal(cleanLabel('Physical\ttherapy\n2x'), 'Physical therapy 2x');
+  assert.equal(cleanLabel('a\u0000b'), 'ab');
+});

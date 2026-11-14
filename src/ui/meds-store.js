@@ -6,6 +6,7 @@
 // Stored shape (MEDS_KEY): { drugs: [{ id, name, monthlyCost|null, fillsPerYear, channel }],
 //                            records: { [planCode]: { [drugId]: 'Tier 2' | 'nc' | 'pa' } } }
 import { safeStorage } from '../state.js';
+import { plainText } from '../text.js';
 
 export const MEDS_KEY = 'fehb-compass:meds:v1';
 export const MAX_DRUGS = 15;
@@ -15,14 +16,9 @@ export const CHANNEL_IDS = Object.freeze(['retail30', 'retail90', 'mail', 'speci
 const ID_RE = /^[a-z0-9]{1,12}$/;
 const PLAN_RE = /^[A-Z0-9]{2,4}$/;
 const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
-// Controls, zero-width, bidi overrides and markup brackets.
-const STRIP = /[\u0000-\u001F\u007F-\u009F\u200B-\u200F\u2028\u2029\u202A-\u202E\u2060-\u2069\uFEFF<>]/g;
-
-/** Free-text drug name: no markup characters, no control characters, single spaces, at most MAX_NAME. */
+/** Free-text drug name (src/text.js plainText: the same rule as custom cost labels), at most MAX_NAME; null if empty. */
 export function sanitizeName(v) {
-  if (typeof v !== 'string') return null;
-  const s = v.slice(0, 4 * MAX_NAME).replace(STRIP, '').replace(/\s+/g, ' ').trim().slice(0, MAX_NAME).trim();
-  return s || null;
+  return plainText(v, MAX_NAME) || null;
 }
 
 export function sanitizeDrug(d) {

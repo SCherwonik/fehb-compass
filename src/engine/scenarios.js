@@ -2,6 +2,8 @@
 // DOM-free: the engine, state validation and the UI all read these definitions.
 //
 // rxMonthly = generic (tier 1) prescriptions filled every month.
+import { plainText } from '../text.js';
+
 export const SCENARIOS = {
   healthy: { pcpVisits: 1, specialistVisits: 0, erVisits: 0, hospitalStays: 0, labs: 1, imaging: 0, rxMonthly: 0 },
   typical: { pcpVisits: 3, specialistVisits: 2, erVisits: 0, hospitalStays: 0, labs: 3, imaging: 1, rxMonthly: 1 },
@@ -80,10 +82,9 @@ export const CUSTOM_KINDS = {
 const has = (o, k) => typeof k === 'string' && own(o, k);
 const cents = (n) => Math.round(n * 100) / 100;
 
-/** Plain text label: no tags or angle brackets, no control characters, at most MAX_LABEL chars. */
+/** Plain text label (src/text.js plainText: the same rule as medication names), at most MAX_LABEL chars. */
 export function cleanLabel(v) {
-  if (typeof v !== 'string') return '';
-  return v.replace(/[<>]/g, '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, MAX_LABEL).trim();
+  return plainText(v, MAX_LABEL);
 }
 
 /**
