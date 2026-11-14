@@ -49,14 +49,14 @@ export function createResultsBoard() {
 
   onMatrixPrefs((p, source) => {
     if (source === 'board-section' || board.el.hidden) return;
-    rerender();
+    rerender({ sectionMotion: source === 'expand' });
   });
 
-  function rerender() {
-    if (last) render(...last, { animate: false });
+  function rerender({ sectionMotion = false } = {}) {
+    if (last) render(...last, { animate: false, sectionMotion });
   }
 
-  function render(data, state, res, opts = {}, { animate = true } = {}) {
+  function render(data, state, res, opts = {}, { animate = true, sectionMotion = false } = {}) {
     last = [data, state, res, opts];
     const groups = groupPlans(res.others, state.group);
     if (res.mine) {
@@ -105,6 +105,7 @@ export function createResultsBoard() {
       summary: text,
       enter: !open,
       animate,
+      sectionMotion,
     });
     open = true;
   }

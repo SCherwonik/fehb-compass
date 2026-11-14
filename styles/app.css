@@ -136,7 +136,7 @@ h1, h2, h3, p { margin: 0; }
   height: 40px;
   padding: 0;
   border-radius: var(--radius-pill);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-control);
   background: var(--surface-glass);
   color: var(--text);
   cursor: pointer;
@@ -192,13 +192,16 @@ h1, h2, h3, p { margin: 0; }
 
 .layout {
   display: grid;
+  grid-template-columns: minmax(0, 1fr); /* a long chip or table never widens the page */
   gap: var(--space-6);
   align-items: start;
 }
 
 @media (min-width: 960px) {
   .layout { grid-template-columns: minmax(360px, 412px) minmax(0, 1fr); gap: var(--space-8); }
-  .panel { position: sticky; top: 84px; max-height: calc(100dvh - 100px); overflow-y: auto; overscroll-behavior: contain; }
+  /* No inner scroller (it trapped the wheel). The panel scrolls with the page; once its end is in view it
+     sticks there (top goes negative for a tall panel: --panel-top is set by app.js), so it never hides content. */
+  .panel { position: sticky; top: var(--panel-top, 84px); }
 }
 
 /* ---------- glass panel ---------- */
@@ -277,7 +280,8 @@ h1, h2, h3, p { margin: 0; }
   padding: 3px;
   border-radius: var(--radius-md);
   background: var(--surface-sunken);
-  box-shadow: inset 0 1px 2px rgba(10, 17, 34, 0.08);
+  /* the track's edge is the control boundary: 3:1 like every other control */
+  box-shadow: inset 0 0 0 1px var(--border-control), inset 0 1px 2px rgba(10, 17, 34, 0.08);
   isolation: isolate;
 }
 .seg-thumb {
@@ -338,7 +342,7 @@ h1, h2, h3, p { margin: 0; }
   min-height: 46px;
   padding: var(--space-2) var(--space-10) var(--space-2) var(--space-4);
   border-radius: var(--radius-md);
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--border-control);
   background: var(--surface-glass-strong);
   color: var(--text);
   font: inherit;
@@ -351,7 +355,7 @@ h1, h2, h3, p { margin: 0; }
 }
 .select.is-empty { color: var(--text-subtle); }
 .select option, .select optgroup { color: var(--text); background: var(--surface-raised); }
-.select:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border-strong)); }
+.select:hover { border-color: color-mix(in srgb, var(--accent) 55%, var(--border-control)); }
 .select:focus-visible { border-color: var(--accent); box-shadow: var(--glass-highlight), var(--focus-ring); }
 .select-chevron {
   position: absolute;
@@ -439,9 +443,10 @@ h1, h2, h3, p { margin: 0; }
   align-items: center;
   gap: var(--space-2);
   min-height: 36px;
+  max-width: 100%;
   padding: var(--space-1) var(--space-3);
   border-radius: var(--radius-pill);
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--border-control);
   background: var(--surface-glass-strong);
   color: var(--text);
   font-size: var(--text-sm);
@@ -453,9 +458,14 @@ h1, h2, h3, p { margin: 0; }
     color var(--dur-base) var(--ease-out), box-shadow var(--dur-base) var(--ease-out),
     transform var(--dur-base) var(--ease-spring);
 }
-.chip:hover { border-color: color-mix(in srgb, var(--accent) 50%, var(--border-strong)); }
+.chip:hover { border-color: color-mix(in srgb, var(--accent) 60%, var(--border-control)); }
 .chip:active { transform: scale(0.96); }
 .chip-input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+/* Long names (e.g. "Group Health Cooperative of South Central Wisconsin") stay one line with an ellipsis; the
+   full name is in the title and, once picked, the chip wraps to show all of it (touch has no hover). */
+.chip-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip:has(.chip-input:checked) .chip-text { white-space: normal; overflow-wrap: anywhere; line-height: var(--leading-snug); }
+.chip-count { flex: none; margin-left: auto; padding-left: 2px; }
 /* Fixed-size indicator: an empty ring that fills and draws a tick, so chips never reflow on toggle. */
 .chip-check {
   flex: none;
@@ -467,7 +477,7 @@ h1, h2, h3, p { margin: 0; }
   stroke-linejoin: round;
 }
 .chip-ring {
-  stroke: var(--border-strong);
+  stroke: var(--border-control);
   stroke-width: 1.5;
   fill: transparent;
   transform-origin: 8px 8px;
@@ -481,7 +491,7 @@ h1, h2, h3, p { margin: 0; }
   stroke-dashoffset: 12;
   transition: stroke-dashoffset var(--dur-slow) var(--ease-out) 40ms;
 }
-.chip:hover .chip-ring { stroke: color-mix(in srgb, var(--accent) 60%, var(--border-strong)); }
+.chip:hover .chip-ring { stroke: color-mix(in srgb, var(--accent) 60%, var(--border-control)); }
 .chip.is-zero { opacity: 0.55; }
 .chip-input:disabled { cursor: not-allowed; }
 .chip-scope { margin-top: 0; margin-bottom: var(--space-3); }
@@ -557,7 +567,7 @@ h1, h2, h3, p { margin: 0; }
   width: 46px;
   height: 28px;
   border-radius: var(--radius-pill);
-  background: var(--border-strong);
+  background: var(--border-control);
   box-shadow: inset 0 1px 2px rgba(10, 17, 34, 0.18);
   transition: background-color var(--dur-base) var(--ease-out), box-shadow var(--dur-base) var(--ease-out);
 }
@@ -611,10 +621,4 @@ h1, h2, h3, p { margin: 0; }
   .is-loaded .group { animation: none; }
   .ambient { filter: none; }
 }
-
-/* ---------- print ---------- */
-@media print {
-  .ambient, .topbar, .skip-link, .icon-btn { display: none; }
-  .glass { background: none; box-shadow: none; backdrop-filter: none; border: 1px solid #ccc; }
-  body { background: #fff; color: #000; }
-}
+/* print: styles/print.css */

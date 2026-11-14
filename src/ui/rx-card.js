@@ -64,7 +64,7 @@ export function updateRxCard(rec, row, factsStatus) {
       m.lookup && lookupButton(m.lookup, { compact: true, planName: row.plan.name })),
     status && h('p', { class: 'rx-card-warn', role: 'note' }, svg(ICON_WARN), status),
     factsStatus === 'loading'
-      ? h('p', { class: 'rx-card-loading' }, 'Reading this plan’s brochure for drug tiers…')
+      ? h('p', { class: 'rx-card-loading is-pending' }, 'Reading this plan’s brochure for drug tiers…')
       : factsStatus === 'missing'
         ? h('p', { class: 'rx-card-loading' }, 'Brochure drug tiers did not load; your medications are not priced.')
         : drugLines(m, rx, { code: row.code, planName: row.plan.name }));

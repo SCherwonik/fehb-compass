@@ -282,7 +282,7 @@ export function createMedsPanel({ meds }) {
     const copy = h('button', { type: 'button', class: 'btn btn-quiet md-quick-copy', 'data-name': d.name }, svg(ICON_COPY), h('span', { class: 'btn-text' }, 'Copy name'));
     let rows;
     if (!top.length) rows = h('p', { class: 'md-quick-empty' }, 'Your ranked plans appear here once plan costs load.');
-    else if (!facts) rows = h('p', { class: 'md-quick-empty' }, meds.factsStatus() === 'loading' ? 'Reading the plan brochures…' : 'Brochure facts did not load, so lookup links are unavailable.');
+    else if (!facts) rows = h('p', { class: `md-quick-empty${meds.factsStatus() === 'loading' ? ' is-pending' : ''}` }, meds.factsStatus() === 'loading' ? 'Reading the plan brochures…' : 'Brochure facts did not load, so lookup links are unavailable.');
     else {
       rows = h('ol', { class: 'md-quick-list' }, top.map((p) => {
         const m = planMeds(facts, { drugs: [d], records: state.records }, p.code, null);

@@ -34,7 +34,7 @@
   min-height: 36px;
   padding: 6px var(--space-3) 6px 34px;
   border-radius: var(--radius-pill);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-control);
   background: var(--surface-sunken);
   color: var(--text);
   font: inherit;
@@ -42,8 +42,8 @@
   transition: border-color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
 }
 .mx-search-input::placeholder { color: var(--text-subtle); }
-.mx-search-input:hover { border-color: var(--border-strong); }
-.mx-search-input:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); background: var(--surface-raised); }
+.mx-search-input:hover { border-color: color-mix(in srgb, var(--accent) 55%, var(--border-control)); }
+.mx-search-input:focus-visible { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); background: var(--surface-raised); }
 
 .mx-switch { display: inline-flex; align-items: center; gap: var(--space-2); cursor: pointer; font-size: var(--text-sm); color: var(--text-muted); font-weight: var(--weight-medium); user-select: none; }
 .mx-switch-input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
@@ -54,7 +54,7 @@
   flex: none;
   border-radius: var(--radius-pill);
   background: var(--surface-sunken);
-  box-shadow: inset 0 0 0 1px var(--border-strong);
+  box-shadow: inset 0 0 0 1px var(--border-control);
   transition: background-color var(--dur-base) var(--ease-out), box-shadow var(--dur-base) var(--ease-out);
 }
 .mx-switch-thumb {
@@ -347,7 +347,8 @@
 .bd-group.is-collapsed .bd-sec-note { display: none; }
 .bd-group.is-collapsed > .bd-row { display: none; }
 /* section headers stay in view under the sticky column headers while their rows scroll */
-.bd-group.is-collapsible .bd-sec-row th { position: sticky; top: calc(var(--bd-thead-h, 0px)); z-index: 2; }
+/* every section header sticks under the column headers while its rows scroll (all widths) */
+.bd-sec-row th { position: sticky; top: calc(var(--bd-thead-h, 0px)); z-index: 2; }
 .bd-group.is-prominent .bd-sec-title { font-size: var(--text-md); background: var(--accent-gradient); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .bd-group.is-prominent .bd-sec-row th { box-shadow: inset 3px 0 0 var(--accent); }
 .bd-label-sub { display: block; font-size: 11px; font-weight: var(--weight-regular); color: var(--text-subtle); }
@@ -363,8 +364,6 @@
 @media (max-width: 599px) {
   .mx-tools-board { padding-inline: var(--space-3); }
   .bd-sec-note { display: none; }
-  /* tall column headers leave too little room on a phone: section headers scroll normally there */
-  .bd-group.is-collapsible .bd-sec-row th { position: static; }
 }
 
 @media (prefers-reduced-motion: reduce) {

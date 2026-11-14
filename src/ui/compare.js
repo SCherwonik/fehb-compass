@@ -1,6 +1,6 @@
 // Side-by-side compare for up to MAX_COMPARE pinned 2027 plans, each showing 2026 -> 2027.
 import { h, svg } from './inputs.js';
-import { makeRow, planInput, costInputs, baseTotal, anyDv, basisOf, basisNote } from './model.js';
+import { makeRow, planInput, costInputs, baseTotal, anyDv, anyMeds, basisOf, basisNote } from './model.js';
 import { planTotal } from '../engine/cost.js';
 import { FLAG_TEXT } from '../engine/diff.js';
 import { usd, signedUsd, deltaTone, DASH } from './format.js';
@@ -60,7 +60,7 @@ export function renderCompare(section, { data, state, onRemove, onClose }) {
   // With medications listed, the year-over-year total compares WITHOUT them (2026 cannot be priced with them);
   // what they add on each 2027 plan is its own row below.
   // Dental/vision (when added to the totals) is left out the same way: 2026 totals never carry it.
-  const basis = basisOf(Boolean(data.meds), anyDv(rows));
+  const basis = basisOf(anyMeds(rows), anyDv(rows));
   const metrics = basis !== 'total'
     ? METRICS.map((m) => (m.key === 'total' ? { ...m, label: `Estimated yearly total, ${basisNote(basis)}`, get: (r, side) => (side === '2027' ? baseTotal(r) : r.total2026) } : m))
     : METRICS;

@@ -63,7 +63,7 @@
   width: 34px;
   height: 34px;
   border-radius: var(--radius-pill);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-control);
   background: var(--surface-glass-strong);
   box-shadow: var(--glass-highlight), var(--elev-1);
   color: var(--text);
@@ -162,6 +162,17 @@
 .bd-legend { display: grid; gap: var(--space-1); padding: var(--space-4); font-size: var(--text-xs); color: var(--text-subtle); }
 .bd-legend > span { display: flex; align-items: center; }
 @media (max-width: 599px) { .bd-legend { display: none; } }
+/* Phones: a compact column header (one-line "why", tighter padding) leaves room for the sticky section headers. */
+@media (max-width: 599px) {
+  /* .board prefix: these come before the base rules below in this file */
+  .board .bd-h { gap: 2px; padding: var(--space-3) var(--space-3) var(--space-2); }
+  .board .bd-h-top { margin-bottom: 0; }
+  .board .bd-name { font-size: var(--text-sm); }
+  .board .bd-num { font-size: var(--text-lg); }
+  .board .bd-total { margin-top: var(--space-1); }
+  .board .bd-why { -webkit-line-clamp: 1; min-height: calc(var(--leading-snug) * 1em); margin-top: var(--space-1); }
+  .board .bd-sec-row th { padding: var(--space-3) 0 var(--space-1); }
+}
 
 /* Snap on a body cell, not the header: sticky (top) headers confuse snap-area geometry in Chromium. */
 .bd-group:first-of-type .bd-sec-row + .bd-row > td:not(.is-mine) { scroll-snap-align: start; }
@@ -374,11 +385,7 @@
 @media (prefers-reduced-motion: reduce) {
   .bd-meter::after, .bd-fade, .bd-nav-btn { transition: none; }
 }
-@media print {
-  .bd-top .bd-nav, .bd-fade, .bd-hint { display: none !important; }
-  .bd-scroll { max-height: none; overflow: visible; }
-  .bd-table th, .bd-table td { position: static !important; }
-}
+/* print: styles/print.css */
 
 /* ---------- results toolbar additions: view toggle, Show select, include-my-plan switch ---------- */
 .tool-select .select { min-height: 34px; padding-block: 4px; padding-left: var(--space-3); font-size: var(--text-xs); border-radius: var(--radius-pill); }

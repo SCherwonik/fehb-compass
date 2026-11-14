@@ -2,7 +2,7 @@
 // Cards are keyed by plan code and updated in place; reordering uses FLIP limited to visible cards.
 import { h, svg, segmented, ICON_CHECK, ICON_CHEVRON, mineSwitch } from './inputs.js';
 import { assumptionChips, describeUsage, effectiveUsage, overrideChanges, inNetworkAtMax } from './assumptions.js';
-import { computeRows, savingsVsCurrent, availablePlans, SORTS, rankWithMine, baseTotal, dvCost, dvLabel, basisOf, basisNote } from './model.js';
+import { computeRows, savingsVsCurrent, availablePlans, SORTS, rankWithMine, baseTotal, dvCost, dvLabel, basisOf, basisNote, anyMeds } from './model.js';
 import { dvMathLines } from './dental-board.js';
 import { GROUP_LABELS, GROUP_MODES } from './grouping.js';
 import { createResultsBoard, mineNoteText } from './results-board.js';
@@ -316,7 +316,8 @@ export function createResults(main, { store, onRanked }) {
 
     // chips: your plan / vs your plan, firmness, status, warnings (rebuilt only when their content changes)
     // compared without medications when the user has any (they are priced only where tiers are recorded)
-    const vsExcl = basisNote(basisOf(Boolean(data.meds), dvCost(row) > 0)).replace('medications', 'meds');
+    // same rule as the board (board-model.js): only medications actually priced on a shown plan change the basis
+    const vsExcl = basisNote(basisOf(medsOn, dvCost(row) > 0)).replace('medications', 'meds');
     const vsMine = mine && !row.isMine ? Math.round(baseTotal(row) - baseTotal(mine)) : null;
     rec.el.classList.toggle('is-mine', Boolean(row.isMine));
     // the pinned plan sits outside the ranking: its number is the overall rank in the state
@@ -426,9 +427,17 @@ export function createResults(main, { store, onRanked }) {
           h('p', { class: 'mc-warn' }, svg(ICON_WARN), it.status === 'lookup' ? 'Not looked up for this plan yet.' : it.missing ? `Missing ${it.missing}.` : it.text)))),
     ];
 
+    // the card tags explain themselves in a hover title; this repeats it for touch and keyboard users
+    const firmness = cost.firmness === 'fixed'
+      ? 'Fixed cost: every service in this scenario is a flat copay, so this total does not depend on assumed prices.'
+      : 'Estimated: part of this total depends on the assumed prices listed below.';
+    const oonNote = b.oonEstimate === true
+      ? ' Out-of-network lines are counted at full cost: OPM publishes no out-of-network cost sharing.'
+      : '';
     rec.r.mathInner.replaceChildren(
       h('div', { class: 'math-sum' }, lines),
       h('div', { class: 'math-notes' },
+        h('p', { class: 'math-p math-firm' }, firmness + oonNote),
         h('p', { class: 'math-h' }, state.scenario === 'nothing'
           ? 'Care assumed: none beyond your own costs'
           : `Care assumed for a ${SCENARIO_TEXT[state.scenario]} year${changes.length ? ', fine-tuned' : ''}`),
@@ -536,6 +545,7 @@ export function createResults(main, { store, onRanked }) {
   }
 
   let first = true;
+  let medsOn = false; // any shown plan has priced medications (cards and board agree on this)
   function render(state = store.get()) {
     if (!data) return;
     // the Dental & Vision tab hides this frame (src/ui/dental-board.js): skip the work until it is back
@@ -547,6 +557,7 @@ export function createResults(main, { store, onRanked }) {
     mineFiltersOn = res.filtersOn;
     // the user's plan pinned first, every other plan in its true rank order
     const rows = res.mine ? [res.mine, ...res.others] : res.ranked;
+    medsOn = anyMeds(rows);
     sortCtl.sync(ui.sort);
     typeCtl.sync(ui.type);
     viewCtl.sync(state.view);
@@ -570,9 +581,13 @@ export function createResults(main, { store, onRanked }) {
       : 'Nationwide FEHB plans only, because no state is chosen. Choose a state to add regional plans serving it.';
     mineWhere = res.mineStatus === 'included' && res.notInState ? (where ?? 'nationwide') : '';
     renderMineNote(state, res, where);
+    // say when the ranking also carries the user's priced medications or the dental/vision add-on
+    const dvRow = rows.find((r) => dvCost(r) > 0);
+    const extras = [medsOn && 'your priced medications', dvRow && `the ${dvLabel(dvRow).replace('incl. ', '').replace('/', ' and ')} add-on`].filter(Boolean);
+    const incl = extras.length && (isBoard || ui.sort === 'total') ? `, including ${extras.join(' and ')}` : '';
     sub.textContent = st
-      ? `Ranked by ${(isBoard ? SORTS.total : SORTS[ui.sort]).label.toLowerCase()} for ${ENROLLMENT_TEXT[state.enrollment]} coverage and the year you described.`
-      : 'Choose your state to add regional HMO plans. Nationwide plans are shown now.';
+      ? `Ranked by ${(isBoard ? SORTS.total : SORTS[ui.sort]).label.toLowerCase()} for ${ENROLLMENT_TEXT[state.enrollment]} coverage and the year you described${incl}.`
+      : `Choose your state to add regional HMO plans. Nationwide plans are shown now${incl ? ` (totals${incl.slice(1)})` : ''}.`;
     renderAssumptions(state);
 
     list.hidden = isBoard;
@@ -651,6 +666,20 @@ export function createResults(main, { store, onRanked }) {
       data = { ...data, brochure: rx.facts, meds: rx.meds?.drugs?.length ? rx.meds : null };
       render();
     },
+    /** Before printing: fill the math of the best plan (and of the pinned plan above it). Returns an undo. */
+    preparePrint() {
+      if (!data || store.get().view !== 'cards') return () => {};
+      const done = [];
+      for (const el of [...list.children].slice(0, 2)) {
+        const rec = cards.get(el.dataset.code);
+        if (!rec) continue;
+        if (!rec.open) fillMath(rec);
+        el.classList.add('print-math');
+        done.push(el);
+        if (!rec.row?.isMine) break;
+      }
+      return () => { for (const el of done) el.classList.remove('print-math'); };
+    },
     showError(err) {
       main.classList.remove('is-loading');
       main.removeAttribute('aria-busy');
@@ -658,7 +687,8 @@ export function createResults(main, { store, onRanked }) {
         h('h3', { class: 'results-none-title' }, 'Plan costs did not load'),
         h('p', { class: 'results-none-body' }, location.protocol === 'file:'
           ? 'Open the app through a local web server (for example: python -m http.server) instead of the file directly.'
-          : `Check your connection and reload the page. (${err.message})`)));
+          : `Check your connection and try again. (${err.message})`),
+        location.protocol !== 'file:' && h('button', { type: 'button', class: 'btn btn-primary', onclick: () => location.reload() }, 'Try again')));
     },
   };
 }

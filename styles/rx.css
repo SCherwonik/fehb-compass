@@ -173,7 +173,7 @@ a.rx-cite:focus-visible { outline: none; box-shadow: var(--focus-ring); }
   min-height: 30px;
   padding: 2px 26px 2px 10px;
   border-radius: var(--radius-pill);
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--border-control);
   background: var(--surface-glass-strong) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 6l4 4 4-4' fill='none' stroke='%236d7c99' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 8px center / 12px;
   color: var(--text);
   font: inherit;
@@ -183,7 +183,7 @@ a.rx-cite:focus-visible { outline: none; box-shadow: var(--focus-ring); }
   cursor: pointer;
   transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-base) var(--ease-out);
 }
-.rx-tier-select:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border-strong)); }
+.rx-tier-select:hover { border-color: color-mix(in srgb, var(--accent) 55%, var(--border-control)); }
 .rx-tier-select:focus-visible { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
 .rx-tier-select option, .rx-tier-select optgroup { color: var(--text); background: var(--surface-raised); }
 
@@ -453,6 +453,4 @@ a.rx-cite:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 @media (prefers-reduced-motion: reduce) {
   .rx-badge-body, .rx-card-meds, .md-drug, .md-quick { animation: none; }
 }
-@media print {
-  .md, .rx-tier-select, .chg-toggle { display: none !important; }
-}
+/* print: styles/print.css */

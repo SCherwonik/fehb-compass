@@ -3,7 +3,7 @@
 // Generic: rows/sections/headers come in as data (see board-model.js), so the dental/vision tab
 // can reuse it with its own sections and header().
 //
-// Structure: a real <table> (caption, <th scope=col|row|colgroup|rowgroup>) inside a focusable scroller,
+// Structure: a real <table> (caption, <th scope=col|row|rowgroup>; group bands are scope=col with colspan) inside a focusable scroller,
 // so screen readers announce row and column labels for every cell.
 //
 // Scale: "Everything" can mean ~120 columns x ~30 rows. Column headers are always rendered (cheap, and
@@ -39,7 +39,8 @@ const idSafe = (k) => String(k).replace(/[^A-Za-z0-9_-]+/g, '_');
  * `differs` (marked in the label), `labelSub`, and `bestOf(cells) -> Set` (a custom best-in-row rule).
  * Cell descriptors may carry `kind` (styled k-<kind>) and `note` (clamped to 3 lines with a More toggle).
  * update({ groups: [{key,label,rows,total,note?}], sections, header(row, group) -> descriptor, ctx,
- *          summary, animate = true, enter = false })
+ *          summary, animate = true, enter = false, sectionMotion = false })
+ * sectionMotion: sections opened by this update (Expand all) unfold with the same stagger as a single toggle.
  * Header descriptor: { title, subtitle, chips: [{text, tone}], total, totalLabel, bar: {p,o,d}, why }.
  * Rows need `code` and `rank`; `isMine` pins the column (sticky on wide screens).
  */
@@ -109,9 +110,18 @@ export function createBoard({ label = 'Plan comparison board', hooks = {}, onSec
   }
 
   // ---------- cells ----------
+  // Cells outside the scroll window are not filled yet. Rather than read as "blank" to a screen reader, they
+  // carry a visually hidden note: moving to the plan (arrow keys in the board) loads its details.
+  const placeholder = () => h('span', { class: 'sr-only' }, 'Not loaded yet: move to this plan with the arrow keys to load it');
+  function blank(td, base) {
+    td.replaceChildren(placeholder());
+    td.className = base;
+    td._base = base;
+    td.removeAttribute('title');
+  }
   function cellOf(col, key) {
     let td = col.cells.get(key);
-    if (!td) { td = h('td', { class: col.base }); td._base = col.base; col.cells.set(key, td); }
+    if (!td) { td = h('td', { class: col.base }); blank(td, col.base); col.cells.set(key, td); }
     return td;
   }
 
@@ -146,7 +156,7 @@ export function createBoard({ label = 'Plan comparison board', hooks = {}, onSec
 
   function clearColumn(col) {
     for (const td of col.cells.values()) {
-      if (td._base !== col.base) { td.replaceChildren(); td.className = col.base; td._base = col.base; td.removeAttribute('title'); }
+      if (td._base !== col.base) blank(td, col.base);
     }
     col.filled = false;
   }
@@ -275,7 +285,7 @@ export function createBoard({ label = 'Plan comparison board', hooks = {}, onSec
     bandRow.replaceChildren(
       h('td', { class: 'bd-band-corner' }),
       ...groups.map((g) => h('th', {
-        scope: 'colgroup', colspan: String(g.rows.length),
+        scope: 'col', colspan: String(g.rows.length),
         class: `bd-band${g.key === 'mine' ? ' is-mine' : ''}`,
       }, h('span', { class: 'bd-band-label' },
         h('span', { class: 'bd-band-name' }, g.label),
@@ -315,6 +325,8 @@ export function createBoard({ label = 'Plan comparison board', hooks = {}, onSec
   }
   scroller.addEventListener('scroll', onScroll, { passive: true });
   new ResizeObserver(() => { metrics = null; onScroll(); }).observe(scroller);
+  // section headers stick just under the column headers: keep that offset right when the header height changes
+  new ResizeObserver(() => table.style.setProperty('--bd-thead-h', `${thead.offsetHeight}px`)).observe(thead);
 
   function scrollToCol(i) {
     const m = measure();
@@ -368,7 +380,7 @@ export function createBoard({ label = 'Plan comparison board', hooks = {}, onSec
     tip.hidden = !open;
   });
 
-  function setSectionOpen(tb, tog, open, animate) {
+  function setSectionOpen(tb, tog, open, animate, offset = 0) {
     if (tb.classList.contains('is-collapsed') === !open) return;
     tb.classList.toggle('is-collapsed', !open);
     tog.setAttribute('aria-expanded', String(open));
@@ -376,17 +388,19 @@ export function createBoard({ label = 'Plan comparison board', hooks = {}, onSec
     if (open && animate && !reduceMotion()) {
       [...tb.rows].slice(1, 16).forEach((tr, i) => {
         tr.animate([{ opacity: 0, transform: 'translateY(-6px)' }, { opacity: 1, transform: 'none' }],
-          { duration: 300, delay: i * 18, easing: EASE_OUT, fill: 'backwards' });
+          { duration: 300, delay: offset + i * 18, easing: EASE_OUT, fill: 'backwards' });
       });
     }
   }
 
   /** Open or close collapsible sections without rebuilding (Expand all / Collapse all). */
   function setSections(openByKey, animate = true) {
+    let k = 0;
     for (const [key, tb] of sectionBodies) {
       if (!(key in openByKey)) continue;
       const tog = tb.querySelector('.bd-sec-toggle');
-      if (tog) setSectionOpen(tb, tog, openByKey[key], animate);
+      const opening = tb.classList.contains('is-collapsed') && openByKey[key];
+      if (tog) setSectionOpen(tb, tog, openByKey[key], animate, opening ? Math.min(k++, 6) * 40 : 0);
     }
   }
 
@@ -448,7 +462,7 @@ export function createBoard({ label = 'Plan comparison board', hooks = {}, onSec
 
   // ---------- update ----------
   let first = true;
-  function update({ groups = [], sections = [], header, ctx = {}, summary: text = '', animate = true, enter = false } = {}) {
+  function update({ groups = [], sections = [], header, ctx = {}, summary: text = '', animate = true, enter = false, sectionMotion = false } = {}) {
     // A different set of groups (the "Show" mode changed) starts again from the left edge.
     const gsig = groups.map((g) => g.key).join('|');
     const regroup = !first && gsig !== groupSig;
@@ -487,7 +501,7 @@ export function createBoard({ label = 'Plan comparison board', hooks = {}, onSec
     // sections
     const sig = sections.map((s) => `${s.key}:${s.rows.map((r) => r.key).join(',')}`).join('|');
     if (sig !== sectionSig) { sectionSig = sig; rebuildBody(sections); }
-    else setSections(Object.fromEntries(sections.filter((s) => s.collapsible).map((s) => [s.key, s.open !== false])), false);
+    else setSections(Object.fromEntries(sections.filter((s) => s.collapsible).map((s) => [s.key, s.open !== false])), sectionMotion);
 
     // cell descriptors + best-in-row (per group; the pinned "your plan" group is its own baseline)
     for (const g of groups) {
@@ -545,5 +559,11 @@ export function createBoard({ label = 'Plan comparison board', hooks = {}, onSec
     first = false;
   }
 
-  return { el, update, scroller, setSections };
+  /** Fill the first n columns now (printing shows them whatever the scroll position). */
+  function fillFirst(n) {
+    for (let i = 0; i < Math.min(n, cols.length); i++) if (!cols[i].filled) fillColumn(cols[i]);
+  }
+  el._fillFirst = fillFirst; // reached by ui/print.js through the DOM, for every board on the page
+
+  return { el, update, scroller, setSections, fillFirst };
 }

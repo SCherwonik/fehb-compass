@@ -12,7 +12,7 @@ import { DASH } from './format.js';
  */
 export function rxBoardSections({ codes = [], factsStatus = 'loading', meds = null } = {}) {
   const ready = factsStatus === 'ready';
-  const waiting = { text: factsStatus === 'loading' ? 'Loading…' : DASH, sub: factsStatus === 'loading' ? 'reading brochures' : 'brochure facts unavailable', tone: 'muted', value: null };
+  const waiting = { text: factsStatus === 'loading' ? 'Loading…' : DASH, sub: factsStatus === 'loading' ? 'reading brochures' : 'brochure facts unavailable', tone: factsStatus === 'loading' ? 'pending' : 'muted', value: null };
   const drugs = meds?.drugs ?? [];
   const rows = [
     {

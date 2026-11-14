@@ -15,7 +15,7 @@
   width: 100%;
   min-height: 46px;
   padding: var(--space-2) var(--space-4);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-control);
   border-radius: var(--radius-md);
   background: var(--surface-sunken);
   color: var(--text);
@@ -42,7 +42,7 @@
   font-variant-numeric: tabular-nums;
 }
 .ft-body {
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-control);
   border-top: 0;
   border-radius: 0 0 var(--radius-md) var(--radius-md);
   background: color-mix(in srgb, var(--surface-sunken) 55%, transparent);
@@ -74,7 +74,7 @@
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--border-control);
   background: var(--surface-glass-strong);
   color: var(--text);
   cursor: pointer;
@@ -116,9 +116,9 @@
   border-radius: var(--radius-pill);
   background:
     linear-gradient(90deg, var(--p-cobalt-500), var(--p-violet-500)) 0 0 / calc(11px + var(--p) * (100% - 22px)) 100% no-repeat,
-    var(--border-strong);
+    var(--border-control);
 }
-.ft-range::-moz-range-track { height: 6px; border-radius: var(--radius-pill); background: var(--border-strong); }
+.ft-range::-moz-range-track { height: 6px; border-radius: var(--radius-pill); background: var(--border-control); }
 .ft-range::-moz-range-progress { height: 6px; border-radius: var(--radius-pill); background: linear-gradient(90deg, var(--p-cobalt-500), var(--p-violet-500)); }
 .ft-range::-webkit-slider-thumb {
   -webkit-appearance: none;
@@ -210,7 +210,7 @@
   min-height: 40px;
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--border-control);
   background: var(--surface-glass-strong);
   color: var(--text);
   font: inherit;
@@ -219,7 +219,7 @@
   transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-base) var(--ease-out);
 }
 .cl-input::placeholder { color: var(--text-subtle); opacity: 1; }
-.cl-input:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border-strong)); }
+.cl-input:hover { border-color: color-mix(in srgb, var(--accent) 55%, var(--border-control)); }
 .cl-input:focus-visible { border-color: var(--accent); box-shadow: var(--glass-highlight), var(--focus-ring); }
 .cl-input[aria-invalid="true"] { border-color: var(--danger); }
 .cl-num { font-variant-numeric: tabular-nums; -moz-appearance: textfield; }

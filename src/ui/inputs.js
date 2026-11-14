@@ -329,7 +329,7 @@ export function renderInputs(form, { data, store, meds }) {
   const chipEls = networkFamilies(data.plans, 2027).map(({ name }) => {
     const input = h('input', { type: 'checkbox', class: 'chip-input', value: name });
     const count = h('span', { class: 'chip-count' }, '0');
-    const label = h('label', { class: 'chip' }, input, svg(ICON_CHECK), h('span', { class: 'chip-text' }, name), count);
+    const label = h('label', { class: 'chip', title: name }, input, svg(ICON_CHECK), h('span', { class: 'chip-text' }, name), count);
     chipWrap.append(label);
     return { name, label, input, count, rank: 0, n: null };
   });

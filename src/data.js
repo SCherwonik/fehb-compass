@@ -5,7 +5,6 @@ const FILES = {
   rates: 'rates.json',
   benefits: 'benefits.json',
   serviceArea: 'service_area.json',
-  dentalVision: 'dental_vision.json',
   meta: 'meta.json',
 };
 
@@ -22,14 +21,15 @@ async function loadKeys(keys, base) {
   return Object.fromEntries(entries);
 }
 
-/** Fetch every data file in parallel. Resolves to { plans, rates, benefits, serviceArea, dentalVision, meta }. */
+/** Fetch the core and cost data files in parallel. Resolves to { plans, rates, benefits, serviceArea, meta }. */
 export async function loadData(base = DEFAULT_BASE) {
   return loadKeys(Object.keys(FILES), base);
 }
 
 // Small files the input panel needs (about 200 KB) vs. the heavy cost data (benefits.json is about 2.3 MB).
 const CORE = ['plans', 'serviceArea', 'meta'];
-// (dental_vision.json is superseded by fedvip.json, which loads lazily: see loadFedvip.)
+// (Dental and vision come from fedvip.json, loaded lazily: see loadFedvip. The pipeline's older
+// dental_vision.json is not used by the app and is not deployed.)
 const COST = ['rates', 'benefits'];
 
 /**
