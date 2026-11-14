@@ -82,6 +82,18 @@ What a visitor downloads: about 0.6 MB of code and styles plus up to 4.7 MB of J
 facts 1.6 MB, FEDVIP 0.5 MB, the rest small). GitHub Pages serves them gzip-compressed: about 0.5 MB in total
 over the wire. The app paints the input panel from the small files first and loads the large ones after.
 
+### Content Security Policy
+
+GitHub Pages sends no CSP header, and the pages carry none. A strict policy (`script-src 'self'`, no
+`'unsafe-inline'`) would currently block these inline pieces, which would need a hash, a nonce or moving to a file:
+
+- `index.html`: the inline `<script>` in `<head>` that applies the saved light/dark theme before first paint.
+- `index.html`: the `onload="this.media='all'"` attribute on the Google Fonts stylesheet link (non-blocking font load).
+- `404.html`: its inline `<script>` (sends the visitor back to the app) and its inline `<style>`.
+
+Everything else is external (`src/`, `styles/`); `style-src` would also need `https://fonts.googleapis.com` and
+`font-src` `https://fonts.gstatic.com` while Geist loads from Google Fonts.
+
 ## Project structure
 
     index.html, 404.html      the page, and a Pages fallback that returns to it
