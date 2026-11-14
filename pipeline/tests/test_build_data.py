@@ -394,3 +394,48 @@ def test_no_mojibake_in_data_json():
 
     for p in sorted(DATA.glob("*.json")):
         walk(json.loads(p.read_text(encoding="utf-8")), p.name)
+
+
+# ---------- hsa/hra derived from the benefits file's "Type of account" ----------
+
+def _plans(year):
+    return [p for p in json.loads((DATA / "plans.json").read_text(encoding="utf-8")) if p["year"] == year]
+
+
+def _ben(year):
+    return json.loads((DATA / "benefits.json").read_text(encoding="utf-8"))[str(year)]
+
+
+def test_account_flags_unit():
+    f = build_data.account_flags
+    assert f("HDHP", "Health Savings Account", True) == (True, False, None)
+    assert f("CDHP", "Health Reimbursement Arrangement", True) == (False, True, None)
+    assert f("Traditional", "Not Applicable", True) == (False, False, None)
+    hsa, hra, note = f("HDHP", "Not Applicable", True)
+    assert (hsa, hra) == (False, False) and "HDHP" in note and "not an HSA" in note
+    hsa, hra, note = f("HDHP", "Health Reimbursement Arrangement", True)
+    assert (hsa, hra) == (False, True) and "HRA" in note
+    assert f("HDHP", None, False)[:2] == (True, False)  # no benefits row: label fallback
+
+
+def test_plan_401_2026_is_not_an_hsa_plan():
+    p = next(p for p in _plans(2026) if p["code"] == "401")
+    assert p["type"] == "HDHP" and p["hsa"] is False and p["hra"] is False
+    assert "HDHP" in p["type_note"]
+
+
+def test_flags_match_account_type_for_every_plan():
+    for year in (2026, 2027):
+        ben = _ben(year)
+        for p in _plans(year):
+            acct = (ben[p["code"]]["account_type"] or "").lower()
+            assert p["hsa"] == ("savings" in acct), (year, p["code"])
+            assert p["hra"] == ("reimburs" in acct), (year, p["code"])
+
+
+def test_hdhp_label_disagreements_are_recorded():
+    for year in (2026, 2027):
+        ben = _ben(year)
+        for p in _plans(year):
+            disagrees = p["option_type"].upper() == "HDHP" and not p["hsa"]
+            assert ("type_note" in p) == disagrees, (year, p["code"])

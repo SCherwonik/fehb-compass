@@ -403,6 +403,27 @@ def load_service_area(path: Path):
     return out
 
 
+def account_flags(option_type: str, account_type: object, has_benefits: bool):
+    """(hsa, hra, type_note) for one plan-year.
+
+    hsa/hra come from the benefits file's "Type of account" (the plan key's HDHP label is
+    not reliable: e.g. 401 and C54 are labelled HDHP but have no account). `type` stays as
+    OPM labels it; a type_note records any disagreement. Without a benefits row we can only
+    fall back to the label.
+    """
+    label = (option_type or "").upper()
+    if not has_benefits:
+        return label == "HDHP", False, "no benefits row: hsa inferred from the HDHP label" if label == "HDHP" else None
+    acct = norm(account_type)
+    hsa, hra = "savings" in acct, "reimburs" in acct
+    note = None
+    if label == "HDHP" and not hsa:
+        shown = clean(account_type) or "none"
+        note = (f"OPM labels this option HDHP but its benefits row lists account type '{shown}'"
+                f"{', so it is not an HSA plan' if not hra else ' (an HRA, not an HSA)'}")
+    return hsa, hra, note
+
+
 def build_fehb(paths: dict):
     plans_out: list[dict] = []
     rates_out: dict = {}
@@ -426,8 +447,8 @@ def build_fehb(paths: dict):
             code = p["enrollment"]["self"]
             sides = benefits.get(pkey, {})
             acct = norm(sides.get("in", {}).get("Type of account"))
-            hsa = "savings" in acct or p["option_type"].upper() == "HDHP"
-            hra = "reimburs" in acct
+            hsa, hra, type_note = account_flags(p["option_type"], sides.get("in", {}).get("Type of account"),
+                                                bool(sides))
             area = sa.get(pkey, {})
             if not code[-1:].isdigit():
                 raise ValueError(
@@ -442,6 +463,7 @@ def build_fehb(paths: dict):
                 "network_family": network_family(p["carrier"]),
                 "hsa": hsa,
                 "hra": hra,
+                **({"type_note": type_note} if type_note else {}),
                 "nationwide": bool(area.get("nationwide")),
                 "plan_code": p["plan_code"],
                 "option": p["option"],
