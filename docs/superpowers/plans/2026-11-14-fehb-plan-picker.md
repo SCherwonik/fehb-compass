@@ -178,3 +178,9 @@
 
 ### Task 7 (revised): Dental and vision tab (FEDVIP)
 Uses the same `board.js`; adds a Dental/Vision tab with ZIP -> eligible plans via FEDVIP zip/rating-region data; opt-in toggle adds dental/vision premium to medical totals. The OPM web tool is not scraped.
+
+### Task 5c: Full benefits matrix in compare view and board (owner request)
+Owner: the 4-plan compare shows too little; show ALL of it, especially prescriptions. OPM's 2027 benefits file gives ~100 fields per plan (data/benefits.json `raw`, in-network and out-of-network).
+- Data-driven rows from `raw` keys grouped into collapsible sections: Prescriptions (Tier 0-6, Mail Order, Rx out-of-pocket max (separate from medical OOP max), retail vs mail where stated), Visits and urgent care, Hospital and surgery, Diagnostics/labs/imaging, Mental health and substance use, Therapies (PT/OT/speech/chiropractic/ABA/acupuncture), Maternity, Fertility, Hearing, Vision/dental extras, Equipment/home health/hospice, Chronic disease management, Preventive/nutrition, Medicare coordination (shown for retirees or on demand), Account/deductible detail (net deductible, HSA/HRA contribution).
+- Both views (4-plan compare and board) use the same matrix builder; a "Show differences only" toggle, a row search, expand/collapse all, "Prescriptions" pinned as its own prominent section, and a plain-English display of each cell (raw text always available).
+- Test: every `raw` field maps to exactly one section (no orphan fields); text never lost.
