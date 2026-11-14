@@ -122,7 +122,8 @@ h1, h2, h3, p { margin: 0; }
 .brand-needle {
   transform-box: view-box;
   transform-origin: 20px 20px;
-  transform: rotate(-30deg); /* fixed: 30 degrees left of straight up, between the old Healthy (-42) and Typical (-12) */
+  transform: rotate(var(--needle, -30deg));
+  transition: transform var(--dur-slower) var(--ease-spring);
 }
 .brand-name {
   font-size: var(--text-lg);

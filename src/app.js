@@ -18,6 +18,11 @@ import { initAbout } from './ui/about.js';
 import { initPrint } from './ui/print.js';
 import { noticeEl } from './ui/notices.js';
 
+const NEEDLE_ANGLE = { nothing: -64, healthy: -42, typical: -12, condition: 24, worst: 58 };
+// TEMPORARY: the needle is held at this angle (30 degrees left, between Healthy and Typical). Set to null and it
+// follows the chosen scenario again using NEEDLE_ANGLE above.
+const NEEDLE_FIXED = -30;
+
 const store = createStore(loadInitialState({ hash: location.hash }));
 export { store };
 
@@ -31,6 +36,12 @@ function writeHash(s) {
   if (`#${hash}` !== location.hash && !(hash === '' && location.hash === '')) {
     history.replaceState(null, '', url);
   }
+}
+
+// Brand needle points toward the chosen scenario: the one piece of decorative motion, tied to input.
+function pointNeedle(s) {
+  // Set on the needle itself, not :root: a root custom property would restyle the whole results list.
+  document.querySelector('.brand-needle')?.style.setProperty('--needle', `${NEEDLE_FIXED ?? NEEDLE_ANGLE[s.scenario] ?? 0}deg`);
 }
 
 // Footer provenance: OPM's public use files (dates from data/meta.json) and the brochures (data/brochure_facts.json).
@@ -118,6 +129,8 @@ async function main() {
   if (pshb) document.querySelector('.intro')?.append(pshb);
 
   store.subscribe(writeHash);
+  store.subscribe(pointNeedle);
+  pointNeedle(store.get());
 
   const form = document.getElementById('inputs');
   // "My medications": private (localStorage only), shared by the panel, the GLP-1 chip and the results
