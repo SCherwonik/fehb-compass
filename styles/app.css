@@ -32,7 +32,14 @@ body {
 
 h1, h2, h3, p { margin: 0; }
 
-/* Smooth color hand-off when the theme is toggled manually. */
+/* Theme toggle: a single cross-fade of the whole page (View Transitions API, see src/ui/theme.js), so every color
+   changes at once and ends at the same moment. */
+::view-transition-old(root), ::view-transition-new(root) {
+  animation-duration: 380ms;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Fallback for browsers without View Transitions: color hand-off on every element. */
 .theme-shift, .theme-shift * {
   transition: background-color var(--dur-slow) var(--ease-out), color var(--dur-slow) var(--ease-out),
     border-color var(--dur-slow) var(--ease-out), box-shadow var(--dur-slow) var(--ease-out) !important;
