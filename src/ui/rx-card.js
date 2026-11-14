@@ -31,9 +31,10 @@ export function createRxCard(code) {
 
 /**
  * Refresh the card parts for a costed row. factsStatus: 'loading' | 'ready' | 'missing'.
+ * inTotal: the card's headline total includes the medications (false: they are ranked apart, model.medsRanked).
  * Rebuilds the DOM only when what it shows changed (cards update on every input change).
  */
-export function updateRxCard(rec, row, factsStatus) {
+export function updateRxCard(rec, row, factsStatus, inTotal = true) {
   // ---- what changed in 2027
   const groups = factsStatus === 'ready' ? changesFor(row.code) : [];
   const chgKey = `${factsStatus}|${changeCount(groups)}`;
@@ -50,7 +51,7 @@ export function updateRxCard(rec, row, factsStatus) {
 
   // ---- your medications
   const m = row.meds;
-  const key = m ? JSON.stringify([factsStatus, m.items.map((i) => [i.drugId, i.status, i.text, i.tier, i.missing]), m.estimate, row.cost?.total]) : '';
+  const key = m ? JSON.stringify([factsStatus, m.items.map((i) => [i.drugId, i.status, i.text, i.tier, i.missing]), m.estimate, row.cost?.total, inTotal]) : '';
   if (key === rec.medsKey) return;
   rec.medsKey = key;
   rec.medsBox.hidden = !m;
@@ -60,7 +61,7 @@ export function updateRxCard(rec, row, factsStatus) {
   rec.medsBox.replaceChildren(
     h('div', { class: 'rx-card-head' },
       h('h4', { class: 'rx-card-title' }, 'Your medications'),
-      m.entries.length > 0 && h('span', { class: 'rx-card-sum' }, `+ ${usd(medsCost(row))} a year`, h('span', { class: 'rx-card-sum-sub' }, ' in this total')),
+      m.entries.length > 0 && h('span', { class: 'rx-card-sum' }, `+ ${usd(medsCost(row))} a year`, h('span', { class: 'rx-card-sum-sub' }, inTotal ? ' in this total' : ' on top of the ranked total')),
       m.lookup && lookupButton(m.lookup, { compact: true, planName: row.plan.name })),
     status && h('p', { class: 'rx-card-warn', role: 'note' }, svg(ICON_WARN), status),
     factsStatus === 'loading'

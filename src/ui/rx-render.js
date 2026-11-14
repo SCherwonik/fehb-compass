@@ -160,8 +160,8 @@ export function medsSummary(row) {
   const priced = meds.entries.length;
   const added = priced ? medsCost(row) : null;
   return {
-    text: meds.factsMissing ? 'Loading…' : priced ? `+ ${usd(added)} a year` : 'Not priced yet',
-    sub: meds.factsMissing ? 'brochure tiers' : `${priced} of ${meds.count} priced, in this plan’s total`,
+    text: meds.factsMissing ? 'Loading…' : priced ? `+ ${usd(added)} a year` : 'Not looked up',
+    sub: meds.factsMissing ? 'brochure tiers' : `${priced} of ${meds.count} priced`,
     warn: !meds.factsMissing && priced < meds.count,
     value: !meds.factsMissing && priced === meds.count ? added : null,
   };

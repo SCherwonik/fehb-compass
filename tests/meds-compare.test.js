@@ -48,7 +48,9 @@ test('ended plan (414): savings amount and best plan identical with and without 
   assert.equal(a.basis, 'total');
   assert.equal(b.basis, 'excl-meds');
   assert.equal(b.bestTotal, baseTotal(b.best));
-  assert.ok(Number.isFinite(b.bestMeds));
+  // I3: no tiers recorded on the best plan -> null ('not looked up'), never a misleading $0
+  if (b.best.meds?.entries?.length) assert.ok(Number.isFinite(b.bestMeds));
+  else assert.equal(b.bestMeds, null);
   // board "vs your 2026 plan (ended)": same delta, labelled, medications shown on their own row
   const cmp = (data) => {
     const res = rankWithMine(data, st, computeRows(data, st));

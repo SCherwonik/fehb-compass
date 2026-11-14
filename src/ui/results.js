@@ -2,10 +2,11 @@
 // Cards are keyed by plan code and updated in place; reordering uses FLIP limited to visible cards.
 import { h, svg, segmented, ICON_CHECK, ICON_CHEVRON, mineSwitch } from './inputs.js';
 import { assumptionChips, describeUsage, effectiveUsage, overrideChanges, inNetworkAtMax } from './assumptions.js';
-import { computeRows, savingsVsCurrent, availablePlans, SORTS, rankWithMine, baseTotal, dvCost, dvLabel, basisOf, basisNote, anyMeds, personLimitsNote, areaChip } from './model.js';
+import { computeRows, savingsVsCurrent, availablePlans, SORTS, rankWithMine, baseTotal, dvCost, dvLabel, basisOf, basisNote, anyMeds, personLimitsNote, areaChip, rankTotal } from './model.js';
 import { dvMathLines } from './dental-board.js';
 import { GROUP_LABELS, GROUP_MODES } from './grouping.js';
 import { createResultsBoard, mineNoteText } from './results-board.js';
+import { totalLabelOf } from './board-model.js';
 import { renderCompare, revealCompare } from './compare.js';
 import { FLAG_TEXT } from '../engine/diff.js';
 import { ASSUMED_PRICES, ASSUMPTIONS_NOTE } from '../engine/assumptions.js';
@@ -294,8 +295,9 @@ export function createResults(main, { store, onRanked }) {
       rec.el.setAttribute('aria-label', `${row.plan.name}`);
     }
     const anim = animateNums && visible.has(rec.el);
-    tweenNumber(r.total, row.cost.total, usd, { animate: anim });
-    setText(r.totalLabel, dvCost(row) ? `per year, ${dvLabel(row)}` : 'per year, estimated');
+    // headline = the ranked total: without medications unless every shown plan has every drug priced (I3)
+    tweenNumber(r.total, rankTotal(row, medsInRank), usd, { animate: anim });
+    setText(r.totalLabel, totalLabelOf(row, medsInRank));
 
     // bar: premium | expected care, with the deposit shown as a hatched portion at the end
     const gross = row.cost.premium + row.cost.oop;
@@ -368,7 +370,7 @@ export function createResults(main, { store, onRanked }) {
     r.cmpBtn.setAttribute('aria-pressed', String(selected));
     r.cmpBtn.setAttribute('aria-label', `${selected ? 'Remove' : 'Add'} ${row.plan.name} ${selected ? 'from' : 'to'} compare`);
 
-    updateRxCard(r.rx, row, rx.factsStatus);
+    updateRxCard(r.rx, row, rx.factsStatus, medsInRank);
     if (rec.open) fillMath(rec);
   }
 
@@ -471,6 +473,8 @@ export function createResults(main, { store, onRanked }) {
   }
 
   // ---------- savings banner ----------
+  // "$1,284 on Plan X" or "not looked up on Plan X" (never a misleading $0: I3)
+  const medsOn2 = (n, where) => (n == null ? `not looked up on ${where}` : `${usd(n)} on ${where}`);
   function renderSavings(state, rows) {
     const v = savingsVsCurrent(data, state, rows);
     if (v.kind === 'none' || !v.best) { savings.hidden = true; return; }
@@ -498,8 +502,8 @@ export function createResults(main, { store, onRanked }) {
       }
       if (meds) {
         medsNote = same
-          ? `Your medications add ${usd(v.currentMeds)} on this plan.`
-          : `Your medications add ${usd(v.bestMeds)} on ${v.best.plan.name} and ${usd(v.currentMeds)} on your plan, for the drugs whose tiers you recorded on each.`;
+          ? (v.currentMeds == null ? 'Your medications are not looked up on this plan yet.' : `Your medications add ${usd(v.currentMeds)} on this plan.`)
+          : `Your medications: ${medsOn2(v.bestMeds, v.best.plan.name)}; ${medsOn2(v.currentMeds, 'your plan')}${v.bestMeds != null || v.currentMeds != null ? ', for the drugs whose tiers you recorded' : ''}.`;
       }
     } else {
       const name = v.currentPlan?.name ?? `plan ${state.currentPlan2026}`;
@@ -507,7 +511,11 @@ export function createResults(main, { store, onRanked }) {
       detail = v.amount == null
         ? `The cheapest 2027 match is ${v.best.plan.name} at ${usd(tot(v.best))}${excl ? `, excluding ${what}` : ''}.`
         : `The cheapest 2027 match, ${v.best.plan.name}, comes to ${usd(tot(v.best))}: ${usd(Math.abs(v.amount))} ${v.amount >= 0 ? 'less' : 'more'} than your plan would have cost in 2026 (${usd(v.current2026Total)})${excl ? `. Both exclude ${what}` : ''}.`;
-      if (meds) medsNote = `Plus your medications: ${usd(v.bestMeds)} on ${v.best.plan.name}, not yet priced for 2026.`;
+      if (meds) {
+        medsNote = v.bestMeds == null
+          ? `Your medications are not looked up on ${v.best.plan.name} yet.`
+          : `Plus your medications: ${usd(v.bestMeds)} on ${v.best.plan.name}, not yet priced for 2026.`;
+      }
     }
     const prevNum = savings.querySelector('.savings-num');
     if (prevNum) num._num = prevNum._num;
@@ -582,6 +590,7 @@ export function createResults(main, { store, onRanked }) {
 
   let first = true;
   let medsOn = false; // any shown plan has priced medications (cards and board agree on this)
+  let medsInRank = true; // the ranked totals include them (every shown plan has every drug priced: model.medsRanked)
   function render(state = store.get()) {
     if (!data) return;
     // the Dental & Vision tab hides this frame (src/ui/dental-board.js): skip the work until it is back
@@ -594,6 +603,7 @@ export function createResults(main, { store, onRanked }) {
     // the user's plan pinned first, every other plan in its true rank order
     const rows = res.mine ? [res.mine, ...res.others] : res.ranked;
     medsOn = anyMeds(rows);
+    medsInRank = res.medsInRank !== false;
     sortCtl.sync(ui.sort);
     typeCtl.sync(ui.type);
     viewCtl.sync(state.view);
@@ -619,8 +629,10 @@ export function createResults(main, { store, onRanked }) {
     renderMineNote(state, res, where);
     // say when the ranking also carries the user's priced medications or the dental/vision add-on
     const dvRow = rows.find((r) => dvCost(r) > 0);
-    const extras = [medsOn && 'your priced medications', dvRow && `the ${dvLabel(dvRow).replace('incl. ', '').replace('/', ' and ')} add-on`].filter(Boolean);
-    const incl = extras.length && (isBoard || ui.sort === 'total') ? `, including ${extras.join(' and ')}` : '';
+    const extras = [medsOn && medsInRank && 'your medications', dvRow && `the ${dvLabel(dvRow).replace('incl. ', '').replace('/', ' and ')} add-on`].filter(Boolean);
+    const ranksTotal = isBoard || ui.sort === 'total';
+    const incl = (extras.length && ranksTotal ? `, including ${extras.join(' and ')}` : '')
+      + (medsOn && !medsInRank && ranksTotal ? ', excluding your medications (not priced on every plan; shown apart on each)' : '');
     sub.textContent = st
       ? `Ranked by ${(isBoard ? SORTS.total : SORTS[ui.sort]).label.toLowerCase()} for ${ENROLLMENT_TEXT[state.enrollment]} coverage and the year you described${incl}.`
       : `Choose your state to add regional HMO plans. Nationwide plans are shown now${incl ? ` (totals${incl.slice(1)})` : ''}.`;
@@ -671,7 +683,7 @@ export function createResults(main, { store, onRanked }) {
     try { onRanked?.(res.others.slice(0, 6)); } catch (err) { console.error(err); }
     const top = res.others[0];
     status.textContent = top
-      ? `${filteredRows.length} of ${avail} plans. Lowest ${(isBoard ? SORTS.total : SORTS[ui.sort]).label.toLowerCase()}: ${top.plan.name}, ${usd(top.cost.total)} a year${top.area === 'partial' ? ', if it serves your county' : ''}.`
+      ? `${filteredRows.length} of ${avail} plans. Lowest ${(isBoard ? SORTS.total : SORTS[ui.sort]).label.toLowerCase()}: ${top.plan.name}, ${usd(rankTotal(top, medsInRank))} a year${top.area === 'partial' ? ', if it serves your county' : ''}.`
       : 'No plans match these filters.';
   }
 

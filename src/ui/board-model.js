@@ -11,7 +11,7 @@
 // The dental/vision board (Task 7) supplies its own sections and header in this same shape.
 import { usd, signedUsd, signedPct, deltaTone, DASH } from './format.js';
 import { FLAG_TEXT } from '../engine/diff.js';
-import { baseTotal, medsCost, anyMeds, anyDv, dvCost, dvLabel, basisOf, basisNote } from './model.js';
+import { baseTotal, medsCost, anyMeds, anyDv, dvCost, dvLabel, basisOf, basisNote, medsRanked, rankTotal } from './model.js';
 
 const fin = (n) => typeof n === 'number' && Number.isFinite(n);
 const cents = (n) => Math.round(n * 100) / 100;
@@ -52,13 +52,15 @@ export function worstCase(row, enrollment) {
  */
 export const VALUE_WEIGHT = 0.75;
 
-export function valueScores(rows, enrollment) {
+export function valueScores(rows, enrollment, withMeds = medsRanked(rows ?? [])) {
   const out = new Map();
   let best = Infinity;
   for (const r of rows ?? []) {
     const ceiling = worstCase(r, enrollment);
-    // dental/vision (same amount on every plan) is left out, so the toggle never moves a score
-    const total = fin(r.cost?.total) ? r.cost.total - dvCost(r) : null;
+    // dental/vision (same amount on every plan) is left out, so the toggle never moves a score;
+    // medications only when they are in the ranking (every plan has every drug priced)
+    const t = rankTotal(r, withMeds);
+    const total = fin(t) ? t - dvCost(r) : null;
     const weighted = ceiling == null || total == null ? null : VALUE_WEIGHT * total + (1 - VALUE_WEIGHT) * ceiling;
     const ok = weighted != null && weighted > 0;
     out.set(r.code, { ceiling, weighted: ok ? weighted : null, score: null });
@@ -93,14 +95,17 @@ export function bestInRow(def, cells) {
 /** Shared context for cells: enrollment, scenario, value scores and the #1 total over every ranked row. */
 export function boardContext(rankedRows, state, mine = null, baseline = null) {
   const rows = rankedRows ?? [];
-  const totals = rows.map((r) => r.cost?.total).filter(fin);
+  // ranking basis: medications count only when every plan has every drug priced (model.medsRanked)
+  const withMeds = medsRanked(mine ? [...rows, mine] : rows);
+  const totals = rows.map((r) => rankTotal(r, withMeds)).filter(fin);
   return {
+    withMeds,
     enrollment: state?.enrollment ?? 'self',
     scenario: state?.scenario ?? 'typical',
     stateCode: state?.location?.state ?? null, // for the "Part of VA" chip on partial-state plans
     // fine-tune overrides or custom lines change the scenario's care
     adjusted: (state?.custom?.length ?? 0) > 0 || Object.keys(state?.overrides ?? {}).length > 0,
-    values: valueScores(rows, state?.enrollment ?? 'self'),
+    values: valueScores(rows, state?.enrollment ?? 'self', withMeds),
     // medications priced on some plan: the "vs" totals compare without them (rows with `when: medsOn` say so)
     medsOn: anyMeds(mine ? [...rows, mine] : rows),
     // dental/vision added to the totals: the "vs" totals leave it out too (2026 never has it)
@@ -167,6 +172,13 @@ function vsEndedCell(get, key, excl = false) {
   };
 }
 
+// Total cell: say whether the user's medications are in it, apart from it, or not looked up on this plan.
+function medsTotalNote(row, ctx) {
+  if (!row.meds) return '';
+  if (ctx?.withMeds !== false) return row.meds.entries.length ? ', incl. meds' : '';
+  return row.meds.entries.length ? `; + ${usd(medsCost(row))} meds not in total` : '; meds not looked up';
+}
+
 // Medications shown apart from the "vs" totals they are left out of.
 function medsApartCell(why) {
   return (row) => (row.meds?.entries?.length
@@ -201,8 +213,8 @@ export const MEDICAL_SECTIONS = [
       {
         key: 'total', label: 'Estimated total', strong: true, best: 'min',
         hint: 'Premium plus expected care costs, minus HSA or HRA money, for your scenario.',
-        cell: (r) => money(r.cost.total, {
-          sub: `${r.cost.firmness === 'fixed' ? 'fixed copays' : 'estimated'}${dvCost(r) ? `, ${dvLabel(r)} ${usd(dvCost(r))}` : ''}`,
+        cell: (r, ctx) => money(rankTotal(r, ctx?.withMeds !== false), {
+          sub: `${r.cost.firmness === 'fixed' ? 'fixed copays' : 'estimated'}${dvCost(r) ? `, ${dvLabel(r)} ${usd(dvCost(r))}` : ''}${medsTotalNote(r, ctx)}`,
         }),
       },
       { key: 'premium', label: 'Premium', best: 'min', cell: (r) => money(r.cost.premium, { sub: 'per year' }) },
@@ -326,7 +338,8 @@ function isLowest(row, group, get) {
 export function whyLine(row, group, ctx, scope = '') {
   const g = group ?? [];
   const sc = scope ? ` ${scope}` : '';
-  const gap = fin(ctx?.minTotal) && fin(row.cost?.total) ? row.cost.total - ctx.minTotal : null;
+  const tot = (r) => rankTotal(r, ctx?.withMeds !== false);
+  const gap = fin(ctx?.minTotal) && fin(tot(row)) ? tot(row) - ctx.minTotal : null;
   const ceiling = (r) => ctx?.values?.get(r.code)?.ceiling ?? worstCase(r, ctx?.enrollment ?? 'self');
   let lead = null;
   if (row.isMine) lead = 'Your plan, 2027 version';
@@ -341,7 +354,7 @@ export function whyLine(row, group, ctx, scope = '') {
   let tail = null;
   if (row.rank === 1) {
     const next = g.find((r) => r.code !== row.code);
-    if (next && fin(next.cost?.total) && fin(row.cost?.total)) tail = `${usd(next.cost.total - row.cost.total)} less than #${next.rank}`;
+    if (next && fin(tot(next)) && fin(tot(row))) tail = `${usd(tot(next) - tot(row))} less than #${next.rank}`;
   } else if (gap != null) {
     tail = gap < 0.5 ? 'ties #1 on total' : `${usd(gap)} more than #1`;
   }
@@ -366,6 +379,13 @@ export function scopeText(mode, group) {
   }
 }
 
+/** 'per year, estimated' | 'per year, incl. dental/vision' | '..., excl. meds' (the ranking basis, I3). */
+export function totalLabelOf(row, withMeds = true) {
+  const parts = [dvCost(row) ? dvLabel(row) : 'estimated'];
+  if (row?.meds?.entries?.length) parts.push(withMeds ? 'incl. meds' : 'excl. meds');
+  return `per year, ${parts.join(', ')}`;
+}
+
 /** Generic column header descriptor for a medical plan row. */
 export function medicalHeader(row, group, ctx, scope) {
   const chips = row.isMine ? [{ text: 'Your plan · 2027', tone: 'mine' }] : [];
@@ -387,8 +407,8 @@ export function medicalHeader(row, group, ctx, scope) {
     title: row.plan?.name ?? row.code,
     subtitle: row.plan?.carrier || row.plan?.network_family || '',
     chips,
-    total: row.cost?.total,
-    totalLabel: dvCost(row) ? `per year, ${dvLabel(row)}` : 'per year, estimated',
+    total: rankTotal(row, ctx?.withMeds !== false),
+    totalLabel: totalLabelOf(row, ctx?.withMeds !== false),
     bar: { p: row.cost?.premium ?? 0, o: row.cost?.oop ?? 0, d: row.cost?.hsaOffset ?? 0 },
     why: whyLine(row, group, ctx, scope),
   };

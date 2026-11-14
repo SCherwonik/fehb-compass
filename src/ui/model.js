@@ -124,8 +124,25 @@ export function dvCost(row) {
 export function medsCost(row) {
   return row?.meds?.entries?.length && Number.isFinite(row.cost?.total) ? cents(row.cost.total - dvCost(row) - baseTotal(row)) : 0;
 }
+/** What the medications add on this plan, or null when none of them is priced here (say "not looked up", not $0). */
+export const medsAdded = (row) => (row?.meds?.entries?.length ? medsCost(row) : null);
 /** True when any of these rows has priced medications (comparisons then say they exclude them). */
 export const anyMeds = (rows) => (rows ?? []).some((r) => r?.meds?.entries?.length > 0);
+/** True when every row has every one of the user's drugs priced (brochure facts loaded, a tier for each). */
+export const medsComplete = (rows) => {
+  const list = (rows ?? []).filter(Boolean);
+  return list.length > 0 && list.every((r) => r.meds && !r.meds.factsMissing && r.meds.count > 0 && r.meds.entries.length === r.meds.count);
+};
+/**
+ * Ranking basis (I3): medications join the ranked total only when every plan in the set has every drug priced;
+ * otherwise plans are ranked without them (pricing them on the looked-up plans only would push exactly those down).
+ */
+export const medsRanked = (rows) => !anyMeds(rows) || medsComplete(rows);
+/** The total a row is ranked and headlined by: with medications, or without them (dental/vision kept: same on all). */
+export function rankTotal(row, withMeds = true) {
+  if (withMeds || !row?.meds?.entries?.length) return row?.cost?.total ?? null;
+  return cents(baseTotal(row) + dvCost(row));
+}
 /** 'incl. dental/vision' | 'incl. dental' | 'incl. vision' | '' : what the "add dental and vision" amount holds. */
 export function dvLabel(row) {
   const d = Number.isFinite(row?.dv?.dental?.amount);
@@ -306,20 +323,26 @@ export function computeRows(data, state, { type = 'all' } = {}) {
 }
 
 export const SORTS = {
-  total: { label: 'Total cost', get: (r) => r.cost.total },
+  // withMeds: the set's ranking basis (medsRanked)
+  total: { label: 'Total cost', get: (r, withMeds) => rankTotal(r, withMeds) },
   premium: { label: 'Premium', get: (r) => r.cost.premium },
   deductible: { label: 'Deductible', get: (r) => r.facts.deductible },
   oopMax: { label: 'Out-of-pocket max', get: (r) => r.facts.oopMax },
 };
 
-/** New array sorted ascending by key; unknown values (null) last; ties by total then code. */
+/**
+ * New array sorted ascending by key; unknown values (null) last; ties by total then code.
+ * Totals follow the set's ranking basis (medsRanked): without medications unless every plan has every drug priced.
+ */
 export function sortRows(rows, key = 'total') {
   const get = (SORTS[key] ?? SORTS.total).get;
+  const withMeds = medsRanked(rows);
   const v = (r) => {
-    const x = get(r);
+    const x = get(r, withMeds);
     return x == null ? Infinity : x;
   };
-  return rows.slice().sort((a, b) => v(a) - v(b) || a.cost.total - b.cost.total || a.code.localeCompare(b.code));
+  const t = (r) => rankTotal(r, withMeds) ?? Infinity;
+  return rows.slice().sort((a, b) => v(a) - v(b) || t(a) - t(b) || a.code.localeCompare(b.code));
 }
 
 /** True when any results filter is narrowing the plans open in the state (network, account or plan type). */
@@ -354,7 +377,7 @@ export function rankWithMine(data, state, rows, sortKey = 'total', { type = 'all
   const rank = (list) => sortRows(list, sortKey).map((r, i) => ({ ...r, rank: i + 1 }));
   const plain = (mineStatus) => {
     const ranked = rank(rows);
-    return { ranked, others: ranked, mine: null, mineStatus, notInState: false, filtersOn };
+    return { ranked, others: ranked, mine: null, mineStatus, notInState: false, filtersOn, medsInRank: medsRanked(ranked) };
   };
   if (!code) return plain('none');
   if (state.includeMine === false) return plain('off');
@@ -379,6 +402,7 @@ export function rankWithMine(data, state, rows, sortKey = 'total', { type = 'all
     mine,
     others,
     mineStatus: 'included',
+    medsInRank: medsRanked([...others, mine]),
     notInState: !servesState(data.serviceArea, code, state.location?.state ?? null, state.location?.state ? state.location?.zip ?? null : null),
     filtersOn,
   };
@@ -425,7 +449,8 @@ export function boardGroups(data, state, rows, n = 3) {
  * basis: 'total', or 'excl-meds' when any row has priced medications ('excl-dv' with dental/vision added,
  * 'excl-meds-dv' with both): best and amount then use baseTotal (neither on either side, since 2026 plans and
  * plans without recorded tiers cannot carry them);
- * bestTotal / currentTotal are those totals, bestMeds / currentMeds (2027 only) what the medications add.
+ * bestTotal / currentTotal are those totals, bestMeds / currentMeds (2027 only) what the medications add
+ * (null when none of the drugs is priced on that plan: "not looked up").
  */
 export function savingsVsCurrent(data, state, rows) {
   const code = state.currentPlan2026;
@@ -438,12 +463,12 @@ export function savingsVsCurrent(data, state, rows) {
   let best = null;
   for (const r of rows) if (open(r) && (!best || baseTotal(r) < baseTotal(best))) best = r;
   const skipped = rows.filter((r) => !open(r) && (!best || baseTotal(r) < baseTotal(best))).length;
-  const bestInfo = { basis, bestTotal: best ? baseTotal(best) : null, bestMeds: best ? medsCost(best) : null, skipped };
+  const bestInfo = { basis, bestTotal: best ? baseTotal(best) : null, bestMeds: best ? medsAdded(best) : null, skipped };
 
   if (current) {
     return {
       kind: 'continuing', current, best, amount: best ? cents(baseTotal(current) - baseTotal(best)) : null,
-      ...bestInfo, currentTotal: baseTotal(current), currentMeds: medsCost(current),
+      ...bestInfo, currentTotal: baseTotal(current), currentMeds: medsAdded(current),
     };
   }
   const currentPlan = planMeta(data, 2026, code);
