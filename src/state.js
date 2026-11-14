@@ -130,6 +130,35 @@ export function sanitizeState(input) {
   };
 }
 
+/** Most plans the side-by-side compare view shows at once. */
+export const MAX_COMPARE = 4;
+
+/**
+ * Second pass once data has loaded: drop values the data does not know.
+ * vocab = { states: Set, networks: Set, plans2026: Set, plans2027: Set } (any may be missing = skip that check).
+ * Returns the SAME object when nothing changes, so callers can cheaply skip a store write.
+ */
+export function sanitizeAgainstData(state, vocab) {
+  if (!vocab) return state;
+  const keep = (set, v) => !set || set.has(v);
+  const st = state.location.state && !keep(vocab.states, state.location.state) ? null : state.location.state;
+  const networks = state.networks.filter((n) => keep(vocab.networks, n));
+  const current = state.currentPlan2026 && !keep(vocab.plans2026, state.currentPlan2026) ? null : state.currentPlan2026;
+  const selected = state.selectedPlans.filter((c) => keep(vocab.plans2027, c)).slice(0, MAX_COMPARE);
+  const same = st === state.location.state
+    && networks.length === state.networks.length
+    && current === state.currentPlan2026
+    && selected.length === state.selectedPlans.length;
+  if (same) return state;
+  return {
+    ...state,
+    location: { ...state.location, state: st },
+    networks,
+    currentPlan2026: current,
+    selectedPlans: selected,
+  };
+}
+
 // ---- URL hash ----
 
 /** State -> hash body (no leading '#'). Defaults are omitted, so defaults encode to ''. */

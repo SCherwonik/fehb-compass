@@ -1,11 +1,12 @@
-// Entry point: theme, state (URL hash + saved), data load, input panel, results placeholder.
-import { createStore, loadInitialState, encodeState, decodeState } from './state.js';
-import { loadData, STATE_NAMES } from './data.js';
+// Entry point: theme, state (URL hash + saved), staged data load, input panel, ranked results.
+import { createStore, loadInitialState, encodeState, decodeState, sanitizeAgainstData } from './state.js';
+import { loadDataProgressive } from './data.js';
 import { renderInputs } from './ui/inputs.js';
 import { initTheme } from './ui/theme.js';
+import { createResults } from './ui/results.js';
+import { dataVocabulary } from './ui/model.js';
 
 const NEEDLE_ANGLE = { healthy: -42, typical: -12, condition: 24, worst: 58 };
-const ENROLLMENT_TEXT = { self: 'Self only', self_plus_one: 'Self plus one', family: 'Family' };
 
 const store = createStore(loadInitialState({ hash: location.hash }));
 export { store };
@@ -21,19 +22,8 @@ function writeHash(s) {
 
 // Brand needle points toward the chosen scenario: the one piece of decorative motion, tied to input.
 function pointNeedle(s) {
-  document.documentElement.style.setProperty('--needle', `${NEEDLE_ANGLE[s.scenario] ?? 0}deg`);
-}
-
-function renderPlaceholder(s) {
-  const main = document.getElementById('results');
-  const box = main.querySelector('[data-placeholder]');
-  if (!box) return; // Task 5 owns #results once it renders real content.
-  const body = box.querySelector('.results-empty-body');
-  const st = s.location.state;
-  body.textContent = st
-    ? `Ready to rank 2027 plans offered in ${STATE_NAMES[st] ?? st} for ${ENROLLMENT_TEXT[s.enrollment].toLowerCase()} coverage.`
-    : 'Choose your state to start.';
-  box.classList.toggle('is-ready', Boolean(st));
+  // Set on the needle itself, not :root: a root custom property would restyle the whole results list.
+  document.querySelector('.brand-needle')?.style.setProperty('--needle', `${NEEDLE_ANGLE[s.scenario] ?? 0}deg`);
 }
 
 function renderSource(meta) {
@@ -69,25 +59,45 @@ async function main() {
 
   store.subscribe(writeHash);
   store.subscribe(pointNeedle);
-  store.subscribe(renderPlaceholder);
   pointNeedle(store.get());
-  renderPlaceholder(store.get());
-
-  // Back/forward or a pasted link: adopt the hash.
-  window.addEventListener('hashchange', () => {
-    const next = decodeState(location.hash);
-    if (encodeState(next) !== encodeState(store.get())) store.set(next);
-  });
 
   const form = document.getElementById('inputs');
+  const results = createResults(document.getElementById('results'), { store });
+  const { core, full } = loadDataProgressive();
+
+  // Stage 1 (plans, service areas, meta: small): paint the input panel while benefits.json streams in.
+  let vocab = null;
   try {
-    const data = await loadData();
-    renderInputs(form, { data, store });
-    renderSource(data.meta);
+    const coreData = await core;
+    vocab = dataVocabulary(coreData);
+    // Drop values the data does not know (a pasted link with st=ZZ, a renamed network), then make the URL
+    // shareable even when state came from localStorage with an empty hash.
+    const clean = sanitizeAgainstData(store.get(), vocab);
+    if (clean !== store.get()) store.set(clean);
+    writeHash(store.get());
+    renderInputs(form, { data: coreData, store });
+    renderSource(coreData.meta);
     document.documentElement.classList.add('is-loaded');
   } catch (err) {
     console.error(err);
     showLoadError(form, err);
+    results.showError(err);
+    return;
+  }
+
+  // Back/forward or a pasted link: adopt the hash, minus anything the data does not know.
+  window.addEventListener('hashchange', () => {
+    const next = sanitizeAgainstData(decodeState(location.hash), vocab);
+    if (encodeState(next) !== encodeState(store.get())) store.set(next);
+    writeHash(store.get());
+  });
+
+  // Stage 2 (rates + benefits): rank plans.
+  try {
+    results.setData(await full);
+  } catch (err) {
+    console.error(err);
+    results.showError(err);
   }
 }
 

@@ -6,7 +6,7 @@ const VISIBLE_NETWORKS = 8;
 const reduceMotion = () => globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 
 /** Tiny element builder. Children may be strings, nodes, arrays, or falsy. Text always goes in as text. */
-function h(tag, attrs = {}, ...children) {
+export function h(tag, attrs = {}, ...children) {
   const el = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) {
     if (v == null || v === false) continue;
@@ -22,13 +22,13 @@ function h(tag, attrs = {}, ...children) {
   return el;
 }
 
-const svg = (markup) => {
+export const svg = (markup) => {
   const t = document.createElement('template');
   t.innerHTML = markup; // static, author-controlled markup only
   return t.content.firstElementChild;
 };
-const ICON_CHECK = '<svg class="chip-check" viewBox="0 0 16 16" aria-hidden="true"><circle class="chip-ring" cx="8" cy="8" r="6.25"/><path class="chip-tick" d="M4.6 8.4l2.3 2.3 4.5-5"/></svg>';
-const ICON_CHEVRON = '<svg class="select-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>';
+export const ICON_CHECK = '<svg class="chip-check" viewBox="0 0 16 16" aria-hidden="true"><circle class="chip-ring" cx="8" cy="8" r="6.25"/><path class="chip-tick" d="M4.6 8.4l2.3 2.3 4.5-5"/></svg>';
+export const ICON_CHEVRON = '<svg class="select-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>';
 
 let uid = 0;
 const nextId = (p) => `${p}-${++uid}`;
@@ -36,7 +36,7 @@ const nextId = (p) => `${p}-${++uid}`;
 // ---------- primitives ----------
 
 /** Segmented control: native radios (arrow-key navigation for free) under a sliding glass thumb. */
-function segmented({ name, legend, options, hint }) {
+export function segmented({ name, legend, options, hint }) {
   const hintId = hint ? nextId('hint') : null;
   const track = h('div', { class: 'segmented', style: `--n:${options.length};--i:0` },
     h('span', { class: 'seg-thumb', 'aria-hidden': 'true' }),

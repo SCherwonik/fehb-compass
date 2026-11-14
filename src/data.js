@@ -9,16 +9,40 @@ const FILES = {
   meta: 'meta.json',
 };
 
-/** Fetch every data file in parallel. Resolves to { plans, rates, benefits, serviceArea, dentalVision, meta }. */
-export async function loadData(base = new URL('../data/', import.meta.url)) {
-  const entries = await Promise.all(
-    Object.entries(FILES).map(async ([key, file]) => {
-      const res = await fetch(new URL(file, base));
-      if (!res.ok) throw new Error(`Could not load ${file} (HTTP ${res.status})`);
-      return [key, await res.json()];
-    }),
-  );
+const DEFAULT_BASE = new URL('../data/', import.meta.url);
+
+async function fetchJson(file, base) {
+  const res = await fetch(new URL(file, base));
+  if (!res.ok) throw new Error(`Could not load ${file} (HTTP ${res.status})`);
+  return res.json();
+}
+
+async function loadKeys(keys, base) {
+  const entries = await Promise.all(keys.map(async (key) => [key, await fetchJson(FILES[key], base)]));
   return Object.fromEntries(entries);
+}
+
+/** Fetch every data file in parallel. Resolves to { plans, rates, benefits, serviceArea, dentalVision, meta }. */
+export async function loadData(base = DEFAULT_BASE) {
+  return loadKeys(Object.keys(FILES), base);
+}
+
+// Small files the input panel needs (about 200 KB) vs. the heavy cost data (benefits.json is about 2.3 MB).
+const CORE = ['plans', 'serviceArea', 'meta'];
+const COST = ['rates', 'benefits', 'dentalVision'];
+
+/**
+ * Two stages so the panel paints before benefits.json arrives. The heavy files start only once the
+ * small ones are in, so on a slow link they do not steal bandwidth from what the first paint needs.
+ * Returns { core: Promise<{plans, serviceArea, meta}>, full: Promise<all six files> }.
+ */
+export function loadDataProgressive(base = DEFAULT_BASE) {
+  const core = loadKeys(CORE, base);
+  const cost = core.then(() => loadKeys(COST, base));
+  core.catch(() => {}); // surfaced through `full` as well; avoid an unhandled rejection
+  cost.catch(() => {});
+  const full = Promise.all([core, cost]).then(([a, b]) => ({ ...a, ...b }));
+  return { core, full };
 }
 
 /** Sorted unique state codes that appear in any plan's service area. */
