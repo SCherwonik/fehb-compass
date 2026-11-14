@@ -1,6 +1,6 @@
 // DOM pieces for brochure facts and "my medications", shared by the cards, the board and the compare view.
 // Text goes in as text (h() never parses HTML); every href here has already passed rx-model normalizeUrl.
-import { h, svg } from './inputs.js';
+import { h, svg } from './dom.js';
 import { usd } from './format.js';
 import { normalizeUrl, CHANNELS } from './rx-model.js';
 import { medsCost } from './model.js';

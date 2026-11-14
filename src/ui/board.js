@@ -13,7 +13,7 @@
 // leave the window keep their content until the next data update, when out-of-window columns are
 // emptied again. So the DOM stays bounded by what the user has actually looked at, and re-ranks touch
 // only visible columns. FLIP animations run only for columns inside the viewport.
-import { h, svg } from './inputs.js';
+import { h, svg } from './dom.js';
 import { bestInRow } from './board-model.js';
 import { usd } from './format.js';
 import { tweenNumber, reduceMotion, springEasing, EASE_OUT } from './motion.js';

@@ -1,6 +1,6 @@
 // Plan card additions: "Your medications" (per-drug tier, cost, lookup) and an expandable
 // "What changed in 2027" list from the plan's brochure. Kept out of results.js; results calls these.
-import { h, svg } from './inputs.js';
+import { h, svg } from './dom.js';
 import { rxFor, changesFor } from './rx-model.js';
 import { drugLines, medsStatusText, changesList, changeCount, lookupButton, ICON_WARN } from './rx-render.js';
 import { usd } from './format.js';

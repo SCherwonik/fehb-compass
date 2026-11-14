@@ -1,7 +1,7 @@
 // Compare Board sections from the brochures: "Drugs" (lookup link, your medications, one row per drug) and
 // "What changed in 2027" (one row per change category). Section/row shapes: see board-model.js.
 // Rich content goes through board hooks ('rxdrug', 'rxchg'), rendered with rx-render.js.
-import { h } from './inputs.js';
+import { h } from './dom.js';
 import { rxFor, lookupFor, lookupLink, changesFor, CHANGE_CATEGORIES } from './rx-model.js';
 import { drugLines, changesList, medsSummary } from './rx-render.js';
 import { DASH } from './format.js';

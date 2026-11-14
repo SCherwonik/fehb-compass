@@ -1,7 +1,7 @@
 // "Your own costs": an inline list editor for up to 25 custom cost lines, plus worst-case preset chips.
 // Lines are committed to the store as soon as they are valid (text fields debounced); an invalid field shows
 // a message and keeps the last valid value in the state.
-import { h, svg, ICON_CHEVRON } from './inputs.js';
+import { h, svg, ICON_CHEVRON } from './dom.js';
 import {
   CUSTOM_KINDS, CUSTOM_PRESETS, MAX_CUSTOM_LINES, MAX_LINE_PRICE, MAX_PER_YEAR, MAX_LABEL, RX_TIERS,
   sanitizeLine, lineSpend,

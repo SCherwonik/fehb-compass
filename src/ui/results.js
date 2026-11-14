@@ -1,6 +1,7 @@
 // Ranked results: header + toolbar, savings banner, compare view, keyed card list or the Compare Board, compare tray.
 // Cards are keyed by plan code and updated in place; reordering uses FLIP limited to visible cards.
-import { h, svg, segmented, ICON_CHECK, ICON_CHEVRON, mineSwitch } from './inputs.js';
+import { h, svg, ICON_CHECK, ICON_CHEVRON } from './dom.js';
+import { segmented, mineSwitch } from './inputs.js';
 import { assumptionChips, describeUsage, effectiveUsage, overrideChanges, inNetworkAtMax } from './assumptions.js';
 import { computeRows, savingsVsCurrent, availablePlans, SORTS, rankWithMine, baseTotal, dvCost, dvLabel, basisOf, basisNote, anyMeds, personLimitsNote, areaChip, rankTotal } from './model.js';
 import { dvMathLines } from './dental-board.js';

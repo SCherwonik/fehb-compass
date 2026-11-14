@@ -3,7 +3,8 @@
 // "add dental and vision" picks in the input panel, and the See-the-math lines for the medical cards.
 // The model lives in dv-model.js (DOM-free); every value reaches the DOM through textContent or attributes,
 // and links only through normalizeUrl (rx-model.js, via the board's lookupButton).
-import { h, svg, segmented, ICON_CHECK, ICON_CHEVRON } from './inputs.js';
+import { h, svg, ICON_CHECK, ICON_CHEVRON } from './dom.js';
+import { segmented } from './inputs.js';
 import { createBoard } from './board.js';
 import { scopeText } from './board-model.js';
 import { groupPlans } from './grouping.js';

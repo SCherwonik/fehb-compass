@@ -1,6 +1,6 @@
 // "My medications" panel (input area), the GLP-1 filter chip and the global wiring for the tier pickers that
 // cards, the board, the compare view and the quick look-up render. Private data: see meds-store.js.
-import { h, svg, ICON_CHECK, ICON_CHEVRON } from './inputs.js';
+import { h, svg, ICON_CHECK, ICON_CHEVRON } from './dom.js';
 import { MAX_DRUGS, MAX_NAME } from './meds-store.js';
 import { rxFor, glp1Status, planMeds } from './rx-model.js';
 import { availablePlans } from './model.js';

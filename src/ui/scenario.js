@@ -1,6 +1,7 @@
 // "Your year": scenario picker, the "Fine-tune your year" worst-case controls (overrides layered on the
 // scenario) and the "Your own costs" custom line editor.
-import { h, svg, segmented } from './inputs.js';
+import { h, svg } from './dom.js';
+import { segmented } from './inputs.js';
 import { SCENARIOS, OVERRIDE_FIELDS } from '../engine/scenarios.js';
 import { ASSUMED_PRICES } from '../engine/assumptions.js';
 import { describeUsage, effectiveUsage, overrideChanges } from './assumptions.js';

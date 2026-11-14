@@ -1,7 +1,7 @@
 // Full benefits matrix UI: the shared toolbar (find, differences only, expand/collapse all), the saved view
 // prefs, and the side-by-side panel used by the 4-plan compare view. The Compare Board renders the same
 // matrix through matrixBoardSections (matrix-model.js) and reuses the toolbar from here.
-import { h, svg } from './inputs.js';
+import { h, svg } from './dom.js';
 import { safeStorage } from '../state.js';
 import { buildMatrix, filterMatrix, sanitizeMatrixPrefs, MATRIX_SECTIONS } from './matrix-model.js';
 import { lookupButton, cellDecorations } from './rx-render.js';

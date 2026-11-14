@@ -1,5 +1,5 @@
 // Side-by-side compare for up to MAX_COMPARE pinned 2027 plans, each showing 2026 -> 2027.
-import { h, svg } from './inputs.js';
+import { h, svg } from './dom.js';
 import { makeRow, planInput, costInputs, baseTotal, anyDv, anyMeds, basisOf, basisNote } from './model.js';
 import { planTotal } from '../engine/cost.js';
 import { FLAG_TEXT } from '../engine/diff.js';

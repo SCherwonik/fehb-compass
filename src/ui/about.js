@@ -1,7 +1,7 @@
 // "How it works": the methodology dialog opened from the footer. A native modal <dialog> (focus stays inside,
 // Esc closes, the page behind is inert), labelled by its heading; focus returns to the button that opened it.
 // Every number in the tables comes from the engine's own constants, so the dialog cannot drift from the math.
-import { h } from './inputs.js';
+import { h } from './dom.js';
 import { ASSUMED_PRICES } from '../engine/assumptions.js';
 import { SCENARIOS } from '../engine/scenarios.js';
 import { DENTAL_SERVICES, DENTAL_PRESETS } from '../engine/dental.js';

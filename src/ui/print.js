@@ -1,7 +1,7 @@
 // Print / Save as PDF: before printing, a "Your situation" summary replaces the input panel on paper
 // (styles/print.css), the best plan's math is filled in, and the board fills the columns that print.
 // Everything is undone after printing. The summary lists choices only: medications are counted, never named.
-import { h } from './inputs.js';
+import { h } from './dom.js';
 import { STATE_NAMES } from '../data.js';
 import { shareLink } from '../share.js';
 import { overrideChanges } from './assumptions.js';

@@ -1,6 +1,6 @@
 // Top bar actions: "Copy link" (the current state as a shareable URL) and "Print / Save as PDF", plus the toast
 // that confirms a copy. The link is built by share.js from the state alone: "My medications" never enter it.
-import { h } from './inputs.js';
+import { h } from './dom.js';
 import { shareLink } from '../share.js';
 import { reduceMotion, EASE_OUT } from './motion.js';
 
