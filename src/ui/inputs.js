@@ -302,6 +302,9 @@ export function renderInputs(form, { data, store }) {
     current.setModel(groupCurrentPlanOptions(plans2026, plans27, data.serviceArea, st, STATE_NAMES[st] ?? st));
   }
 
+  // -- include my plan: keep the 2027 version of the current plan in every comparison (only with a current plan)
+  const mine = mineSwitch('in-mine');
+
   const account = segmented({
     name: 'account', legend: 'Savings account',
     options: [['any', 'Any plan'], ['hsa', 'HSA only'], ['hra', 'HRA only']],
@@ -355,7 +358,7 @@ export function renderInputs(form, { data, store }) {
   form.replaceChildren(
     group('Coverage', status.el, enrollment.el),
     group('Location', location.el),
-    group('Plans to consider', current.el, account.el, networks),
+    group('Plans to consider', current.el, mine.el, account.el, networks),
     group('Your year', scenario.el, dental),
   );
 
@@ -369,6 +372,7 @@ export function renderInputs(form, { data, store }) {
     else if (t.name === 'scenario') store.set({ scenario: t.value });
     else if (t === location.select) store.set({ location: { state: t.value || null } });
     else if (t === dentalInput) store.set({ dental: t.checked });
+    else if (t === mine.input) store.set({ includeMine: t.checked });
     else if (t.classList.contains('chip-input')) {
       store.set({ networks: chipEls.filter((c) => c.input.checked).map((c) => c.name) });
     }
@@ -454,6 +458,7 @@ export function renderInputs(form, { data, store }) {
     location.sync(s.location.state);
     syncCurrentModel(s.location.state);
     current.sync(s.currentPlan2026);
+    mine.sync(s);
     account.sync(s.account);
     syncChips(s, true);
     syncScenario(s);
@@ -462,6 +467,29 @@ export function renderInputs(form, { data, store }) {
 
   sync(store.get());
   return store.subscribe(sync);
+}
+
+/**
+ * "Include my plan (2027 version)" switch, bound by the caller to state.includeMine.
+ * Shown only when a 2026 plan is chosen. sync(state) sets checked/hidden.
+ */
+export function mineSwitch(id, { compact = false } = {}) {
+  const input = h('input', { type: 'checkbox', role: 'switch', id, class: 'switch-input' });
+  const el = h('div', { class: `field field-switch field-mine${compact ? ' is-compact' : ''}` },
+    h('label', { class: 'switch', for: id },
+      h('span', { class: 'switch-copy' },
+        h('span', { class: 'switch-title' }, 'Include my plan (2027 version)'),
+        !compact && h('span', { class: 'switch-hint' }, 'Always compare against what staying put costs in 2027, whatever the filters.')),
+      input,
+      h('span', { class: 'switch-track', 'aria-hidden': 'true' }, h('span', { class: 'switch-knob' }))));
+  return {
+    el,
+    input,
+    sync(s) {
+      el.hidden = !s.currentPlan2026;
+      input.checked = s.includeMine !== false;
+    },
+  };
 }
 
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;

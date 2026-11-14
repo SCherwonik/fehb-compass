@@ -142,9 +142,9 @@ const ACCOUNT_TEXT = { HSA: 'Health savings account', HRA: 'Health reimbursement
 function vsMineCell(get) {
   return (row, ctx) => {
     if (!ctx.mine) return { text: DASH, value: null, tone: 'muted' };
-    if (row.code === ctx.mine.code) return { text: 'Your plan', sub: 'the baseline', tone: 'muted', value: null };
     const a = get(row);
     const b = get(ctx.mine);
+    if (row.code === ctx.mine.code) return { text: usd(b), sub: 'your baseline', tone: 'muted', value: null };
     if (!fin(a) || !fin(b)) return { text: DASH, value: null, tone: 'muted' };
     const n = a - b;
     const tone = deltaTone(n);
@@ -189,7 +189,7 @@ export const MEDICAL_SECTIONS = [
         cell: (r, ctx) => {
           const s = ctx.values.get(r.code)?.score;
           if (!fin(s)) return { text: DASH, sub: 'needs an OOP max', value: null, tone: 'muted', title: VALUE_HINT };
-          const word = s >= 97 ? 'Best value' : s >= 88 ? 'Strong' : s >= 75 ? 'Fair' : 'Weak';
+          const word = s >= 95 ? 'Best value' : s >= 85 ? 'Strong' : s >= 70 ? 'Fair' : 'Weak';
           return { text: String(s), sub: word, value: s, meter: s / 100, title: VALUE_HINT };
         },
       },

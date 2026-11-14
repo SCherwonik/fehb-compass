@@ -150,6 +150,7 @@ test('vs-your-plan rows: only with a baseline plan; deltas are column minus your
   assert.equal(get('vsTotal').cell(alt, ctx).tone, 'down');
   assert.equal(get('vsPremium').cell(alt, ctx).text, '+$500');
   assert.equal(get('vsOopMax').cell(alt, ctx).text, 'Same');
-  assert.equal(get('vsTotal').cell(mine, ctx).text, 'Your plan');
+  assert.equal(get('vsTotal').cell(mine, ctx).text, '$5,000');
+  assert.equal(get('vsTotal').cell(mine, ctx).sub, 'your baseline');
   assert.match(medicalHeader(mine, [mine], ctx, '').chips[0].text, /Your plan/);
 });

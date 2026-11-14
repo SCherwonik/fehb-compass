@@ -1,7 +1,10 @@
-// Ranked results: header + toolbar, savings banner, compare view, keyed card list, compare tray.
+// Ranked results: header + toolbar, savings banner, compare view, keyed card list or the Compare Board, compare tray.
 // Cards are keyed by plan code and updated in place; reordering uses FLIP limited to visible cards.
-import { h, svg, segmented, ICON_CHECK, describeScenario } from './inputs.js';
-import { computeRows, sortRows, savingsVsCurrent, availablePlans, SORTS } from './model.js';
+import { h, svg, segmented, ICON_CHECK, ICON_CHEVRON, describeScenario, mineSwitch } from './inputs.js';
+import { computeRows, savingsVsCurrent, availablePlans, SORTS, rankWithMine } from './model.js';
+import { createBoard } from './board.js';
+import { groupPlans, GROUP_LABELS, GROUP_MODES } from './grouping.js';
+import { MEDICAL_SECTIONS, boardContext, sectionsFor, medicalHeader, scopeText } from './board-model.js';
 import { renderCompare, revealCompare } from './compare.js';
 import { FLAG_TEXT } from '../engine/diff.js';
 import { ASSUMED_PRICES, ASSUMPTIONS_NOTE } from '../engine/assumptions.js';
@@ -69,9 +72,21 @@ export function createResults(main, { store }) {
   const typeCtl = segmented({ name: 'ptype', legend: 'Plan type', options: TYPES });
   sortCtl.el.classList.add('tool');
   typeCtl.el.classList.add('tool');
+  const viewCtl = segmented({ name: 'view', legend: 'View', options: [['cards', 'Cards'], ['board', 'Board']] });
+  viewCtl.el.classList.add('tool', 'tool-view');
+  const groupSel = h('select', { id: 'board-group', class: 'select' },
+    GROUP_MODES.map((m) => h('option', { value: m }, GROUP_LABELS[m])));
+  const groupCtl = h('div', { class: 'field tool tool-select' },
+    h('label', { class: 'field-label', for: 'board-group' }, 'Show'),
+    h('div', { class: 'select-wrap' }, groupSel, svg(ICON_CHEVRON)));
+  const mineCtl = mineSwitch('rt-mine', { compact: true });
+  mineCtl.el.classList.add('tool');
+  const mineNote = h('p', { class: 'rhead-mine', hidden: true });
   const head = h('header', { class: 'rhead' },
-    h('div', { class: 'rhead-copy' }, title, countRow, infoNote, sub),
-    h('div', { class: 'rtools' }, sortCtl.el, typeCtl.el));
+    h('div', { class: 'rhead-copy' }, title, countRow, infoNote, sub, mineNote),
+    h('div', { class: 'rtools' }, viewCtl.el, groupCtl, sortCtl.el, typeCtl.el, mineCtl.el));
+  const board = createBoard({ label: 'Plan comparison board. Columns are plans, best first.' });
+  board.el.hidden = true;
 
   const savings = h('section', { class: 'savings', hidden: true, 'aria-live': 'polite' });
   const compare = h('section', { class: 'compare', hidden: true, 'aria-labelledby': 'compare-title' });
@@ -86,13 +101,16 @@ export function createResults(main, { store }) {
   const tray = h('div', { class: 'tray glass', role: 'region', 'aria-label': 'Plans picked to compare' },
     h('span', { class: 'tray-copy' }, trayCount, trayNames), trayClear, trayOpen);
 
-  const frame = h('div', { class: 'results-frame' }, head, savings, compare, list, empty, status);
+  const frame = h('div', { class: 'results-frame' }, head, savings, compare, board.el, list, empty, status);
 
   // ---------- events ----------
   frame.addEventListener('change', (e) => {
     const t = e.target;
     if (t.name === 'sort') { ui.sort = t.value; saveUi(); render(); }
     else if (t.name === 'ptype') { ui.type = t.value; saveUi(); render(); }
+    else if (t.name === 'view') store.set({ view: t.value });
+    else if (t === groupSel) store.set({ group: t.value });
+    else if (t === mineCtl.input) store.set({ includeMine: t.checked });
   });
   list.addEventListener('click', (e) => {
     const btn = e.target.closest('button');
@@ -236,6 +254,7 @@ export function createResults(main, { store }) {
     const prev = rec.row;
     rec.row = row;
     setText(r.rank, String(rank));
+    rec.el.classList.toggle('is-top', rank === 1);
     if (!prev) {
       setText(r.name, row.plan.name);
       const bits = [row.plan.type, row.plan.network_family, `code ${row.code}`];
@@ -276,11 +295,17 @@ export function createResults(main, { store }) {
     setDelta(r.oopMax.d, row.diff.oopMaxChange);
     setText(r.share, costShareSummary(row.benefits, row.facts.coinsurance) || 'Cost sharing varies; see the plan brochure.');
 
-    // chips: firmness, status, warnings (rebuilt only when their content changes)
-    const key = `${row.cost.firmness}|${row.diff.status}|${row.diff.flags.join(',')}`;
+    // chips: your plan / vs your plan, firmness, status, warnings (rebuilt only when their content changes)
+    const vsMine = mine && !row.isMine ? Math.round(row.cost.total - mine.cost.total) : null;
+    rec.el.classList.toggle('is-mine', Boolean(row.isMine));
+    const key = `${row.isMine ? `mine:${mineWhere}` : ''}|${vsMine}|${row.cost.firmness}|${row.diff.status}|${row.diff.flags.join(',')}`;
     if (key !== rec.chipsKey) {
       rec.chipsKey = key;
       const items = [
+        row.isMine && h('li', { class: 'tag tag-mine' }, 'Your plan · 2027'),
+        row.isMine && mineWhere && h('li', { class: 'tag' }, `Not listed for ${mineWhere}`),
+        vsMine != null && h('li', { class: `tag tag-vs tag-vs-${deltaTone(vsMine)}`, title: 'Estimated yearly total compared with your plan in 2027' },
+          deltaTone(vsMine) === 'flat' ? 'Same as your plan' : `${signedUsd(vsMine)} vs your plan`),
         row.cost.firmness === 'fixed'
           ? h('li', { class: 'tag tag-fixed', title: 'Every service in this scenario is a flat copay, so this total does not depend on assumed prices.' }, 'Fixed cost')
           : h('li', { class: 'tag tag-est', title: 'Part of this total depends on assumed prices for care. See the math.' }, 'Estimated'),
@@ -383,10 +408,10 @@ export function createResults(main, { store }) {
   }
 
   // ---------- tray ----------
-  function renderTray(state) {
+  function renderTray(state, hide = false) {
     const n = state.selectedPlans.length;
-    tray.classList.toggle('is-visible', n > 0);
-    tray.inert = n === 0;
+    tray.classList.toggle('is-visible', n > 0 && !hide);
+    tray.inert = n === 0 || hide;
     trayCount.textContent = `${n} of ${MAX_COMPARE}`;
     const names = state.selectedPlans.map((c) => cards.get(c)?.row?.plan.name ?? c);
     trayNames.textContent = names.join(', ');
@@ -395,12 +420,63 @@ export function createResults(main, { store }) {
   }
 
   // ---------- main render ----------
+  // ---------- include my plan ----------
+  let mine = null; // the user's 2027 row when pinned
+  let mineWhere = ''; // state name when that plan is not listed there
+  function renderMineNote(state, res, where) {
+    const name = data.plans.find((p) => p.year === 2026 && p.code === state.currentPlan2026)?.name ?? 'Your plan';
+    let text = '';
+    if (res.mineStatus === 'ended') text = `${name} has no 2027 version, so it cannot be pinned. Savings are measured against what it cost in 2026.`;
+    else if (res.mineStatus === 'uncostable') text = `${name} has no 2027 rate for this coverage, so it cannot be pinned.`;
+    else if (res.mineStatus === 'included' && res.notInState) text = `${name} (2027) is not listed for ${where ?? 'nationwide enrollment'}. It is pinned so you can compare.`;
+    mineNote.hidden = !text;
+    mineNote.textContent = text;
+  }
+
+  // ---------- board ----------
+  let boardOpen = false;
+  function renderBoard(state, res) {
+    const groups = groupPlans(res.others, state.group);
+    if (res.mine) {
+      groups.unshift({ key: 'mine', label: 'Your plan', rows: [res.mine], total: 1, note: mineWhere ? `2027 version, not listed for ${mineWhere}` : '2027 version' });
+    }
+    const ctx = boardContext(res.ranked, state, res.mine);
+    const shown = groups.reduce((n, g) => n + (g.key === 'mine' ? 0 : g.rows.length), 0);
+    const segs = groups.filter((g) => g.key !== 'mine').length;
+    const n = res.others.length;
+    const plans = (k) => `${k} ${k === 1 ? 'plan' : 'plans'}`;
+    let text;
+    if (state.group === 'all') text = `Showing all ${plans(n)}`;
+    else if (state.group === 'top3') text = `Showing ${plans(shown)}: the top ${shown} of ${n} available`;
+    else text = `Showing ${plans(shown)}: top 3 in ${segs} ${segs === 1 ? 'group' : 'groups'} of ${n} available`;
+    text += res.mine ? ', plus your plan.' : '.';
+    board.update({
+      groups,
+      sections: sectionsFor(MEDICAL_SECTIONS, ctx),
+      header: (row, g) => medicalHeader(row, g.rows, ctx, g.key === 'mine' ? '' : scopeText(state.group, g)),
+      ctx,
+      summary: text,
+      enter: !boardOpen,
+    });
+    boardOpen = true;
+  }
+
   let first = true;
   function render(state = store.get()) {
     if (!data) return;
-    const rows = sortRows(computeRows(data, state, { type: ui.type }), ui.sort);
+    const isBoard = state.view === 'board';
+    const filteredRows = computeRows(data, state, { type: ui.type });
+    const res = rankWithMine(data, state, filteredRows, isBoard ? 'total' : ui.sort);
+    mine = res.mine;
+    // the user's plan pinned first, every other plan in its true rank order
+    const rows = res.mine ? [res.mine, ...res.others] : res.ranked;
     sortCtl.sync(ui.sort);
     typeCtl.sync(ui.type);
+    viewCtl.sync(state.view);
+    groupSel.value = state.group;
+    mineCtl.sync(state);
+    sortCtl.el.hidden = isBoard; // the board always ranks by estimated total
+    groupCtl.hidden = !isBoard;
 
     const st = state.location.state;
     // Headline = every plan open to this state (before filters); the line below says how many survive them.
@@ -411,30 +487,39 @@ export function createResults(main, { store }) {
       : `${avail} nationwide ${avail === 1 ? 'plan' : 'plans'}`;
     const filtersOn = state.networks.length > 0 || state.account !== 'any' || ui.type !== 'all';
     filtered.hidden = !filtersOn;
-    if (filtersOn) filtered.textContent = `${rows.length} of ${avail} ${avail === 1 ? 'plan' : 'plans'} after filters`;
+    if (filtersOn) filtered.textContent = `${filteredRows.length} of ${avail} ${avail === 1 ? 'plan' : 'plans'} after filters`;
     infoNote.textContent = where
       ? 'FEHB plans open to you in this state: nationwide plans plus regional plans serving it.'
       : 'Nationwide FEHB plans only, because no state is chosen. Choose a state to add regional plans serving it.';
+    mineWhere = res.mineStatus === 'included' && res.notInState ? (where ?? 'nationwide') : '';
+    renderMineNote(state, res, where);
     sub.textContent = st
-      ? `Ranked by ${SORTS[ui.sort].label.toLowerCase()} for ${ENROLLMENT_TEXT[state.enrollment]} coverage and a ${SCENARIO_TEXT[state.scenario]} year.`
+      ? `Ranked by ${(isBoard ? SORTS.total : SORTS[ui.sort]).label.toLowerCase()} for ${ENROLLMENT_TEXT[state.enrollment]} coverage and a ${SCENARIO_TEXT[state.scenario]} year.`
       : 'Choose your state to add regional HMO plans. Nationwide plans are shown now.';
 
-    const scale = Math.max(1, ...rows.map((r) => r.cost.premium + r.cost.oop));
-    const firstPos = first ? new Map() : measure(list); // read before any write: no forced recalc
-    const els = rows.map((row, i) => {
-      let rec = cards.get(row.code);
-      if (!rec) { rec = makeCard(row.code); cards.set(row.code, rec); }
-      updateCard(rec, row, i + 1, scale, state, !first);
-      return rec.el;
-    });
-    for (const [code, rec] of cards) {
-      if (!rows.some((r) => r.code === code)) { io?.unobserve(rec.el); cards.delete(code); }
+    list.hidden = isBoard;
+    board.el.hidden = !isBoard;
+    if (isBoard) {
+      renderBoard(state, res);
+    } else {
+      boardOpen = false;
+      const scale = Math.max(1, ...rows.map((r) => r.cost.premium + r.cost.oop));
+      const firstPos = first ? new Map() : measure(list); // read before any write: no forced recalc
+      const els = rows.map((row) => {
+        let rec = cards.get(row.code);
+        if (!rec) { rec = makeCard(row.code); cards.set(row.code, rec); }
+        updateCard(rec, row, row.rank, scale, state, !first);
+        return rec.el;
+      });
+      for (const [code, rec] of cards) {
+        if (!rows.some((r) => r.code === code)) { io?.unobserve(rec.el); cards.delete(code); }
+      }
+      reorder(list, els, firstPos, first ? { stagger: 45, maxStagger: 10 } : undefined);
+      first = false;
     }
-    reorder(list, els, firstPos, first ? { stagger: 45, maxStagger: 10 } : undefined);
-    first = false;
 
-    empty.hidden = rows.length > 0;
-    if (!rows.length) {
+    empty.hidden = filteredRows.length > 0;
+    if (!filteredRows.length) {
       empty.replaceChildren(
         h('h3', { class: 'results-none-title' }, 'No plans match these filters'),
         h('p', { class: 'results-none-body' }, st
@@ -443,8 +528,8 @@ export function createResults(main, { store }) {
         h('button', { type: 'button', class: 'btn btn-primary', 'data-reset': '' }, 'Show all plans'));
     }
 
-    renderSavings(state, rows);
-    renderTray(state);
+    renderSavings(state, filteredRows);
+    renderTray(state, isBoard);
     if (ui.compareOpen) {
       renderCompare(compare, {
         data, state,
@@ -454,8 +539,9 @@ export function createResults(main, { store }) {
       compare.hidden = false;
     }
 
-    status.textContent = rows.length
-      ? `${rows.length} of ${avail} plans. Lowest ${SORTS[ui.sort].label.toLowerCase()}: ${rows[0].plan.name}, ${usd(rows[0].cost.total)} a year.`
+    const top = res.others[0];
+    status.textContent = top
+      ? `${filteredRows.length} of ${avail} plans. Lowest ${(isBoard ? SORTS.total : SORTS[ui.sort]).label.toLowerCase()}: ${top.plan.name}, ${usd(top.cost.total)} a year.`
       : 'No plans match these filters.';
   }
 
