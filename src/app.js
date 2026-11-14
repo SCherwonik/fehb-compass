@@ -10,6 +10,9 @@ import { createMedsPanel } from './ui/meds.js';
 import { setBrochureFacts } from './ui/rx-model.js';
 import { createDvTabs, createDvPanel, revealPanel } from './ui/dental-board.js';
 import { sanitizeDvState } from './ui/dv-model.js';
+import { initShare } from './ui/share-ui.js';
+import { initAbout } from './ui/about.js';
+import { initPrint } from './ui/print.js';
 
 const NEEDLE_ANGLE = { nothing: -64, healthy: -42, typical: -12, condition: 24, worst: 58 };
 
@@ -34,17 +37,34 @@ function pointNeedle(s) {
   document.querySelector('.brand-needle')?.style.setProperty('--needle', `${NEEDLE_ANGLE[s.scenario] ?? 0}deg`);
 }
 
-function renderSource(meta) {
-  const dates = Object.entries(meta?.files ?? {})
-    .filter(([k]) => k.includes('2027'))
-    .map(([, f]) => f.published)
-    .filter(Boolean)
-    .sort();
-  if (!dates.length) return;
-  const fmt = (d) => new Date(`${d}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  const range = dates[0] === dates.at(-1) ? fmt(dates[0]) : `${fmt(dates[0])} to ${fmt(dates.at(-1))}`;
-  document.getElementById('data-source').textContent =
-    `Data from U.S. Office of Personnel Management public use files for 2027, published ${range}. Estimates, not quotes.`;
+// Footer provenance: OPM's public use files (dates from data/meta.json) and the brochures (data/brochure_facts.json).
+const source = { range: '', brochures: '' };
+const fmtDate = (d) => new Date(`${d}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+function renderSource({ meta, facts } = {}) {
+  if (meta) {
+    const dates = Object.entries(meta.files ?? {})
+      .filter(([k]) => k.includes('2027'))
+      .map(([, f]) => f.published)
+      .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d ?? ''))
+      .sort();
+    if (dates.length) source.range = dates[0] === dates.at(-1) ? fmtDate(dates[0]) : `${fmtDate(dates[0])} to ${fmtDate(dates.at(-1))}`;
+  }
+  const gen = facts?.meta?.generated;
+  if (typeof gen === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(gen)) source.brochures = fmtDate(gen);
+  const el = document.getElementById('data-source');
+  if (!el || !source.range) return;
+  el.textContent = `Data: U.S. Office of Personnel Management (OPM) 2027 FEHB and FEDVIP public use files, published ${source.range}, `
+    + `and the 2027 plan brochures${source.brochures ? ` (read ${source.brochures})` : ''}.`;
+}
+
+/** A friendly failure with a way out: reload the page (the data files are static, so a retry usually works). */
+function retryButton() {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'btn btn-primary panel-retry';
+  b.textContent = 'Try again';
+  b.addEventListener('click', () => location.reload());
+  return b;
 }
 
 function showLoadError(form, err) {
@@ -57,8 +77,9 @@ function showLoadError(form, err) {
   const body = document.createElement('p');
   body.textContent = location.protocol === 'file:'
     ? 'Open the app through a local web server (for example: python -m http.server) instead of the file directly.'
-    : `Check your connection and reload the page. (${err.message})`;
+    : `Check your connection and try again. (${err.message})`;
   msg.append(title, body);
+  if (location.protocol !== 'file:') msg.append(retryButton());
   form.replaceChildren(msg);
 }
 
@@ -83,8 +104,29 @@ function mountDentalVision(main) {
   store.subscribe(sync);
 }
 
+// The input panel is sticky on wide screens. A panel taller than the window would hide its own end, so its sticky
+// top goes negative by the overflow: it scrolls with the page until its end is in view, then stays put.
+function fitStickyPanel(panel) {
+  if (!panel) return;
+  const TOP = 84;
+  const GAP = 16;
+  let raf = 0;
+  const fit = () => {
+    raf = 0;
+    const top = Math.min(TOP, window.innerHeight - panel.offsetHeight - GAP);
+    panel.style.setProperty('--panel-top', `${Math.round(top)}px`);
+  };
+  const queue = () => { if (!raf) raf = requestAnimationFrame(fit); };
+  if ('ResizeObserver' in window) new ResizeObserver(queue).observe(panel);
+  window.addEventListener('resize', queue, { passive: true });
+  fit();
+}
+
 async function main() {
   initTheme(document.getElementById('theme-toggle'));
+  initShare({ store, copyBtn: document.getElementById('share-copy'), printBtn: document.getElementById('print-page') });
+  initAbout(document.getElementById('about-open'));
+  fitStickyPanel(document.querySelector('.panel'));
 
   store.subscribe(writeHash);
   store.subscribe(pointNeedle);
@@ -112,8 +154,14 @@ async function main() {
     if (clean !== store.get()) store.set(clean);
     writeHash(store.get());
     renderInputs(form, { data: coreData, store, meds });
+    initPrint({
+      store,
+      results,
+      planName: (code) => coreData.plans.find((p) => p.year === 2026 && p.code === code)?.name ?? null,
+      medsCount: () => meds.get()?.drugs?.length ?? 0,
+    });
     form.after(createMedsPanel({ meds }).el);
-    renderSource(coreData.meta);
+    renderSource({ meta: coreData.meta });
     document.documentElement.classList.add('is-loaded');
   } catch (err) {
     console.error(err);
@@ -157,6 +205,7 @@ async function main() {
   const facts = await loadBrochureFacts();
   setBrochureFacts(facts);
   meds.setFacts(facts);
+  renderSource({ facts });
 }
 
 main();

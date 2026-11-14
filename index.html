@@ -8,6 +8,15 @@
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#e9eef6" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#050913" media="(prefers-color-scheme: dark)">
+  <meta name="robots" content="index, follow">
+  <!-- Link previews (no image: nothing is fetched from elsewhere) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="FEHB Compass">
+  <meta property="og:title" content="FEHB Compass: which 2027 FEHB plan costs you least?">
+  <meta property="og:description" content="Rank 2027 FEHB health plans by your estimated yearly cost, see what changed from 2026, and add FEDVIP dental and vision. Built from OPM public data. Your inputs stay in your browser.">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="FEHB Compass: which 2027 FEHB plan costs you least?">
+  <meta name="twitter:description" content="Rank 2027 FEHB health plans by your estimated yearly cost, built from OPM public data.">
   <script>
     // Apply a saved manual theme before first paint. Storage may be blocked: never throw.
     (function () {
@@ -19,7 +28,10 @@
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&display=swap">
+  <!-- Geist from Google Fonts, loaded without blocking the first paint: system fonts show until it arrives,
+       and stay if it is blocked (font stack in styles/tokens.css). Self-hosting is an owner decision. -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&display=swap" media="print" onload="this.media='all'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&display=swap"></noscript>
   <link rel="stylesheet" href="styles/tokens.css">
   <link rel="stylesheet" href="styles/app.css">
   <link rel="stylesheet" href="styles/results.css">
@@ -28,7 +40,9 @@
   <link rel="stylesheet" href="styles/scenario.css">
   <link rel="stylesheet" href="styles/rx.css">
   <link rel="stylesheet" href="styles/dental.css">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%230a1122'/%3E%3Cpath d='M16 5l4 11h-8z' fill='%236d89ff'/%3E%3Cpath d='M16 27l-4-11h8z' fill='%2345e3c3'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="styles/shell.css">
+  <link rel="stylesheet" href="styles/print.css" media="print">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
   <script type="module" src="src/app.js"></script>
 </head>
 <body>
@@ -57,6 +71,14 @@
       <span class="brand-name">FEHB Compass</span>
     </a>
     <span class="topbar-season">2027 open season</span>
+    <button type="button" class="pill-btn" id="share-copy" aria-label="Copy a link to this comparison">
+      <svg viewBox="0 0 24 24" aria-hidden="true" class="icon icon-link"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3.2-3.2a4.5 4.5 0 0 0-6.4-6.4l-1.1 1.1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3.2 3.2a4.5 4.5 0 0 0 6.4 6.4l1.1-1.1"/></svg>
+      <svg viewBox="0 0 24 24" aria-hidden="true" class="icon icon-done"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+      <span class="pill-btn-text">Copy link</span>
+    </button>
+    <button type="button" class="icon-btn" id="print-page" aria-label="Print or save as PDF" title="Print or save as PDF">
+      <svg viewBox="0 0 24 24" aria-hidden="true" class="icon icon-print"><path d="M7 9V3.8h10V9"/><rect x="3.5" y="9" width="17" height="8" rx="2"/><path d="M7 14h10v6.2H7z"/></svg>
+    </button>
     <button type="button" class="icon-btn" id="theme-toggle" aria-label="Color theme: system">
       <svg viewBox="0 0 24 24" aria-hidden="true" class="icon icon-system"><rect x="3" y="4" width="18" height="12" rx="2.5"/><path d="M8 20h8M12 16v4"/></svg>
       <svg viewBox="0 0 24 24" aria-hidden="true" class="icon icon-light"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.2M12 19.3v2.2M4.6 4.6l1.6 1.6M17.8 17.8l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.6 19.4l1.6-1.6M17.8 6.2l1.6-1.6"/></svg>
@@ -74,7 +96,15 @@
       <aside class="panel glass" aria-labelledby="panel-title">
         <h2 class="panel-title" id="panel-title">Your situation</h2>
         <form id="inputs" class="inputs" novalidate>
-          <p class="panel-loading" role="status">Loading 2027 plan data…</p>
+          <div class="panel-skeleton" aria-hidden="true">
+            <div class="sk-line sk-a"></div>
+            <div class="sk-line sk-seg"></div>
+            <div class="sk-line sk-seg"></div>
+            <div class="sk-line sk-b"></div>
+            <div class="sk-line sk-field"></div>
+            <div class="sk-line sk-field"></div>
+          </div>
+          <p class="sr-only" role="status">Loading 2027 plan data…</p>
         </form>
       </aside>
 
@@ -92,9 +122,16 @@
   </div>
 
   <footer class="footer">
-    <p id="data-source">Data from U.S. Office of Personnel Management public use files. Estimates, not quotes.</p>
+    <div class="footer-inner">
+      <p id="data-source">Data from U.S. Office of Personnel Management (OPM) 2027 public use files and 2027 plan brochures.</p>
+      <p>Not affiliated with OPM or the U.S. government. Estimates, not an official statement of benefits; the plan brochure is the only contractual statement of coverage.</p>
+      <p class="footer-links">
+        <button type="button" class="footer-link" id="about-open">How it works</button>
+        <a class="footer-link" href="https://www.opm.gov/healthcare-insurance/" rel="noopener">OPM health insurance</a>
+      </p>
+    </div>
   </footer>
 
-  <noscript><p class="noscript">FEHB Compass needs JavaScript to compare plans.</p></noscript>
+  <noscript><p class="noscript">FEHB Compass needs JavaScript to compare plans. Turn on JavaScript, or compare plans on <a href="https://www.opm.gov/healthcare-insurance/">OPM’s website</a>.</p></noscript>
 </body>
 </html>
