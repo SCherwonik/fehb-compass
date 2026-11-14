@@ -80,8 +80,31 @@ def norm(s: object) -> str:
     return re.sub(r"\s+", " ", str(s if s is not None else "")).strip().lower()
 
 
+_MOJIBAKE_RUN = re.compile("[Â-ô][\u0080-¿Œ-Ÿˆ˜–-›€™]+")
+_QUOTES = str.maketrans({"‘": "'", "’": "'", "‚": "'", "‛": "'",
+                         "“": '"', "”": '"', "„": '"'})
+
+
+def _unmojibake_run(m: re.Match) -> str:
+    try:
+        return m.group(0).encode("cp1252").decode("utf-8")
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        return m.group(0)
+
+
+def fix_mojibake(s: str) -> str:
+    """Repair UTF-8 text that was decoded as cp1252 (e.g. 'Aspergerâ€™s' -> "Asperger's")."""
+    try:
+        return s.encode("cp1252").decode("utf-8")
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        pass
+    s = _MOJIBAKE_RUN.sub(_unmojibake_run, s)
+    return s.replace("�", "")
+
+
 def clean(s: object) -> str:
-    return re.sub(r"\s+", " ", str(s if s is not None else "")).strip()
+    t = fix_mojibake(str(s if s is not None else "")).translate(_QUOTES)
+    return re.sub(r"\s+", " ", t).strip()
 
 
 def published_from_filename(name: str) -> str:

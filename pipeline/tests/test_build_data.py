@@ -362,3 +362,35 @@ def test_new_and_ended_plans_are_handled():
         assert c in rates["2026"] and c not in rates["2027"] and c not in benefits["2027"]
     for c in new:  # 2027-only: rates and benefits present, nothing in 2026
         assert c in rates["2027"] and c in benefits["2027"] and c not in rates["2026"]
+
+
+def test_fix_mojibake_repairs_known_sequences():
+    f = build_data.fix_mojibake
+    assert f("Aspergerâ€™s") == "Asperger’s"
+    assert f("Retail â€“ 30") == "Retail – 30"
+    assert f("X-ray â€¢ Ultrasound") == "X-ray • Ultrasound"
+    assert f("plain text") == "plain text"
+    assert f("café ’ ok") == "café ’ ok"
+
+
+def test_clean_repairs_and_normalizes_quotes_and_spacing():
+    assert build_data.clean("Delta Dental’s  Federal") == "Delta Dental's Federal"
+    assert build_data.clean("Aspergerâ€™s") == "Asperger's"
+
+
+def test_no_mojibake_in_data_json():
+    bad = ("â€", "Ã", "�")
+
+    def walk(o, where):
+        if isinstance(o, str):
+            assert not any(b in o for b in bad), f"{where}: {o[:80]!r}"
+        elif isinstance(o, dict):
+            for k, v in o.items():
+                walk(k, where)
+                walk(v, where)
+        elif isinstance(o, list):
+            for v in o:
+                walk(v, where)
+
+    for p in sorted(DATA.glob("*.json")):
+        walk(json.loads(p.read_text(encoding="utf-8")), p.name)
