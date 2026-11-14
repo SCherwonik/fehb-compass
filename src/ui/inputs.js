@@ -6,7 +6,7 @@ import { describeUsage } from './assumptions.js';
 import { createScenarioSection } from './scenario.js';
 import { glp1Filter } from './meds.js';
 import { createZipField, lookupZip, zipKeepsWith } from './zip.js';
-import { createDvAddon } from './dental-board.js';
+import { createDvAddon, createDvInputs } from './dental-board.js';
 import { fedvipHub } from '../data.js';
 import { noticeEl } from './notices.js';
 import { h, svg, ICON_CHECK, ICON_CHEVRON } from './dom.js';
@@ -343,14 +343,21 @@ export function renderInputs(form, { data, store, meds }) {
       h('span', { class: 'switch-track', 'aria-hidden': 'true' }, h('span', { class: 'switch-knob' }))));
   const dvAddon = createDvAddon({ store });
 
+  // -- Dental & Vision inputs: the same groups, other contents (src/ui/dental-board.js createDvInputs).
+  // The panel follows the results tab: health plan inputs on Health plans, dental/vision inputs on Dental & Vision,
+  // so there is one set of filters (Networks, or Carriers) and never two at once.
+  const dvIn = createDvInputs({ store });
+  const medicalOnly = [current.el, account.el, networks, glp1?.el, ...year.el, dental, dvAddon.el].filter(Boolean);
+  for (const n of medicalOnly) n.classList.add('medical-only');
+
   const group = (title, ...fields) => h('section', { class: 'group' },
     h('h3', { class: 'group-title' }, title), fields);
 
   form.replaceChildren(
     group('Coverage', status.el, medicareNote, enrollment.el),
     group('Location', zip.el, location.el),
-    group('Plans to consider', current.el, mine.el, account.el, networks, glp1?.el),
-    group('Your year', year.el, dental, dvAddon.el),
+    group('Plans to consider', current.el, mine.el, account.el, networks, glp1?.el, dvIn.plans),
+    group('Your year', year.el, dental, dvAddon.el, dvIn.year),
   );
 
   // ---------- events ----------
@@ -372,7 +379,7 @@ export function renderInputs(form, { data, store, meds }) {
     }
     else if (t === dentalInput) store.set({ dental: t.checked });
     else if (t === mine.input) store.set({ includeMine: t.checked });
-    else if (t.classList.contains('chip-input')) {
+    else if (chipEls.some((c) => c.input === t)) {
       store.set({ networks: chipEls.filter((c) => c.input.checked).map((c) => c.name) });
     }
   });
@@ -437,6 +444,11 @@ export function renderInputs(form, { data, store, meds }) {
   }
 
   function sync(s) {
+    const isMedical = s.tab === 'medical';
+    form.dataset.tab = isMedical ? 'medical' : 'dv';
+    for (const n of medicalOnly) n.classList.toggle('is-off', !isMedical);
+    for (const n of [...dvIn.year, ...dvIn.plans]) n.classList.toggle('is-off', isMedical);
+    dvIn.sync(s);
     status.sync(s.status);
     if (medicareNote) medicareNote.hidden = s.status !== 'retiree';
     enrollment.sync(s.enrollment);
@@ -450,6 +462,7 @@ export function renderInputs(form, { data, store, meds }) {
     syncCurrentModel(s.location.state);
     current.sync(s.currentPlan2026);
     mine.sync(s);
+    if (!isMedical) mine.el.hidden = true; // "include my plan" is a health plan option
     account.sync(s.account);
     syncChips(s, true);
     year.sync(s);

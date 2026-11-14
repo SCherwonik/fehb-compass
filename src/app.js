@@ -12,6 +12,7 @@ import { createMedsPanel } from './ui/meds.js';
 import { setBrochureFacts } from './ui/rx-model.js';
 import { createDvTabs, createDvPanel, revealPanel } from './ui/dental-board.js';
 import { sanitizeDvState } from './ui/dv-model.js';
+import { dvPrefs } from './ui/dv-prefs.js';
 import { initShare } from './ui/share-ui.js';
 import { initAbout } from './ui/about.js';
 import { initPrint } from './ui/print.js';
@@ -139,10 +140,23 @@ async function main() {
     editor: document.getElementById('sit-editor'),
     store,
     expanded: situationOpen({ tab: store.get().tab, remembered: loadOpenPrefs(), ...openedWith }),
-    chipOpts: () => ({ planName, medsCount: meds.get()?.drugs?.length ?? 0 }),
+    chipOpts: () => {
+      const s = store.get();
+      const fv = fedvipHub.get();
+      return {
+        planName,
+        medsCount: meds.get()?.drugs?.length ?? 0,
+        dvFilter: dvPrefs().filter(s.tab),
+        dvPlanName: (id) => {
+          const p = fv?.years?.['2026']?.plans?.[id] ?? fv?.years?.['2027']?.plans?.[id];
+          return p ? `${p.name}, ${p.option}` : null;
+        },
+      };
+    },
   });
   meds.subscribe(() => situation.refresh());
   fedvipHub.subscribe(() => situation.refresh());
+  dvPrefs().subscribe(() => situation.refresh());
   const results = createResults(document.getElementById('results'), {
     store,
     onRanked: (rows) => meds.setTop(rows.map((r) => ({ code: r.code, name: r.plan.name, rank: r.rank }))),
@@ -170,7 +184,12 @@ async function main() {
       planName,
       medsCount: () => meds.get()?.drugs?.length ?? 0,
     });
-    form.after(createMedsPanel({ meds }).el);
+    // "My medications" prices health plans: shown with the health plan inputs only
+    const medsPanel = createMedsPanel({ meds }).el;
+    form.after(medsPanel);
+    const medsTab = (s) => { medsPanel.classList.toggle('is-off', s.tab !== 'medical'); };
+    medsTab(store.get());
+    store.subscribe(medsTab);
     renderSource({ meta: coreData.meta });
     document.documentElement.classList.add('is-loaded');
   } catch (err) {

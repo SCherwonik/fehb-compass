@@ -27,6 +27,8 @@ body {
 :focus { outline: none; }
 :focus-visible { outline: none; box-shadow: var(--focus-ring); }
 [hidden] { display: none !important; }
+/* inputs for another results tab (the situation panel follows the tab: src/ui/inputs.js) */
+.is-off { display: none !important; }
 
 h1, h2, h3, p { margin: 0; }
 

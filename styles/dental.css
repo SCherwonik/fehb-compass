@@ -1,7 +1,7 @@
-/* Dental & Vision (FEDVIP): the results tab switch, the Dental & Vision panel, the ZIP field and the
-   "add dental and vision" picks. Built on the tokens in tokens.css; board cells reuse board.css. */
+/* Dental & Vision (FEDVIP): the results tab switch, the Dental & Vision results (cards and board), its inputs in
+   the situation panel, the ZIP field and the "add dental and vision" picks. Built on the tokens in tokens.css; board cells reuse board.css. */
 
-.results-frame[hidden], .dv[hidden], .dv-controls[hidden], .dv-add[hidden], .dv-empty[hidden], .dv-preset[hidden] { display: none; }
+.results-frame[hidden], .dv[hidden], .dv-add[hidden], .dv-empty[hidden], .dv-preset[hidden], .dv-cards[hidden] { display: none; }
 
 /* ---------- tab switch: one glass lens that slides between Health plans and Dental & Vision ---------- */
 .dv-tabs { margin-bottom: var(--space-5); }
@@ -81,31 +81,23 @@
   color: var(--text-subtle);
   text-wrap: pretty;
 }
-.dv-controls {
-  display: grid;
-  gap: var(--space-3);
-  padding: var(--space-4) var(--space-5);
-  border-radius: var(--radius-lg);
-  background: var(--surface-glass);
-  border: 1px solid var(--border);
-  box-shadow: var(--glass-highlight), var(--elev-1);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-}
-.dv-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-3) var(--space-4); }
-.dv-row > * { min-width: 0; }
-.dv-row .tool.field { margin: 0; }
-.dv-preset { flex: 1 1 26rem; max-width: 36rem; }
-.dv-mine-ctl { flex: 0 1 18rem; }
-.dv-mine-ctl .select { max-width: 100%; }
-.dv-preset-how { margin: 0; max-width: 72ch; }
-.dv-row-filters { padding-top: var(--space-3); border-top: 1px solid var(--border); align-items: flex-start; }
-.dv-filter { border: 0; padding: 0; margin: 0; }
+/* Dental & Vision inputs live in the situation panel (src/ui/situation.js); these are their in-panel tweaks */
+.dv-preset .seg { min-height: 44px; }
+.dv-preset .seg-label { white-space: normal; }
+.dv-preset-how { max-width: 60ch; }
 .dv-filter .chips { gap: 6px; }
-.dv-filter .chip { min-height: 32px; font-size: var(--text-xs); }
-.dv-carriers { max-width: 44rem; }
-.dv-filtered { margin-top: var(--space-2); }
+.dv-filtered { margin-top: 0; }
 .dv-empty .btn { margin-top: var(--space-3); }
+
+/* ranked cards: the health plan card (results.css) with the key benefits as facts */
+.dv-head .dvt-sub { margin-bottom: var(--space-4); }
+.dv-facts { grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); }
+.dv-facts .fact-v { overflow-wrap: anywhere; }
+.dv-facts .t-warn .fact-v { color: var(--warning); }
+.dv-facts .t-muted .fact-v { color: var(--text-subtle); font-weight: var(--weight-medium); }
+.dv-card-actions { justify-content: flex-start; flex-wrap: wrap; }
+.dv-link { min-height: 44px; text-decoration: none; }
+.dv-card-actions .dv-link:first-child { margin-left: calc(var(--space-3) * -1); }
 
 /* the panel arrives with the same quiet rise the board columns use (motion answers the tab click) */
 @media (prefers-reduced-motion: no-preference) {
@@ -139,7 +131,4 @@
 @media (max-width: 640px) {
   .dvt-main { display: grid; width: 100%; }
   .dvt-tab { padding: 0 var(--space-3); }
-  .dv-controls { padding: var(--space-3); }
-  .dv-preset { flex-basis: 100%; }
-  .dv-preset .seg-label { white-space: normal; }
 }
