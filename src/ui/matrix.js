@@ -93,15 +93,17 @@ export function createMatrixToolbar({ label = 'Benefit details', onQuery, onExpa
 
 const BEST_WORD = { min: 'lowest', max: 'highest' };
 
-function cellEl(c, row, isBest) {
+function cellEl(c, row, isBest, planName = '') {
+  // every "More" button says which row and plan it opens (they would otherwise all share one name)
+  const moreBtn = () => h('button', { type: 'button', class: 'mx-more', 'aria-expanded': 'false', 'aria-label': `More: ${row.label}${planName ? `, ${planName}` : ''}` }, 'More');
   const kids = [c.link ? (lookupButton(c.link, { compact: true }) ?? h('span', { class: 'mx-v' }, c.display)) : h('span', { class: 'mx-v' }, c.display)];
   if (isBest) kids.push(h('span', { class: 'sr-only' }, ` (${BEST_WORD[row.dir] ?? 'best'} here)`));
   if (c.name) kids.push(h('span', { class: 'mx-name' }, c.name));
   if (c.note && c.kind !== 'text') {
     kids.push(h('span', { class: 'mx-n' }, c.note));
-    if (c.note.length > NOTE_CLAMP) kids.push(h('button', { type: 'button', class: 'mx-more', 'aria-expanded': 'false' }, 'More'));
+    if (c.note.length > NOTE_CLAMP) kids.push(moreBtn());
   } else if (c.kind === 'text' && c.display.length > NOTE_CLAMP) {
-    kids.push(h('button', { type: 'button', class: 'mx-more', 'aria-expanded': 'false' }, 'More'));
+    kids.push(moreBtn());
   }
   kids.push(...cellDecorations({ cite: c.cite, badge: c.badge }));
   return h('div', {
@@ -147,6 +149,8 @@ export function createMatrixPanel() {
       const open = more.getAttribute('aria-expanded') !== 'true';
       more.setAttribute('aria-expanded', String(open));
       more.textContent = open ? 'Less' : 'More';
+      const name = more.getAttribute('aria-label');
+      if (name) more.setAttribute('aria-label', name.replace(/^(More|Less)/, open ? 'Less' : 'More'));
       more.closest('.mx-cell')?.classList.toggle('is-expanded', open);
       return;
     }
@@ -198,7 +202,7 @@ export function createMatrixPanel() {
               r.differs && n > 1 && h('span', { class: 'mx-diff', title: 'Plans differ here' }, h('span', { class: 'sr-only' }, 'Plans differ: ')),
               h('span', { class: 'mx-label-text' }, r.label),
               r.sub && h('span', { class: 'mx-label-sub' }, r.sub)),
-            r.cells.map((c, i) => cellEl(c, r, best.has(i))));
+            r.cells.map((c, i) => cellEl(c, r, best.has(i), plans[i]?.name)));
         }));
       const body = h('div', { class: 'mx-sec-body', id: bodyId },
         h('div', { class: 'mx-clip' }, s.note && h('p', { class: 'mx-note' }, s.note), table));

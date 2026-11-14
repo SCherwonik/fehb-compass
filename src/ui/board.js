@@ -142,7 +142,10 @@ export function createBoard({ label = 'Plan comparison board', hooks = {}, onSec
     if (d.sub) kids.push(h('span', { class: 'bd-s' }, d.sub));
     if (d.note) {
       kids.push(h('span', { class: 'bd-note' }, d.note));
-      if (d.note.length > NOTE_CLAMP) kids.push(h('button', { type: 'button', class: 'bd-more', 'aria-expanded': 'false' }, 'More'));
+      if (d.note.length > NOTE_CLAMP) {
+        const plan = col.item.row.plan?.name ?? col.item.row.code ?? '';
+        kids.push(h('button', { type: 'button', class: 'bd-more', 'aria-expanded': 'false', 'aria-label': `More: ${def.label ?? 'details'}${plan ? `, ${plan}` : ''}` }, 'More'));
+      }
     }
     if (d.items?.length) kids.push(h('ul', { class: 'bd-items' }, d.items.map((t) => h('li', {}, t))));
     kids.push(...cellDecorations({ cite: d.cite, badge: d.badge }));
@@ -360,6 +363,8 @@ export function createBoard({ label = 'Plan comparison board', hooks = {}, onSec
       const open = more.getAttribute('aria-expanded') !== 'true';
       more.setAttribute('aria-expanded', String(open));
       more.textContent = open ? 'Less' : 'More';
+      const name = more.getAttribute('aria-label');
+      if (name) more.setAttribute('aria-label', name.replace(/^(More|Less)/, open ? 'Less' : 'More'));
       more.closest('td')?.classList.toggle('is-expanded', open);
       return;
     }
