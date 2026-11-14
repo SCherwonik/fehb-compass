@@ -4,6 +4,7 @@
 import { h, svg } from './inputs.js';
 import { safeStorage } from '../state.js';
 import { buildMatrix, filterMatrix, sanitizeMatrixPrefs, MATRIX_SECTIONS } from './matrix-model.js';
+import { lookupButton, cellDecorations } from './rx-render.js';
 
 const PREFS_KEY = 'fehb-compass:matrix-ui:v1';
 const NOTE_CLAMP = 90;
@@ -93,7 +94,7 @@ export function createMatrixToolbar({ label = 'Benefit details', onQuery, onExpa
 const BEST_WORD = { min: 'lowest', max: 'highest' };
 
 function cellEl(c, row, isBest) {
-  const kids = [h('span', { class: 'mx-v' }, c.display)];
+  const kids = [c.link ? (lookupButton(c.link, { compact: true }) ?? h('span', { class: 'mx-v' }, c.display)) : h('span', { class: 'mx-v' }, c.display)];
   if (isBest) kids.push(h('span', { class: 'sr-only' }, ` (${BEST_WORD[row.dir] ?? 'best'} here)`));
   if (c.name) kids.push(h('span', { class: 'mx-name' }, c.name));
   if (c.note && c.kind !== 'text') {
@@ -102,6 +103,7 @@ function cellEl(c, row, isBest) {
   } else if (c.kind === 'text' && c.display.length > NOTE_CLAMP) {
     kids.push(h('button', { type: 'button', class: 'mx-more', 'aria-expanded': 'false' }, 'More'));
   }
+  kids.push(...cellDecorations({ cite: c.cite, badge: c.badge }));
   return h('div', {
     role: 'cell',
     class: `mx-cell k-${c.kind}${isBest ? ' is-best' : ''}`,
@@ -167,10 +169,10 @@ export function createMatrixPanel() {
 
   function render(fromExpand = false) {
     if (!last) return;
-    const { plans, enrollment, status, year } = last;
+    const { plans, enrollment, status, year, extra } = last;
     const n = plans.length;
     el.style.setProperty('--cols', n);
-    const matrix = buildMatrix(plans.map((p) => ({ code: p.code, benefits: p.benefits })), { year, enrollment, status });
+    const matrix = buildMatrix(plans.map((p) => ({ code: p.code, benefits: p.benefits })), { year, enrollment, status, extra });
     const p = matrixPrefs();
     const f = filterMatrix(matrix, { diffOnly: p.diffOnly, query });
     tools.sync({ hiddenRows: f.hiddenRows, matched: f.matched, query });
@@ -192,7 +194,7 @@ export function createMatrixPanel() {
         s.rows.map((r) => {
           const best = new Set(r.best);
           return h('div', { role: 'row', class: `mx-row${r.differs && n > 1 ? ' is-diff' : ''}` },
-            h('div', { role: 'rowheader', class: 'mx-label', title: r.hint ? `OPM field: ${r.hint}` : undefined },
+            h('div', { role: 'rowheader', class: 'mx-label', title: r.hint ? (r.source === 'extra' ? r.hint : `OPM field: ${r.hint}`) : undefined },
               r.differs && n > 1 && h('span', { class: 'mx-diff', title: 'Plans differ here' }, h('span', { class: 'sr-only' }, 'Plans differ: ')),
               h('span', { class: 'mx-label-text' }, r.label),
               r.sub && h('span', { class: 'mx-label-sub' }, r.sub)),

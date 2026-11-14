@@ -1,10 +1,13 @@
 // Entry point: theme, state (URL hash + saved), staged data load, input panel, ranked results.
 import { createStore, loadInitialState, encodeState, encodeHash, saveOverflow, decodeState, sanitizeAgainstData } from './state.js';
-import { loadDataProgressive } from './data.js';
+import { loadDataProgressive, loadBrochureFacts } from './data.js';
 import { renderInputs } from './ui/inputs.js';
 import { initTheme } from './ui/theme.js';
 import { createResults } from './ui/results.js';
 import { dataVocabulary } from './ui/model.js';
+import { createMedsStore } from './ui/meds-store.js';
+import { createMedsPanel } from './ui/meds.js';
+import { setBrochureFacts } from './ui/rx-model.js';
 
 const NEEDLE_ANGLE = { nothing: -64, healthy: -42, typical: -12, condition: 24, worst: 58 };
 
@@ -65,7 +68,14 @@ async function main() {
   pointNeedle(store.get());
 
   const form = document.getElementById('inputs');
-  const results = createResults(document.getElementById('results'), { store });
+  // "My medications": private (localStorage only), shared by the panel, the GLP-1 chip and the results
+  const meds = createMedsStore();
+  const results = createResults(document.getElementById('results'), {
+    store,
+    onRanked: (rows) => meds.setTop(rows.map((r) => ({ code: r.code, name: r.plan.name, rank: r.rank }))),
+  });
+  const pushRx = () => results.setRx({ facts: meds.facts(), factsStatus: meds.factsStatus(), meds: meds.get() });
+  meds.subscribe((_, reason) => { if (reason !== 'top') pushRx(); });
   const { core, full } = loadDataProgressive();
 
   // Stage 1 (plans, service areas, meta: small): paint the input panel while benefits.json streams in.
@@ -78,7 +88,8 @@ async function main() {
     const clean = sanitizeAgainstData(store.get(), vocab);
     if (clean !== store.get()) store.set(clean);
     writeHash(store.get());
-    renderInputs(form, { data: coreData, store });
+    renderInputs(form, { data: coreData, store, meds });
+    form.after(createMedsPanel({ meds }).el);
     renderSource(coreData.meta);
     document.documentElement.classList.add('is-loaded');
   } catch (err) {
@@ -98,11 +109,18 @@ async function main() {
 
   // Stage 2 (rates + benefits): rank plans.
   try {
+    pushRx();
     results.setData(await full);
   } catch (err) {
     console.error(err);
     results.showError(err);
+    return;
   }
+
+  // Stage 3 (brochure facts, about 1.6 MB): prescription tiers, drug lookup links, what changed in 2027.
+  const facts = await loadBrochureFacts();
+  setBrochureFacts(facts);
+  meds.setFacts(facts);
 }
 
 main();

@@ -4,6 +4,7 @@ import { STATE_NAMES, statesFromServiceArea, plansForYear, networkFamilies } fro
 import { countsByFamily, groupCurrentPlanOptions } from './model.js';
 import { describeUsage } from './assumptions.js';
 import { createScenarioSection } from './scenario.js';
+import { glp1Filter } from './meds.js';
 
 const VISIBLE_NETWORKS = 8;
 const reduceMotion = () => globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
@@ -268,7 +269,7 @@ export function combobox({ id, label, hint, placeholder, emptyLabel, onSelect })
  * renderInputs(form, { data, store }) -> unsubscribe
  * Builds every input, wires change events to store.set, and keeps controls in sync with state.
  */
-export function renderInputs(form, { data, store }) {
+export function renderInputs(form, { data, store, meds }) {
   const states = statesFromServiceArea(data.serviceArea);
   const families = networkFamilies(data.plans, 2027);
   const plans2026 = plansForYear(data.plans, 2026);
@@ -336,6 +337,9 @@ export function renderInputs(form, { data, store }) {
     chipWrap,
     more);
 
+  // -- GLP-1 weight-loss coverage (brochure facts; src/ui/meds.js)
+  const glp1 = meds ? glp1Filter({ store, meds, data }) : null;
+
   // -- scenario, fine-tune overrides and custom lines (src/ui/scenario.js)
   const year = createScenarioSection({ store });
 
@@ -355,7 +359,7 @@ export function renderInputs(form, { data, store }) {
   form.replaceChildren(
     group('Coverage', status.el, enrollment.el),
     group('Location', location.el),
-    group('Plans to consider', current.el, mine.el, account.el, networks),
+    group('Plans to consider', current.el, mine.el, account.el, networks, glp1?.el),
     group('Your year', year.el, dental),
   );
 
@@ -445,6 +449,7 @@ export function renderInputs(form, { data, store }) {
     syncChips(s, true);
     year.sync(s);
     dentalInput.checked = s.dental;
+    glp1?.sync(s);
   }
 
   sync(store.get());

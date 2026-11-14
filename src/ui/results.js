@@ -12,6 +12,7 @@ import { STATE_NAMES } from '../data.js';
 import { MAX_COMPARE, safeStorage } from '../state.js';
 import { usd, usdExact, signedUsd, signedPct, costShareSummary, deltaTone } from './format.js';
 import { measure, reorder, tweenNumber, pop, nudge, reduceMotion, EASE_OUT } from './motion.js';
+import { createRxCard, updateRxCard } from './rx-card.js';
 
 const UI_KEY = 'fehb-compass:results-ui:v1';
 const ENROLLMENT_TEXT = { self: 'self only', self_plus_one: 'self plus one', family: 'family' };
@@ -44,12 +45,16 @@ function loadUi() {
 }
 
 /**
- * createResults(main, { store }) -> { setData(data), showError(err) }
+ * createResults(main, { store, onRanked }) -> { setData(data), setRx({ facts, factsStatus, meds }), showError(err) }
  * Before setData the static skeleton in index.html stays on screen.
+ * setRx: brochure facts (loaded after the ranking) and the user's private medications (meds-store.js); both feed
+ * the cost model through data.brochure / data.meds (model.js makeRow). onRanked(rows) gets the ranked plans after
+ * each render (the quick look-up lists the top ones).
  */
-export function createResults(main, { store }) {
+export function createResults(main, { store, onRanked }) {
   const ui = { ...loadUi(), compareOpen: false };
   let data = null;
+  let rx = { facts: null, factsStatus: 'loading', meds: null };
   const cards = new Map(); // code -> card record
   const visible = new Set(); // card elements intersecting the viewport (count-up only runs there)
   let io = null;
@@ -134,7 +139,7 @@ export function createResults(main, { store }) {
     if (e.target.closest('[data-reset]')) {
       ui.type = 'all';
       saveUi();
-      store.set({ networks: [], account: 'any' });
+      store.set({ networks: [], account: 'any', glp1: false });
       render();
     }
   });
@@ -231,6 +236,7 @@ export function createResults(main, { store }) {
     r.cmpBtn = h('button', { type: 'button', class: 'cmp-toggle', 'aria-pressed': 'false' }, svg(ICON_CHECK), h('span', {}, 'Compare'));
     r.mathInner = h('div', { class: 'math-inner' });
     r.math = h('div', { class: 'card-math', id: mathId, role: 'region', 'aria-label': 'How this total is calculated' }, h('div', { class: 'math-clip' }, r.mathInner));
+    r.rx = createRxCard(code);
 
     const el = h('li', { class: 'card', 'data-code': code },
       h('div', { class: 'card-top' },
@@ -241,8 +247,10 @@ export function createResults(main, { store }) {
       r.facts,
       r.share,
       r.chips,
-      h('div', { class: 'card-actions' }, r.mathBtn, r.cmpBtn),
-      r.math);
+      r.rx.medsBox,
+      h('div', { class: 'card-actions' }, r.mathBtn, r.rx.button, r.cmpBtn),
+      r.math,
+      r.rx.panel);
     io?.observe(el);
     return { code, el, r, open: false, row: null, chipsKey: '' };
   }
@@ -336,6 +344,7 @@ export function createResults(main, { store }) {
     r.cmpBtn.setAttribute('aria-pressed', String(selected));
     r.cmpBtn.setAttribute('aria-label', `${selected ? 'Remove' : 'Add'} ${row.plan.name} ${selected ? 'from' : 'to'} compare`);
 
+    updateRxCard(r.rx, row, rx.factsStatus);
     if (rec.open) fillMath(rec);
   }
 
@@ -353,17 +362,22 @@ export function createResults(main, { store }) {
     const premiumHow = state.status === 'retiree'
       ? `${usdExact(rate.monthly_retiree)} a month × 12`
       : `${usdExact(rate.biweekly_active)} per paycheck × 26`;
-    const careSum = b.deductiblePaid + b.coinsurancePaid + b.copays + (b.oonPaid || 0);
+    // medications are reported as their own line; the part of the deductible they used moves with them
+    const drugsDed = b.drugsDeductible || 0;
+    const careSum = b.deductiblePaid - drugsDed + b.coinsurancePaid + b.copays + (b.oonPaid || 0) + (b.drugsPaid || 0);
     const hitMax = inNetworkAtMax(cost); // in-network part only: OON spend has its own limit
     const raw = row.account ? row.benefits.account_contribution?.[state.enrollment] ?? 0 : 0;
 
     const lines = [
       mathLine(h('span', {}, h('i', { class: 'dot dot-prem' }), 'Premium ', h('span', { class: 'math-how' }, premiumHow)), usd(cost.premium)),
       mathLine(h('span', {}, h('i', { class: 'dot dot-oop' }), 'Expected care costs'), `+ ${usd(cost.oop)}`),
-      mathLine('Toward the deductible', usd(b.deductiblePaid), 'math-sub'),
+      mathLine('Toward the deductible', usd(b.deductiblePaid - drugsDed), 'math-sub'),
       mathLine('Coinsurance', usd(b.coinsurancePaid), 'math-sub'),
       mathLine('Copays', usd(b.copays), 'math-sub'),
       b.oonPaid > 0 && mathLine('Out of network, at full cost', usd(b.oonPaid), 'math-sub'),
+      row.meds && mathLine(h('span', {}, 'Your medications ',
+        h('span', { class: 'math-how' }, `${row.meds.entries.length} of ${row.meds.count} priced${b.notCoveredPaid > 0 ? `, ${usd(b.notCoveredPaid)} not covered` : ''}`)),
+      usd(b.drugsPaid || 0), 'math-sub math-meds'),
       hitMax &&mathLine(`Capped at the ${usd(b.oopMax)} out-of-pocket max`, '', 'math-sub math-note'),
       Math.abs(careSum - cost.oop) > 1 && mathLine('Rounding', usd(cost.oop - careSum), 'math-sub'),
       row.account && mathLine(
@@ -393,6 +407,18 @@ export function createResults(main, { store }) {
           ...c.notes.map((n) => h('p', { class: 'mc-note' }, n))]))),
     ];
     const changes = overrideChanges(state);
+    // medications: what each priced drug adds here (deductible and OOP max applied), and which ones are left out
+    const medsBlock = row.meds && [
+      h('p', { class: 'math-h' }, 'Your medications'),
+      h('ul', { class: 'math-custom' },
+        (b.drugs ?? []).map((dl) => h('li', {},
+          h('div', { class: 'mc-row' },
+            h('span', { class: 'mc-name' }, dl.label, h('span', { class: 'math-how' }, `${dl.fillsPerYear} fills, from the brochure tier you recorded`)),
+            h('span', { class: 'num mc-cost' }, `+ ${usd(dl.cost)}`)))),
+        row.meds.items.filter((it) => !it.share || it.annual == null).map((it) => h('li', { class: 'has-warn' },
+          h('div', { class: 'mc-row' }, h('span', { class: 'mc-name' }, it.name), h('span', { class: 'num mc-cost' }, 'not counted')),
+          h('p', { class: 'mc-warn' }, svg(ICON_WARN), it.status === 'lookup' ? 'Not looked up for this plan yet.' : it.missing ? `Missing ${it.missing}.` : it.text)))),
+    ];
 
     rec.r.mathInner.replaceChildren(
       h('div', { class: 'math-sum' }, lines),
@@ -402,6 +428,7 @@ export function createResults(main, { store }) {
           : `Care assumed for a ${SCENARIO_TEXT[state.scenario]} year${changes.length ? ', fine-tuned' : ''}`),
         h('p', { class: 'math-p' }, describeUsage(effectiveUsage(state))),
         customBlock,
+        medsBlock,
         h('p', { class: 'math-h' }, 'Assumed price of each service'),
         h('ul', { class: 'math-prices' }, prices),
         h('p', { class: 'math-p math-fine' }, `${ASSUMPTIONS_NOTE.replace('ASSUMED_PRICES', 'these prices')} Your plan's copays and coinsurance come from OPM's 2027 benefits file.`),
@@ -513,7 +540,7 @@ export function createResults(main, { store }) {
     title.textContent = where
       ? `${avail} ${avail === 1 ? 'plan' : 'plans'} available in ${where}`
       : `${avail} nationwide ${avail === 1 ? 'plan' : 'plans'}`;
-    const filtersOn = state.networks.length > 0 || state.account !== 'any' || ui.type !== 'all';
+    const filtersOn = state.networks.length > 0 || state.account !== 'any' || ui.type !== 'all' || state.glp1;
     filtered.hidden = !filtersOn;
     if (filtersOn) filtered.textContent = `${filteredRows.length} of ${avail} ${avail === 1 ? 'plan' : 'plans'} after filters`;
     infoNote.textContent = where
@@ -529,7 +556,7 @@ export function createResults(main, { store }) {
     list.hidden = isBoard;
     board.el.hidden = !isBoard;
     if (isBoard) {
-      board.render(data, state, res, { mineWhere });
+      board.render(data, state, res, { mineWhere, rx: { factsStatus: rx.factsStatus, meds: data.meds } });
     } else {
       board.reset();
       const scale = Math.max(1, ...rows.map((r) => r.cost.premium + r.cost.oop));
@@ -568,6 +595,7 @@ export function createResults(main, { store }) {
       compare.hidden = false;
     }
 
+    try { onRanked?.(res.others.slice(0, 6)); } catch (err) { console.error(err); }
     const top = res.others[0];
     status.textContent = top
       ? `${filteredRows.length} of ${avail} plans. Lowest ${(isBoard ? SORTS.total : SORTS[ui.sort]).label.toLowerCase()}: ${top.plan.name}, ${usd(top.cost.total)} a year.`
@@ -576,7 +604,7 @@ export function createResults(main, { store }) {
 
   return {
     setData(d) {
-      data = d;
+      data = { ...d, brochure: rx.facts, meds: rx.meds?.drugs?.length ? rx.meds : null };
       io = new IntersectionObserver((entries) => {
         for (const e of entries) (e.isIntersecting ? visible.add(e.target) : visible.delete(e.target));
       }, { rootMargin: '10% 0px' });
@@ -586,6 +614,12 @@ export function createResults(main, { store }) {
       document.body.append(tray);
       render();
       store.subscribe((s) => render(s));
+    },
+    setRx(next) {
+      rx = { ...rx, ...next };
+      if (!data) return;
+      data = { ...data, brochure: rx.facts, meds: rx.meds?.drugs?.length ? rx.meds : null };
+      render();
     },
     showError(err) {
       main.classList.remove('is-loading');

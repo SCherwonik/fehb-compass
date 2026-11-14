@@ -7,6 +7,8 @@ import { MEDICAL_SECTIONS, boardContext, sectionsFor, medicalHeader, scopeText }
 import { endedBaseline } from './model.js';
 import { buildMatrix, filterMatrix, matrixBoardSections } from './matrix-model.js';
 import { createMatrixToolbar, matrixPrefs, setMatrixPrefs, onMatrixPrefs } from './matrix.js';
+import { rxSummaryRows } from './rx-model.js';
+import { rxBoardSections, rxBoardHooks } from './rx-board.js';
 
 /** Text for the note under the results header about the user's own plan ('' when there is nothing to say). */
 export function mineNoteText(data, state, res, where) {
@@ -32,6 +34,7 @@ export function createResultsBoard() {
   let open = false;
   const board = createBoard({
     label: 'Plan comparison board. Columns are plans, best first.',
+    hooks: rxBoardHooks,
     onSectionToggle: (key, isOpen) => {
       if (key.startsWith('mx-')) setMatrixPrefs({ open: { [key.slice(3)]: isOpen } }, 'board-section');
     },
@@ -66,7 +69,11 @@ export function createResultsBoard() {
     const onBoard = [];
     const seen = new Set();
     for (const g of groups) for (const r of g.rows) if (!seen.has(r.code)) { seen.add(r.code); onBoard.push({ code: r.code, benefits: r.benefits }); }
-    const matrix = buildMatrix(onBoard, { year: 2027, enrollment: state.enrollment, status: state.status });
+    const rxReady = opts.rx?.factsStatus === 'ready';
+    const matrix = buildMatrix(onBoard, {
+      year: 2027, enrollment: state.enrollment, status: state.status,
+      extra: rxReady ? rxSummaryRows(onBoard.map((p) => p.code)) : [],
+    });
     const p = matrixPrefs();
     const f = filterMatrix(matrix, { diffOnly: p.diffOnly, query });
     tools.sync({ hiddenRows: f.hiddenRows, matched: f.matched, query });
@@ -74,7 +81,12 @@ export function createResultsBoard() {
 
     const base = sectionsFor(MEDICAL_SECTIONS, ctx);
     const tail = base.filter((s) => s.key === 'drugs' || s.key === 'network');
-    const sections = [...base.filter((s) => !tail.includes(s)), ...tail.filter((s) => s.key === 'drugs'), ...mx, ...tail.filter((s) => s.key === 'network')];
+    // brochure sections: Drugs (lookup + your medications) replaces the placeholder; What changed follows Changes
+    const [rxDrugs, rxChanges] = rxBoardSections({ codes: onBoard.map((p) => p.code), factsStatus: opts.rx?.factsStatus, meds: opts.rx?.meds });
+    const head = base.filter((s) => !tail.includes(s));
+    const ci = head.findIndex((s) => s.key === 'changes');
+    if (rxChanges) head.splice(ci + 1, 0, rxChanges);
+    const sections = [...head, rxDrugs, ...mx, ...tail.filter((s) => s.key === 'network')];
 
     const shown = groups.reduce((n, g) => n + (g.key === 'mine' ? 0 : g.rows.length), 0);
     const segs = groups.filter((g) => g.key !== 'mine').length;

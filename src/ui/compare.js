@@ -6,6 +6,8 @@ import { FLAG_TEXT } from '../engine/diff.js';
 import { usd, signedUsd, deltaTone, DASH } from './format.js';
 import { reduceMotion, EASE_OUT } from './motion.js';
 import { createMatrixPanel } from './matrix.js';
+import { rxSummaryRows, changesFor, rxFor } from './rx-model.js';
+import { changesList, medsSummary, drugLines } from './rx-render.js';
 
 // One matrix panel for the page: it keeps its search text and open sections while the grid re-renders.
 let matrixPanel = null;
@@ -103,12 +105,31 @@ export function renderCompare(section, { data, state, onRemove, onClose }) {
         ? h('ul', { class: 'cg-flags' }, r.diff.flags.map((f) => h('li', {}, FLAG_TEXT[f] ?? f)))
         : h('span', { class: 'cg-was' }, r.diff.status === 'new' ? 'New plan for 2027' : 'No warning signs')))));
 
+  // brochure: what changed in 2027 and your medications (only once the brochure facts are in)
+  if (data.brochure) {
+    grid.append(h('div', { class: 'cg-row cg-rx', role: 'row' },
+      h('div', { class: 'cg-label', role: 'rowheader' }, 'What changed in 2027', h('span', { class: 'cg-label-sub' }, 'from the brochure')),
+      rows.map((r) => h('div', { class: 'cg-cell', role: 'cell' }, changesList(changesFor(r.code), { compact: true })))));
+    if (rows.some((r) => r.meds)) {
+      grid.append(h('div', { class: 'cg-row cg-rx', role: 'row' },
+        h('div', { class: 'cg-label', role: 'rowheader' }, 'Your medications'),
+        rows.map((r) => {
+          const s = medsSummary(r.meds);
+          return h('div', { class: 'cg-cell', role: 'cell', 'data-rx-scope': `cmp-${r.code}` },
+            s && h('span', { class: `cg-now${s.warn ? ' is-warn' : ''}` }, s.text),
+            s && h('span', { class: 'cg-was' }, s.sub),
+            drugLines(r.meds, rxFor(r.code), { code: r.code, planName: r.plan.name }));
+        })));
+    }
+  }
+
   matrixPanel ??= createMatrixPanel();
   matrixPanel.update({
     year: 2027,
     enrollment: state.enrollment,
     status: state.status,
     plans: rows.map((r) => ({ code: r.code, name: r.plan.name, benefits: r.benefits })),
+    extra: data.brochure ? rxSummaryRows(rows.map((r) => r.code)) : [],
   });
   section.replaceChildren(head, h('div', { class: 'compare-scroll' }, grid), matrixPanel.el);
 }

@@ -17,6 +17,7 @@ import { h, svg } from './inputs.js';
 import { bestInRow } from './board-model.js';
 import { usd } from './format.js';
 import { tweenNumber, reduceMotion, springEasing, EASE_OUT } from './motion.js';
+import { lookupButton, cellDecorations } from './rx-render.js';
 
 const BUFFER = 4;
 const ICON_L = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5L5.5 8l4.5 4.5"/></svg>';
@@ -123,7 +124,8 @@ export function createBoard({ label = 'Plan comparison board', hooks = {}, onSec
       td.dataset.hook = d.hook;
       if (hooks[d.hook]) { hooks[d.hook](col.item.row, td, d); return; }
     }
-    const kids = [h('span', { class: 'bd-v' }, d.text)];
+    // a link cell shows its button in place of the text; cite chips and data badges follow the value
+    const kids = [d.link ? (lookupButton(d.link, { compact: true }) ?? h('span', { class: 'bd-v' }, d.text)) : h('span', { class: 'bd-v' }, d.text)];
     if (d.best) kids.push(h('span', { class: 'sr-only' }, ' (best in this row)'));
     if (d.meter != null) kids.push(h('span', { class: 'bd-meter', 'aria-hidden': 'true', style: `--m:${Math.max(0, Math.min(1, d.meter)).toFixed(3)}` }));
     if (d.sub) kids.push(h('span', { class: 'bd-s' }, d.sub));
@@ -132,6 +134,7 @@ export function createBoard({ label = 'Plan comparison board', hooks = {}, onSec
       if (d.note.length > NOTE_CLAMP) kids.push(h('button', { type: 'button', class: 'bd-more', 'aria-expanded': 'false' }, 'More'));
     }
     if (d.items?.length) kids.push(h('ul', { class: 'bd-items' }, d.items.map((t) => h('li', {}, t))));
+    kids.push(...cellDecorations({ cite: d.cite, badge: d.badge }));
     td.replaceChildren(...kids);
   }
 
