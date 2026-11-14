@@ -114,8 +114,21 @@ export function createResults(main, { store }) {
     compare.querySelector('.compare-title')?.focus({ preventScroll: true });
   }
 
+  // Keep keyboard focus somewhere sensible when a compare column or the panel itself goes away.
+  function removeFromCompare(code) {
+    const sel = store.get().selectedPlans;
+    const at = sel.indexOf(code);
+    store.set({ selectedPlans: sel.filter((c) => c !== code) }); // re-renders the compare grid synchronously
+    const removes = compare.querySelectorAll('.cg-remove');
+    const next = removes[Math.min(at, removes.length - 1)];
+    (next ?? compare.querySelector('.compare-head .btn'))?.focus();
+  }
+
   function closeCompare() {
     ui.compareOpen = false;
+    const target = tray.classList.contains('is-visible') && !trayOpen.disabled ? trayOpen : title;
+    if (target === title) title.setAttribute('tabindex', '-1');
+    target.focus({ preventScroll: true });
     if (reduceMotion()) { compare.hidden = true; return; }
     const a = compare.animate([{ opacity: 1 }, { opacity: 0, transform: 'translateY(-6px)' }], { duration: 180, easing: 'ease-in' });
     a.onfinish = () => { if (!ui.compareOpen) compare.hidden = true; };
@@ -237,11 +250,13 @@ export function createResults(main, { store }) {
     r.deposit.box.hidden = !row.account;
     if (row.account) {
       setText(r.deposit.lab, row.account === 'HRA' ? 'HRA credit used' : 'HSA deposit');
-      tweenNumber(r.deposit.v, -row.cost.hsaOffset, usd, { animate: anim });
+      tweenNumber(r.deposit.v, row.cost.hsaOffset > 0 ? -row.cost.hsaOffset : 0, usd, { animate: anim });
       setClass(r.deposit.d, 'fact-d');
-      setText(r.deposit.d, row.account === 'HRA' && raw > row.cost.hsaOffset
-        ? `of ${usd(raw)} available`
-        : row.account === 'HRA' ? 'toward care costs' : 'yours to keep');
+      setText(r.deposit.d, !raw
+        ? 'none listed for 2027'
+        : row.account === 'HRA' && raw > row.cost.hsaOffset
+          ? `of ${usd(raw)} available`
+          : row.account === 'HRA' ? 'toward care costs' : 'yours to keep');
     }
     setText(r.deductible.v, usd(row.facts.deductible));
     setDelta(r.deductible.d, row.diff.deductibleChange);
@@ -411,7 +426,7 @@ export function createResults(main, { store }) {
     if (ui.compareOpen) {
       renderCompare(compare, {
         data, state,
-        onRemove: (code) => store.set({ selectedPlans: store.get().selectedPlans.filter((c) => c !== code) }),
+        onRemove: removeFromCompare,
         onClose: closeCompare,
       });
       compare.hidden = false;

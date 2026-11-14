@@ -17,13 +17,26 @@ export function resolveBenefits(benefits, enrollment) {
     oopMax: pick(benefits.oop_max),
     coinsurance: benefits.coinsurance ?? null,
     copays: benefits.copays || {},
+    // HSA-qualified plans are HDHPs: by IRS rule the deductible applies to everything but preventive
+    // care, so a copay line that is silent about the deductible still sits behind it.
+    deductibleDefault: /savings/i.test(String(benefits.account_type ?? '')),
   };
 }
 
-const NO_DED = /no deductible|deductible does not apply|\(deductible does not apply\)/i;
-const DED = /deductible applies|after (the )?deductible/i;
+// Phrase classes found in every 2027 copay `raw` string (see tests/engine/deductible.test.js).
+const NO_DED = /no deductible|deductible does not apply/i;
+const DED = new RegExp([
+  'deductible applies',
+  'deductible may or may not apply', // ambiguous: assume it applies (conservative, and marks the total estimated)
+  'after\\b[^.;]{0,40}?deductible', // after deductible / after the / after plan / after in-network / after $X facility
+  'calendar year deductible', // HDHP lines: "$0 Copayment - $1,750/$3,500 Calendar Year Deductible"
+  'annual [a-z ]{0,20}deductible', // "$X annual hospital deductible ... then 20% coinsurance"
+  'plus deductible',
+  'subject to (?:the )?deductible',
+].join('|'), 'i');
 
-function appliesDeductible(raw, defaultYes) {
+/** Does this copay line sit behind the deductible? Explicit "no deductible" wins; silence -> defaultYes. */
+export function appliesDeductible(raw, defaultYes) {
   const t = raw || '';
   if (NO_DED.test(t)) return false;
   if (DED.test(t)) return true;
@@ -63,6 +76,7 @@ export function expectedOop(benefits, usage, assumptions = {}, drugs = []) {
   const prices = { ...ASSUMED_PRICES, ...(assumptions.prices || {}) };
   const oopMax = benefits.oopMax == null ? Infinity : benefits.oopMax;
   let dedLeft = benefits.deductible || 0;
+  const defaultDed = benefits.deductibleDefault === true;
   let deductiblePaid = 0, coinsurancePaid = 0, copays = 0, total = 0;
   const warnings = [];
   const warned = new Set();
@@ -99,11 +113,12 @@ export function expectedOop(benefits, usage, assumptions = {}, drugs = []) {
       dedPiece = useDed(true);
       coinsPiece = (price - dedPiece) * rate;
     } else if (c.kind === 'usd') {
-      dedPiece = DED.test(c.raw || '') && !NO_DED.test(c.raw || '') ? Math.min(dedLeft, price) : 0;
-      if (dedPiece > 0) flat = false;
+      dedPiece = useDed(defaultDed);
+      // Fixed only when the copay alone sets the cost: no deductible consumed, copay below the price.
+      if (dedPiece > 0 || (c.value ?? 0) > price) flat = false;
       copayPiece = Math.min(c.value ?? 0, price - dedPiece);
     } else if (c.kind === 'text' && /nothing/i.test(c.raw || '')) {
-      dedPiece = useDed(false);
+      dedPiece = useDed(defaultDed);
       if (dedPiece > 0) flat = false;
     } else {
       warn();
