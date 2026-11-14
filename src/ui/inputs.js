@@ -403,7 +403,7 @@ export function renderInputs(form, { data, store, meds }) {
   // ---------- sync ----------
   function syncChips(s, animate = false) {
     const st = s.location.state;
-    const counts = countsByFamily(plans27, data.serviceArea, { state: st, account: s.account });
+    const counts = countsByFamily(plans27, data.serviceArea, { state: st, zip: s.location.zip, account: s.account });
     const selected = new Set(s.networks);
     const where = st ? (STATE_NAMES[st] ?? st) : null;
     scope.textContent = where

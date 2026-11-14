@@ -101,6 +101,9 @@ over the wire. The app paints the input panel from the small files first and loa
 - Each scenario is one covered person's year of care. With Self Plus One or Self and Family coverage the premium is
   the family one, but the self-only deductible and out-of-pocket max apply to that person (shared-deductible HSA
   plans: the family deductible, capped at the self-only max). Households where several people use care can pay more.
+- Service areas: OPM has no ZIP-to-county map, so a regional plan that covers only some counties of your state
+  is marked "Serves part of [state]: confirm your county" (unless OPM lists your ZIP) and is not picked by the
+  savings banner unless you opt in.
 - Care is priced at assumed amounts (shown in "See the math" and "How it works"); real prices vary.
 - Out-of-network care is counted at full cost, because OPM publishes no out-of-network cost sharing.
 - OPM's spreadsheet has a few errors; where a brochure disagrees, the brochure is followed and the difference

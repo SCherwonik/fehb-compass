@@ -66,7 +66,7 @@ export function glp1Filter({ store, meds, data }) {
       return;
     }
     input.disabled = false;
-    const open = availablePlans(plans27, data.serviceArea, s.location.state)
+    const open = availablePlans(plans27, data.serviceArea, s.location.state, s.location.zip)
       .filter((p) => (s.account === 'hsa' ? p.hsa : s.account === 'hra' ? p.hra : true));
     const said = open.map((p) => glp1Status(p.code, facts));
     const n = said.filter((v) => v === true).length;

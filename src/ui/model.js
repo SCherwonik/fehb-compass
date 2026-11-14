@@ -101,6 +101,8 @@ export function makeRow(data, state, code) {
     dv,
     // total without the user's medications or dental/vision: the like-for-like basis for comparisons (see baseTotal)
     baseTotal: base.total,
+    // service area for the user's state/ZIP (areaStatus): 'partial' = availability not confirmed
+    area: areaStatus(data.serviceArea, code, state.location?.state ?? null, state.location?.state ? state.location?.zip ?? null : null),
   };
 }
 
@@ -159,19 +161,66 @@ export function personLimitsNote(b) {
     + `their costs stop at the ${usd0(b.oopMax)} self-only out-of-pocket max.`;
 }
 
-/** True when a plan (by code) is open to someone in `st`: nationwide, or a service area that lists the state. */
-export function servesState(serviceArea, code, st) {
-  const area = serviceArea?.[code];
-  if (!area) return false;
-  if (area.nationwide) return true;
-  return Boolean(st) && (area.states ?? []).includes(st);
+// USPS state code -> 2-digit FIPS state code (the first two digits of a county FIPS code in service_area.json).
+const STATE_FIPS = {
+  AL: '01', AK: '02', AZ: '04', AR: '05', CA: '06', CO: '08', CT: '09', DE: '10', DC: '11', FL: '12', GA: '13', HI: '15',
+  ID: '16', IL: '17', IN: '18', IA: '19', KS: '20', KY: '21', LA: '22', ME: '23', MD: '24', MA: '25', MI: '26', MN: '27',
+  MS: '28', MO: '29', MT: '30', NE: '31', NV: '32', NH: '33', NJ: '34', NM: '35', NY: '36', NC: '37', ND: '38', OH: '39',
+  OK: '40', OR: '41', PA: '42', RI: '44', SC: '45', SD: '46', TN: '47', TX: '48', UT: '49', VT: '50', VA: '51', WA: '53',
+  WV: '54', WI: '55', WY: '56', AS: '60', GU: '66', MP: '69', PR: '72', VI: '78',
+};
+
+/**
+ * Where a plan stands for someone in state `st` (and ZIP `zip`, when known), from OPM's service area:
+ *   'nationwide' | 'statewide' (the whole state) | 'zip' (OPM lists this ZIP for the plan)
+ *   | 'partial' (the plan serves only some counties of the state and the ZIP cannot confirm it: OPM's data has no
+ *     ZIP -> county map, so the user must check their county) | 'outside' (not offered there).
+ * A ZIP rules a plan out only when the plan serves that state by listed ZIP codes alone (no whole county there).
+ */
+export function areaStatus(serviceArea, code, st, zip = null) {
+  const area = serviceArea && Object.prototype.hasOwnProperty.call(serviceArea, code) ? serviceArea[code] : null;
+  if (!area) return 'outside';
+  if (area.nationwide) return 'nationwide';
+  if (!st || !(area.states ?? []).includes(st)) return 'outside';
+  if ((area.statewide ?? []).includes(st)) return 'statewide';
+  if (zip && (area.zips ?? []).includes(zip)) return 'zip';
+  const fips = STATE_FIPS[st];
+  const wholeCounties = !fips || (area.counties ?? []).some((c) => c.startsWith(fips));
+  if (zip && !wholeCounties) return 'outside';
+  return 'partial';
+}
+
+/** True when availability is confirmed for the user's location (not a partial-state plan). */
+export const areaConfirmed = (status) => status === 'nationwide' || status === 'statewide' || status === 'zip';
+
+/**
+ * True when a plan (by code) may be open to someone in `st`: nationwide, or a service area that lists the state
+ * (partial-state plans included: see areaStatus). With a ZIP, ZIP-only plans that do not list it are out.
+ */
+export function servesState(serviceArea, code, st, zip = null) {
+  return areaStatus(serviceArea, code, st, zip) !== 'outside';
+}
+
+/**
+ * Card chip for a plan whose service area covers only part of the user's state: { text, title } or null.
+ * `stateName` e.g. 'Virginia'; `zip` the user's ZIP when known.
+ */
+export function areaChip(row, stateName, zip = null) {
+  if (row?.area !== 'partial') return null;
+  const where = stateName || 'your state';
+  return {
+    text: `Serves part of ${where}: confirm your county`,
+    title: `Availability not confirmed. OPM lists this plan for only some counties in ${where}`
+      + `${zip ? `, and ZIP ${zip} is not among the ZIP codes it lists` : ''}. OPM’s data cannot match a ZIP code to its county, `
+      + 'so check the service area in the plan’s brochure (or call the plan) before choosing it.',
+  };
 }
 
 const familyOf = (p) => p.network_family || 'Other';
 
-/** Plans open to this state (no state: nationwide plans only), before any network/account/type filter. */
-export function availablePlans(plans27, serviceArea, state) {
-  return (plans27 ?? []).filter((p) => servesState(serviceArea, p.code, state ?? null));
+/** Plans open to this state and ZIP (no state: nationwide plans only), before any network/account/type filter. */
+export function availablePlans(plans27, serviceArea, state, zip = null) {
+  return (plans27 ?? []).filter((p) => servesState(serviceArea, p.code, state ?? null, zip));
 }
 
 /**
@@ -181,11 +230,11 @@ export function availablePlans(plans27, serviceArea, state) {
  * Families with zero plans stay in the list, last; the rest are most plans first, then by name.
  * Counts sum to `total`, the number of plans the results show when no network is selected.
  */
-export function countsByFamily(plans27, serviceArea, { state = null, account = 'any' } = {}) {
+export function countsByFamily(plans27, serviceArea, { state = null, zip = null, account = 'any' } = {}) {
   const all = new Map();
   for (const p of plans27 ?? []) all.set(familyOf(p), 0);
   let total = 0;
-  for (const p of availablePlans(plans27, serviceArea, state)) {
+  for (const p of availablePlans(plans27, serviceArea, state, state ? zip : null)) {
     if (account === 'hsa' && !p.hsa) continue;
     if (account === 'hra' && !p.hra) continue;
     all.set(familyOf(p), all.get(familyOf(p)) + 1);
@@ -238,10 +287,11 @@ export function groupCurrentPlanOptions(plans26, plans27, serviceArea, state, st
  */
 export function computeRows(data, state, { type = 'all' } = {}) {
   const st = state.location?.state ?? null;
+  const zip = st ? state.location?.zip ?? null : null;
   const nets = new Set(state.networks ?? []);
   const rows = [];
   for (const [code, meta] of index(data)[2027]) {
-    if (!servesState(data.serviceArea, code, st)) continue;
+    if (!servesState(data.serviceArea, code, st, zip)) continue;
     if (nets.size && !nets.has(meta.network_family || 'Other')) continue;
     if (type !== 'all' && meta.type !== type) continue;
     // GLP-1 filter: applies once the brochure facts are in (before that nothing is hidden)
@@ -329,7 +379,7 @@ export function rankWithMine(data, state, rows, sortKey = 'total', { type = 'all
     mine,
     others,
     mineStatus: 'included',
-    notInState: !servesState(data.serviceArea, code, state.location?.state ?? null),
+    notInState: !servesState(data.serviceArea, code, state.location?.state ?? null, state.location?.state ? state.location?.zip ?? null : null),
     filtersOn,
   };
 }
@@ -382,9 +432,13 @@ export function savingsVsCurrent(data, state, rows) {
   if (!code) return { kind: 'none' };
   const current = rows.find((r) => r.code === code) ?? (planMeta(data, 2027, code) ? makeRow(data, state, code) : null);
   const basis = basisOf(anyMeds(rows) || anyMeds([current]), anyDv(rows) || anyDv([current]));
+  // Plans whose service area is not confirmed for the user's county/ZIP are never named "best" unless the user
+  // opts in (state.includeUnconfirmed); `skipped` = how many of them would have been cheaper than `best`.
+  const open = (r) => state.includeUnconfirmed === true || r.area == null || areaConfirmed(r.area);
   let best = null;
-  for (const r of rows) if (!best || baseTotal(r) < baseTotal(best)) best = r;
-  const bestInfo = { basis, bestTotal: best ? baseTotal(best) : null, bestMeds: best ? medsCost(best) : null };
+  for (const r of rows) if (open(r) && (!best || baseTotal(r) < baseTotal(best))) best = r;
+  const skipped = rows.filter((r) => !open(r) && (!best || baseTotal(r) < baseTotal(best))).length;
+  const bestInfo = { basis, bestTotal: best ? baseTotal(best) : null, bestMeds: best ? medsCost(best) : null, skipped };
 
   if (current) {
     return {

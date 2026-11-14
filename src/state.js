@@ -29,6 +29,8 @@
 //   group:           'top3' | 'carrier' | 'type' | 'account' | 'all'   which plans the board shows
 //   includeMine:     boolean                              always show the 2027 version of currentPlan2026 (pinned first)
 //   glp1:            boolean                              only plans whose 2027 brochure covers GLP-1 drugs for weight loss
+//   includeUnconfirmed: boolean                           the savings banner may pick a plan whose service area is not
+//                    confirmed for the user's county/ZIP (default off; ranked lists show such plans either way)
 // }
 // (The user's medications are private: they live in localStorage under ui/meds-store.js, never in this state or the hash.)
 //
@@ -68,6 +70,7 @@ export const DEFAULT_STATE = Object.freeze({
   group: 'top3',
   includeMine: true,
   glp1: false,
+  includeUnconfirmed: false,
   tab: 'medical',
   dentalUse: 'typical',
   visionUse: 'glasses',
@@ -181,6 +184,7 @@ export function sanitizeState(input) {
     group: pickEnum(s.group, GROUP, DEFAULT_STATE.group),
     includeMine: s.includeMine !== false,
     glp1: s.glp1 === true,
+    includeUnconfirmed: s.includeUnconfirmed === true,
     tab: pickEnum(s.tab, TAB, DEFAULT_STATE.tab),
     dentalUse: pickEnum(s.dentalUse, DENTAL_USE, DEFAULT_STATE.dentalUse),
     visionUse: pickEnum(s.visionUse, VISION_USE, DEFAULT_STATE.visionUse),
@@ -306,6 +310,7 @@ export function encodeHash(state) {
   if (s.group !== DEFAULT_STATE.group) p.set('g', GROUP[s.group]);
   if (!s.includeMine) p.set('m', '0');
   if (s.glp1) p.set('w', '1');
+  if (s.includeUnconfirmed) p.set('u', '1');
   if (s.tab !== DEFAULT_STATE.tab) p.set('t', TAB[s.tab]);
   if (s.dentalUse !== DEFAULT_STATE.dentalUse) p.set('du', DENTAL_USE[s.dentalUse]);
   if (s.visionUse !== DEFAULT_STATE.visionUse) p.set('vu', VISION_USE[s.visionUse]);
@@ -409,6 +414,7 @@ export function decodeState(hash, opts = {}) {
     group: has(GROUP_IN, one('g')) ? GROUP_IN[one('g')] : undefined,
     includeMine: one('m') !== '0',
     glp1: one('w') === '1',
+    includeUnconfirmed: one('u') === '1',
     tab: has(TAB_IN, one('t')) ? TAB_IN[one('t')] : undefined,
     dentalUse: has(DENTAL_USE_IN, one('du')) ? DENTAL_USE_IN[one('du')] : undefined,
     visionUse: has(VISION_USE_IN, one('vu')) ? VISION_USE_IN[one('vu')] : undefined,

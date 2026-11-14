@@ -97,6 +97,7 @@ export function boardContext(rankedRows, state, mine = null, baseline = null) {
   return {
     enrollment: state?.enrollment ?? 'self',
     scenario: state?.scenario ?? 'typical',
+    stateCode: state?.location?.state ?? null, // for the "Part of VA" chip on partial-state plans
     // fine-tune overrides or custom lines change the scenario's care
     adjusted: (state?.custom?.length ?? 0) > 0 || Object.keys(state?.overrides ?? {}).length > 0,
     values: valueScores(rows, state?.enrollment ?? 'self'),
@@ -329,7 +330,8 @@ export function whyLine(row, group, ctx, scope = '') {
   const ceiling = (r) => ctx?.values?.get(r.code)?.ceiling ?? worstCase(r, ctx?.enrollment ?? 'self');
   let lead = null;
   if (row.isMine) lead = 'Your plan, 2027 version';
-  else if (row.rank === 1) lead = 'Lowest total for your year';
+  // a plan serving only part of the state is never the plain "top pick": its availability is not confirmed
+  else if (row.rank === 1) lead = row.area === 'partial' ? 'Lowest total if it serves your county' : 'Lowest total for your year';
   else if (isLowest(row, g, (r) => r.cost?.premium)) lead = `Lowest premium${sc}`;
   else if (isLowest(row, g, (r) => r.cost?.oop)) lead = `Lowest expected care costs${sc}`;
   else if (isLowest(row, g, ceiling)) lead = `Smallest worst case${sc}`;
@@ -367,6 +369,7 @@ export function scopeText(mode, group) {
 /** Generic column header descriptor for a medical plan row. */
 export function medicalHeader(row, group, ctx, scope) {
   const chips = row.isMine ? [{ text: 'Your plan · 2027', tone: 'mine' }] : [];
+  if (row.area === 'partial') chips.push({ text: ctx?.stateCode ? `Part of ${ctx.stateCode}` : 'Part of state', tone: 'area' });
   chips.push({ text: TYPE_TEXT[row.plan?.type] ?? row.plan?.type ?? 'Plan', tone: 'type' });
   if (row.account) chips.push({ text: row.account, tone: 'acct' });
   if (row.diff?.status === 'new') chips.push({ text: 'New', tone: 'new' });

@@ -46,6 +46,7 @@ const FULL = {
   group: 'carrier',
   includeMine: false,
   glp1: true,
+  includeUnconfirmed: true,
 };
 
 test('decodeState("#garbage") returns defaults', () => {

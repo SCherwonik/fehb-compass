@@ -126,6 +126,24 @@
 .savings-title { font-size: var(--text-xl); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-tight); line-height: var(--leading-snug); text-wrap: balance; }
 .savings-num { color: var(--accent-2); font-weight: var(--weight-bold); }
 .savings-detail { margin-top: var(--space-1); color: var(--text-muted); font-size: var(--text-md); line-height: var(--leading-snug); max-width: 68ch; }
+.savings { flex-wrap: wrap; }
+.savings-body { flex: 1 1 320px; min-width: 0; }
+/* plans that serve only part of the state: why they are left out of the pick, and the opt-in switch */
+.savings-area {
+  flex: 1 1 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+.savings-area[hidden] { display: none; }
+.savings-area-text { flex: 1 1 280px; margin: 0; font-size: var(--text-sm); }
+.savings-area .field-switch { margin-top: 0; flex: 0 1 auto; }
+.savings-area .switch { min-height: 40px; padding-block: 6px; gap: var(--space-3); background: color-mix(in srgb, var(--surface-sunken) 80%, transparent); }
+.savings-area .switch-title { font-size: var(--text-sm); }
+.savings-area .switch-hint { font-size: var(--text-xs); }
 
 /* ---------- card list ---------- */
 .cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }

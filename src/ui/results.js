@@ -2,7 +2,7 @@
 // Cards are keyed by plan code and updated in place; reordering uses FLIP limited to visible cards.
 import { h, svg, segmented, ICON_CHECK, ICON_CHEVRON, mineSwitch } from './inputs.js';
 import { assumptionChips, describeUsage, effectiveUsage, overrideChanges, inNetworkAtMax } from './assumptions.js';
-import { computeRows, savingsVsCurrent, availablePlans, SORTS, rankWithMine, baseTotal, dvCost, dvLabel, basisOf, basisNote, anyMeds, personLimitsNote } from './model.js';
+import { computeRows, savingsVsCurrent, availablePlans, SORTS, rankWithMine, baseTotal, dvCost, dvLabel, basisOf, basisNote, anyMeds, personLimitsNote, areaChip } from './model.js';
 import { dvMathLines } from './dental-board.js';
 import { GROUP_LABELS, GROUP_MODES } from './grouping.js';
 import { createResultsBoard, mineNoteText } from './results-board.js';
@@ -104,6 +104,19 @@ export function createResults(main, { store, onRanked }) {
   const board = createResultsBoard();
 
   const savings = h('section', { class: 'savings', hidden: true, 'aria-live': 'polite' });
+  // the banner body is rebuilt on each render; the eligibility switch below it stays put (keeps focus while toggled)
+  const savingsBody = h('div', { class: 'savings-body' });
+  const areaText = h('p', { class: 'savings-detail savings-area-text' });
+  const areaInput = h('input', { type: 'checkbox', role: 'switch', id: 'sv-unconfirmed', class: 'switch-input', 'aria-describedby': 'sv-unconfirmed-hint' });
+  const areaBox = h('div', { class: 'savings-area', hidden: true }, areaText,
+    h('div', { class: 'field field-switch is-compact' },
+      h('label', { class: 'switch', for: 'sv-unconfirmed' },
+        h('span', { class: 'switch-copy' },
+          h('span', { class: 'switch-title' }, 'Include plans I may not be eligible for'),
+          h('span', { class: 'switch-hint', id: 'sv-unconfirmed-hint' }, 'Lets this comparison pick a plan that serves only part of your state.')),
+        areaInput,
+        h('span', { class: 'switch-track', 'aria-hidden': 'true' }, h('span', { class: 'switch-knob' })))));
+  savings.append(h('span', { class: 'savings-glow', 'aria-hidden': 'true' }), savingsBody, areaBox);
   const compare = h('section', { class: 'compare', hidden: true, 'aria-labelledby': 'compare-title' });
   const list = h('ol', { class: 'cards', 'aria-labelledby': 'results-title' });
   const empty = h('section', { class: 'results-none', hidden: true });
@@ -126,6 +139,7 @@ export function createResults(main, { store, onRanked }) {
     else if (t.name === 'view') store.set({ view: t.value });
     else if (t === groupSel) store.set({ group: t.value });
     else if (t === mineCtl.input) store.set({ includeMine: t.checked });
+    else if (t === areaInput) store.set({ includeUnconfirmed: t.checked });
   });
   list.addEventListener('click', (e) => {
     const btn = e.target.closest('button');
@@ -325,12 +339,16 @@ export function createResults(main, { store, onRanked }) {
       ? `#${row.globalRank} overall${mineFiltersOn ? (row.viewRank ? ` · #${row.viewRank} in this view` : ' · outside your filters') : ''}`
       : '';
     const oon = row.cost.breakdown.oonEstimate === true;
-    const key = `${row.isMine ? `mine:${mineWhere}:${rankTag}` : ''}|${vsMine}:${vsExcl}|${row.cost.firmness}|${row.diff.status}|${row.diff.flags.join(',')}|${oon}`;
+    const st = state.location.state;
+    const area = areaChip(row, st ? STATE_NAMES[st] ?? st : null, state.location.zip);
+    const key = `${row.isMine ? `mine:${mineWhere}:${rankTag}` : ''}|${vsMine}:${vsExcl}|${row.cost.firmness}|${row.diff.status}|${row.diff.flags.join(',')}|${oon}|${area?.title ?? ''}`;
     if (key !== rec.chipsKey) {
       rec.chipsKey = key;
       const items = [
         row.isMine && h('li', { class: 'tag tag-mine' }, 'Your plan · 2027'),
         rankTag && h('li', { class: 'tag' }, rankTag),
+        area && h('li', { class: 'tag tag-warn tag-area', title: area.title }, svg(ICON_WARN), area.text,
+          h('span', { class: 'sr-only' }, `. ${area.title}`)),
         row.isMine && mineWhere && h('li', { class: 'tag' }, `Not listed for ${mineWhere}`),
         vsMine != null && h('li', { class: `tag tag-vs tag-vs-${deltaTone(vsMine)}`, title: vsExcl ? `Estimated yearly totals compared ${vsExcl}: the same on both sides or not priced on every plan` : 'Estimated yearly total compared with your plan in 2027' },
           deltaTone(vsMine) === 'flat' ? `Same as your plan${vsExcl ? ` (${vsExcl})` : ''}` : `${signedUsd(vsMine)} vs your plan${vsExcl ? ` (${vsExcl})` : ''}`),
@@ -456,6 +474,7 @@ export function createResults(main, { store, onRanked }) {
   function renderSavings(state, rows) {
     const v = savingsVsCurrent(data, state, rows);
     if (v.kind === 'none' || !v.best) { savings.hidden = true; return; }
+    renderAreaNote(state, v);
     const num = h('span', { class: 'savings-num' });
     let headline;
     let detail;
@@ -492,12 +511,28 @@ export function createResults(main, { store, onRanked }) {
     }
     const prevNum = savings.querySelector('.savings-num');
     if (prevNum) num._num = prevNum._num;
-    savings.replaceChildren(
-      h('span', { class: 'savings-glow', 'aria-hidden': 'true' }),
-      h('div', { class: 'savings-body' }, headline, h('p', { class: 'savings-detail' }, detail),
-        medsNote && h('p', { class: 'savings-detail savings-meds' }, medsNote)));
+    savingsBody.replaceChildren(headline, h('p', { class: 'savings-detail' }, detail),
+      medsNote && h('p', { class: 'savings-detail savings-meds' }, medsNote));
     if (v.kind === 'continuing' && v.amount > 0.5) tweenNumber(num, v.amount, usd, { animate: !savings.hidden });
     savings.hidden = false;
+  }
+
+  // Plans serving only part of the state: left out of the banner's pick unless the user opts in (C1).
+  function renderAreaNote(state, v) {
+    const st = state.location.state;
+    const where = st ? STATE_NAMES[st] ?? st : 'your state';
+    const on = state.includeUnconfirmed === true;
+    let text = '';
+    if (!on && v.skipped > 0) {
+      text = `${v.skipped === 1 ? 'One cheaper plan serves' : `${v.skipped} cheaper plans serve`} only part of ${where}, so `
+        + `${v.skipped === 1 ? 'it is' : 'they are'} left out here. ${v.skipped === 1 ? 'It stays' : 'They stay'} in the list, marked “Serves part of ${where}”.`;
+    } else if (on && v.best?.area === 'partial') {
+      text = `${v.best.plan.name} serves only part of ${where}: confirm your county is in its service area before choosing it.`;
+    }
+    areaBox.hidden = !(text || on);
+    areaText.textContent = text;
+    areaText.hidden = !text;
+    areaInput.checked = on;
   }
 
   // ---------- tray ----------
@@ -569,7 +604,7 @@ export function createResults(main, { store, onRanked }) {
 
     const st = state.location.state;
     // Headline = every plan open to this state (before filters); the line below says how many survive them.
-    const avail = availablePlans(data.plans.filter((p) => p.year === 2027), data.serviceArea, st).length;
+    const avail = availablePlans(data.plans.filter((p) => p.year === 2027), data.serviceArea, st, st ? state.location.zip : null).length;
     const where = st ? STATE_NAMES[st] ?? st : null;
     title.textContent = where
       ? `${avail} ${avail === 1 ? 'plan' : 'plans'} available in ${where}`
@@ -578,7 +613,7 @@ export function createResults(main, { store, onRanked }) {
     filtered.hidden = !filtersOn;
     if (filtersOn) filtered.textContent = `${filteredRows.length} of ${avail} ${avail === 1 ? 'plan' : 'plans'} after filters`;
     infoNote.textContent = where
-      ? 'FEHB plans open to you in this state: nationwide plans plus regional plans serving it.'
+      ? 'FEHB plans open to you in this state: nationwide plans plus regional plans serving all or part of it. Plans marked “Serves part of …” cover only some counties: confirm yours in the plan’s brochure.'
       : 'Nationwide FEHB plans only, because no state is chosen. Choose a state to add regional plans serving it.';
     mineWhere = res.mineStatus === 'included' && res.notInState ? (where ?? 'nationwide') : '';
     renderMineNote(state, res, where);
@@ -636,7 +671,7 @@ export function createResults(main, { store, onRanked }) {
     try { onRanked?.(res.others.slice(0, 6)); } catch (err) { console.error(err); }
     const top = res.others[0];
     status.textContent = top
-      ? `${filteredRows.length} of ${avail} plans. Lowest ${(isBoard ? SORTS.total : SORTS[ui.sort]).label.toLowerCase()}: ${top.plan.name}, ${usd(top.cost.total)} a year.`
+      ? `${filteredRows.length} of ${avail} plans. Lowest ${(isBoard ? SORTS.total : SORTS[ui.sort]).label.toLowerCase()}: ${top.plan.name}, ${usd(top.cost.total)} a year${top.area === 'partial' ? ', if it serves your county' : ''}.`
       : 'No plans match these filters.';
   }
 
