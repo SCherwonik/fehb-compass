@@ -29,6 +29,10 @@
   </script>
   <!-- Geist is self-hosted (assets/fonts, OFL 1.1); the main subset loads early so text does not reflow -->
   <link rel="preload" href="assets/fonts/geist-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <!-- the three small data files the input panel needs start downloading now, in parallel with the scripts -->
+  <link rel="preload" href="data/plans.json" as="fetch" crossorigin>
+  <link rel="preload" href="data/service_area.json" as="fetch" crossorigin>
+  <link rel="preload" href="data/meta.json" as="fetch" crossorigin>
   <link rel="stylesheet" href="styles/tokens.css">
   <link rel="stylesheet" href="styles/app.css">
   <link rel="stylesheet" href="styles/results.css">
