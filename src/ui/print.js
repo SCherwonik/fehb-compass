@@ -1,4 +1,4 @@
-// Print / Save as PDF: before printing, a "Your situation" summary replaces the input panel on paper
+// Print / Save as PDF: before printing, a "Your situation" summary replaces the situation bar and editor on paper
 // (styles/print.css), the best plan's math is filled in, and the board fills the columns that print.
 // Everything is undone after printing. The summary lists choices only: medications are counted, never named.
 import { h } from './dom.js';
@@ -39,7 +39,7 @@ export function initPrint({ store, results, planName, medsCount }) {
       h('p', { class: 'ps-link' }, `Open this comparison: ${shareLink(location.href, s).url}`),
       h('p', { class: 'ps-note' }, 'Totals are estimates for one year: premium plus expected out-of-pocket costs, minus HSA or HRA money.'));
     document.getElementById('print-summary')?.remove();
-    document.querySelector('.layout')?.before(box);
+    document.getElementById('sit-bar')?.before(box);
     const restore = results.preparePrint?.() ?? (() => {});
     for (const b of document.querySelectorAll('.board')) b._fillFirst?.(6); // print.css prints the best 6 plans
     undo = () => { box.remove(); restore(); };

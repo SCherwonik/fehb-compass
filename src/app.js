@@ -1,5 +1,7 @@
 // Entry point: theme, state (URL hash + saved), staged data load, input panel, ranked results.
-import { createStore, loadInitialState, encodeState, encodeHash, saveOverflow, decodeState, sanitizeAgainstData } from './state.js';
+import { createStore, loadInitialState, encodeState, encodeHash, saveOverflow, decodeState, sanitizeAgainstData, safeStorage, STORAGE_KEY } from './state.js';
+import { initSituation, loadOpenPrefs } from './ui/situation.js';
+import { situationOpen } from './ui/situation-model.js';
 import { loadDataProgressive, loadBrochureFacts, fedvipHub } from './data.js';
 import { renderInputs } from './ui/inputs.js';
 import { initTheme } from './ui/theme.js';
@@ -105,23 +107,8 @@ function mountDentalVision(main) {
   store.subscribe(sync);
 }
 
-// The input panel is sticky on wide screens. A panel taller than the window would hide its own end, so its sticky
-// top goes negative by the overflow: it scrolls with the page until its end is in view, then stays put.
-function fitStickyPanel(panel) {
-  if (!panel) return;
-  const TOP = 84;
-  const GAP = 16;
-  let raf = 0;
-  const fit = () => {
-    raf = 0;
-    const top = Math.min(TOP, window.innerHeight - panel.offsetHeight - GAP);
-    panel.style.setProperty('--panel-top', `${Math.round(top)}px`);
-  };
-  const queue = () => { if (!raf) raf = requestAnimationFrame(fit); };
-  if ('ResizeObserver' in window) new ResizeObserver(queue).observe(panel);
-  window.addEventListener('resize', queue, { passive: true });
-  fit();
-}
+// What the page opened with, read before the store saves anything: decides whether the editor starts open.
+const openedWith = { hash: location.hash, stored: safeStorage().get(STORAGE_KEY) };
 
 async function main() {
   initTheme(document.getElementById('theme-toggle'));
@@ -136,7 +123,6 @@ async function main() {
     },
   });
   if (pshb) document.querySelector('.intro')?.append(pshb);
-  fitStickyPanel(document.querySelector('.panel'));
 
   store.subscribe(writeHash);
   store.subscribe(pointNeedle);
@@ -145,6 +131,18 @@ async function main() {
   const form = document.getElementById('inputs');
   // "My medications": private (localStorage only), shared by the panel, the GLP-1 chip and the results
   const meds = createMedsStore();
+
+  // "Your situation": summary strip + inline editor (open on a first visit, closed once there is state)
+  let planName = () => null;
+  const situation = initSituation({
+    bar: document.getElementById('sit-bar'),
+    editor: document.getElementById('sit-editor'),
+    store,
+    expanded: situationOpen({ tab: store.get().tab, remembered: loadOpenPrefs(), ...openedWith }),
+    chipOpts: () => ({ planName, medsCount: meds.get()?.drugs?.length ?? 0 }),
+  });
+  meds.subscribe(() => situation.refresh());
+  fedvipHub.subscribe(() => situation.refresh());
   const results = createResults(document.getElementById('results'), {
     store,
     onRanked: (rows) => meds.setTop(rows.map((r) => ({ code: r.code, name: r.plan.name, rank: r.rank }))),
@@ -164,10 +162,12 @@ async function main() {
     if (clean !== store.get()) store.set(clean);
     writeHash(store.get());
     renderInputs(form, { data: coreData, store, meds });
+    planName = (code) => coreData.plans.find((p) => p.year === 2026 && p.code === code)?.name ?? null;
+    situation.refresh();
     initPrint({
       store,
       results,
-      planName: (code) => coreData.plans.find((p) => p.year === 2026 && p.code === code)?.name ?? null,
+      planName,
       medsCount: () => meds.get()?.drugs?.length ?? 0,
     });
     form.after(createMedsPanel({ meds }).el);

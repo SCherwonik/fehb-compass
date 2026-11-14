@@ -163,17 +163,27 @@ h1, h2, h3, p { margin: 0; }
 .icon-btn[data-mode="dark"] .icon-dark { opacity: 1; transform: none; }
 
 /* ---------- page layout: mobile first ---------- */
+/* Content is capped at 1320px (like the footer); the boards inside the results may use the full window width. */
 .page {
+  --content-max: calc(1320px - 2 * var(--gutter));
   position: relative;
   z-index: var(--z-base);
   flex: 1;
   width: 100%;
-  max-width: 1320px;
-  margin: 0 auto;
+  min-width: 0;
   padding: var(--space-8) var(--gutter) var(--space-12);
 }
+.page > :not(.results):not(.sr-only),
+.results > :not(.results-frame):not(.dv):not(.sr-only),
+.results-frame > :not(.board):not(.sr-only),
+.dv > :not(.board):not(.sr-only) {
+  width: 100%;
+  max-width: var(--content-max);
+  margin-inline: auto;
+}
 
-.intro { max-width: 46rem; margin-bottom: var(--space-8); }
+.intro { margin-bottom: var(--space-6); }
+.intro > * { max-width: 46rem; }
 .intro-title {
   font-size: var(--text-3xl);
   line-height: var(--leading-tight);
@@ -232,34 +242,119 @@ h1, h2, h3, p { margin: 0; }
 @keyframes notice-in { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .notice { animation: none; } }
 
-.layout {
+/* ---------- "Your situation": summary strip + inline editor (src/ui/situation.js) ----------
+   One column, full width: intro, the summary strip, the editor (when open), then the results. Only the strip is
+   sticky (under the top bar); the editor scrolls with the page, so nothing holds the wheel or a touch scroll. */
+.sit-bar {
+  position: sticky;
+  top: calc(var(--topbar-h, 65px) + var(--space-2));
+  z-index: var(--z-sticky);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  min-width: 0;
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-5);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--surface-glass-strong) 88%, transparent);
+}
+.sit-title {
+  flex: none;
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  white-space: nowrap;
+}
+.sit-chips {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sit-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  max-width: 100%;
+  padding: 2px var(--space-3);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  background: var(--surface-sunken);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sit-chip[data-id="who"], .sit-chip[data-id="where"] { color: var(--text); font-weight: var(--weight-medium); }
+.sit-chip.is-warn { color: var(--warning); border-color: color-mix(in srgb, var(--warning) 32%, transparent); background: color-mix(in srgb, var(--warning) 9%, transparent); }
+.sit-edit { flex: none; min-height: 44px; margin-left: auto; }
+.sit-edit-icon { transition: transform var(--dur-slow) var(--ease-spring); }
+.sit-bar.is-open .sit-edit { background: var(--surface-raised); color: var(--accent-strong); box-shadow: inset 0 0 0 1px var(--border-control); }
+.sit-bar.is-open .sit-edit-icon { transform: rotate(90deg); }
+
+.sit-editor {
+  margin-top: var(--space-3);
+  border-radius: var(--radius-xl);
+  padding: var(--space-5);
+}
+@media (min-width: 640px) { .sit-editor { padding: var(--space-6); } }
+.sit-editor .inputs {
   display: grid;
-  grid-template-columns: minmax(0, 1fr); /* a long chip or table never widens the page */
-  gap: var(--space-6);
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
   align-items: start;
 }
+@media (min-width: 720px) { .sit-editor .inputs { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1180px) { .sit-editor .inputs { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.sit-editor .group {
+  margin: 0;
+  padding: var(--space-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--surface-sunken) 55%, transparent);
+}
+.sit-editor .group + .group { margin-top: 0; border-top: 1px solid var(--border); }
+.sit-editor .panel-skeleton { grid-column: 1 / -1; }
+.sit-editor > .md { margin-top: var(--space-4); }
+.sit-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-4);
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+.sit-foot-note { font-size: var(--text-sm); color: var(--text-subtle); max-width: 60ch; }
+.sit-foot .btn { min-height: 44px; }
 
-@media (min-width: 960px) {
-  .layout { grid-template-columns: minmax(360px, 412px) minmax(0, 1fr); gap: var(--space-8); }
-  /* No inner scroller (it trapped the wheel). The panel scrolls with the page; once its end is in view it
-     sticks there (top goes negative for a tall panel: --panel-top is set by app.js), so it never hides content. */
-  .panel { position: sticky; top: var(--panel-top, 84px); }
+/* the results start under the strip when "Show my results" scrolls to them */
+.results { margin-top: var(--space-8); scroll-margin-top: calc(var(--topbar-h, 65px) + var(--sit-h, 60px) + var(--space-4)); }
+
+@media (max-width: 639px) {
+  .sit-bar { border-radius: var(--radius-lg); padding-left: var(--space-3); }
+  .sit-title { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .sit-edit-more { display: none; }
+  /* one line on a phone: the chips scroll sideways (the editor holds every detail) */
+  .sit-chips {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 20px), transparent);
+    mask-image: linear-gradient(90deg, #000 calc(100% - 20px), transparent);
+  }
+  .sit-chips::-webkit-scrollbar { display: none; }
+  .sit-chip { flex: none; font-size: var(--text-xs); }
 }
 
 /* ---------- glass panel ---------- */
-.panel {
-  border-radius: var(--radius-xl);
-  padding: var(--space-6) var(--space-5) var(--space-5);
-  scrollbar-width: thin;
-}
-@media (min-width: 480px) { .panel { padding: var(--space-8) var(--space-6) var(--space-6); } }
-
-.panel-title {
-  font-size: var(--text-xl);
-  font-weight: var(--weight-semibold);
-  letter-spacing: var(--tracking-tight);
-  line-height: var(--leading-snug);
-}
+.panel { scrollbar-width: thin; }
 .panel-loading { color: var(--text-muted); padding: var(--space-6) 0; }
 .panel-error {
   margin-top: var(--space-4);

@@ -1,5 +1,5 @@
 /* FEHB Compass print / Save as PDF. Loaded with media="print" (index.html), so these rules are plain.
-   Goal: a 1-2 page summary. Black on white, no glass, blur, shadows or motion. The input panel is replaced by
+   Goal: a 1-2 page summary. Black on white, no glass, blur, shadows or motion. The situation bar and editor are replaced by
    the "Your situation" summary that app.js builds before printing (#print-summary); the cards view prints the
    top plans with the math for the best one; the board prints as a table on a landscape page.
    The board's long sections (benefit details, What changed in 2027) are left out: open the compare view to
@@ -33,7 +33,7 @@ body { display: block; font-size: 10pt; line-height: 1.4; -webkit-print-color-ad
 
 /* ---------- things that do nothing on paper ---------- */
 .ambient, .topbar, .skip-link, .icon-btn, .pill-btn, .toast, .tray, .about, .noscript,
-.panel, .rtools, .info-toggle, .counted-note, .card-actions, .cmp-toggle, .assume-dismiss,
+.panel, .sit-bar, .sit-editor, .bd-full-btn, .bd-stick, .rtools, .info-toggle, .counted-note, .card-actions, .cmp-toggle, .assume-dismiss,
 .dv-tabs, .dv-controls, .mx-tools, .bd-top .bd-nav, .bd-fade, .bd-hint, .bd-more, .mx-more,
 .md, .rx-tier-select, .chg-toggle, .footer-links, .skeleton, .panel-skeleton,
 .bd-meter, .bar, .savings-glow, .card-chg, .notice, .savings-area .field-switch { display: none !important; }
@@ -45,7 +45,7 @@ body { display: block; font-size: 10pt; line-height: 1.4; -webkit-print-color-ad
 }
 
 .page { max-width: none; padding: 0; }
-.layout { display: block; }
+.page > * { max-width: none !important; }
 .intro { margin: 0 0 8pt; }
 .intro-title { font-size: 16pt; letter-spacing: -0.01em; }
 .intro-lede { display: none; }

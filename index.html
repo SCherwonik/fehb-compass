@@ -92,23 +92,35 @@
       <p class="intro-lede">Tell us who is covered and how much care you expect. Plans are ranked by your total yearly cost: premium plus expected care, minus any HSA or HRA money.</p>
     </div>
 
-    <div class="layout">
-      <aside class="panel glass" aria-labelledby="panel-title">
-        <h2 class="panel-title" id="panel-title">Your situation</h2>
-        <form id="inputs" class="inputs" novalidate>
-          <div class="panel-skeleton" aria-hidden="true">
-            <div class="sk-line sk-a"></div>
-            <div class="sk-line sk-seg"></div>
-            <div class="sk-line sk-seg"></div>
-            <div class="sk-line sk-b"></div>
-            <div class="sk-line sk-field"></div>
-            <div class="sk-line sk-field"></div>
-          </div>
-          <p class="sr-only" role="status">Loading 2027 plan data…</p>
-        </form>
-      </aside>
+    <!-- "Your situation": a one-line summary that sticks under the top bar, and the full input form that opens
+         inline under it (src/ui/situation.js). Only the summary line is sticky; the form scrolls with the page. -->
+    <section class="sit-bar glass" id="sit-bar" aria-labelledby="sit-title">
+      <h2 class="sit-title" id="sit-title">Your situation</h2>
+      <ul class="sit-chips" id="sit-chips" aria-label="Your current inputs"></ul>
+      <button type="button" class="btn btn-primary sit-edit" id="sit-edit" aria-expanded="false" aria-controls="sit-editor">
+        <svg viewBox="0 0 16 16" aria-hidden="true" class="sit-edit-icon"><path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11"/><circle cx="5.5" cy="4.5" r="1.4"/><circle cx="10.5" cy="8" r="1.4"/><circle cx="6.5" cy="11.5" r="1.4"/></svg>
+        <span class="sit-edit-text">Edit<span class="sit-edit-more"> your situation</span></span>
+      </button>
+    </section>
+    <div class="sit-editor panel glass" id="sit-editor" role="region" aria-labelledby="sit-title" hidden>
+      <form id="inputs" class="inputs" novalidate>
+        <div class="panel-skeleton" aria-hidden="true">
+          <div class="sk-line sk-a"></div>
+          <div class="sk-line sk-seg"></div>
+          <div class="sk-line sk-seg"></div>
+          <div class="sk-line sk-b"></div>
+          <div class="sk-line sk-field"></div>
+          <div class="sk-line sk-field"></div>
+        </div>
+        <p class="sr-only" role="status">Loading 2027 plan data…</p>
+      </form>
+      <div class="sit-foot">
+        <p class="sit-foot-note">Changes apply as you make them. Your inputs stay in this browser and in the link you copy.</p>
+        <button type="button" class="btn btn-primary" id="sit-done">Show my results</button>
+      </div>
+    </div>
 
-      <main id="results" class="results is-loading" tabindex="-1" aria-busy="true">
+    <main id="results" class="results is-loading" tabindex="-1" aria-busy="true">
         <div class="skeleton" aria-hidden="true">
           <div class="sk-line sk-title"></div>
           <div class="sk-line sk-sub"></div>
