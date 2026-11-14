@@ -17,11 +17,12 @@ import { initShare } from './ui/share-ui.js';
 import { initAbout } from './ui/about.js';
 import { initPrint } from './ui/print.js';
 import { noticeEl } from './ui/notices.js';
+import { initCompass } from './ui/compass.js';
 
 const NEEDLE_ANGLE = { nothing: -64, healthy: -42, typical: -12, condition: 24, worst: 58 };
-// TEMPORARY: the needle is held at this angle (30 degrees left, between Healthy and Typical). Set to null and it
-// follows the chosen scenario again using NEEDLE_ANGLE above.
-const NEEDLE_FIXED = -30;
+// What the brand needle does: 'sway' (rests at 0, now and then glides to a random angle: src/ui/compass.js),
+// 'scenario' (points at the chosen care setting using NEEDLE_ANGLE), or a number of degrees to hold it at.
+const NEEDLE_MODE = 'sway';
 
 const store = createStore(loadInitialState({ hash: location.hash }));
 export { store };
@@ -38,10 +39,10 @@ function writeHash(s) {
   }
 }
 
-// Brand needle points toward the chosen scenario: the one piece of decorative motion, tied to input.
+// Needle modes 'scenario' and a fixed number (see NEEDLE_MODE).
 function pointNeedle(s) {
   // Set on the needle itself, not :root: a root custom property would restyle the whole results list.
-  document.querySelector('.brand-needle')?.style.setProperty('--needle', `${NEEDLE_FIXED ?? NEEDLE_ANGLE[s.scenario] ?? 0}deg`);
+  document.querySelector('.brand-needle')?.style.setProperty('--needle', `${typeof NEEDLE_MODE === 'number' ? NEEDLE_MODE : NEEDLE_ANGLE[s.scenario] ?? 0}deg`);
 }
 
 // Footer provenance: OPM's public use files (dates from data/meta.json) and the brochures (data/brochure_facts.json).
@@ -129,8 +130,11 @@ async function main() {
   if (pshb) document.querySelector('.intro')?.append(pshb);
 
   store.subscribe(writeHash);
-  store.subscribe(pointNeedle);
-  pointNeedle(store.get());
+  if (NEEDLE_MODE === 'sway') initCompass(document.querySelector('.brand-needle'));
+  else {
+    store.subscribe(pointNeedle);
+    pointNeedle(store.get());
+  }
 
   const form = document.getElementById('inputs');
   // "My medications": private (localStorage only), shared by the panel, the GLP-1 chip and the results

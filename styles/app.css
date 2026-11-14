@@ -122,9 +122,11 @@ h1, h2, h3, p { margin: 0; }
 .brand-needle {
   transform-box: view-box;
   transform-origin: 20px 20px;
-  transform: rotate(var(--needle, -30deg));
+  transform: rotate(var(--needle, 0deg));
   transition: transform var(--dur-slower) var(--ease-spring);
 }
+/* src/ui/compass.js moves it frame by frame: a CSS transition on top would lag behind */
+.brand-needle.is-swaying { transition: none; will-change: transform; }
 .brand-name {
   font-size: var(--text-lg);
   font-weight: var(--weight-semibold);
