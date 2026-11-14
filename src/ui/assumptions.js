@@ -104,5 +104,5 @@ export function customSummary(lines) {
 export function inNetworkAtMax(cost) {
   const max = cost?.breakdown?.oopMax;
   if (max == null) return false;
-  return (cost.oop - (cost.breakdown.oonPaid || 0)) >= max - 0.5;
+  return (cost.oop - (cost.breakdown.oonPaid || 0) - (cost.breakdown.notCoveredPaid || 0)) >= max - 0.5;
 }

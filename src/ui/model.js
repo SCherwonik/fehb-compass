@@ -5,6 +5,7 @@ import { SCENARIOS, applyOverrides, usageFromCustom } from '../engine/scenarios.
 import { diffPlan, planFacts } from '../engine/diff.js';
 import { statesFromServiceArea } from '../data.js';
 import { groupPlans } from './grouping.js';
+import { glp1Covered, planMeds } from './rx-model.js';
 
 const cents = (n) => Math.round(n * 100) / 100;
 
@@ -62,12 +63,18 @@ export function costInputs(state) {
   };
 }
 
-/** One costed 2027 plan with its 2026 counterpart diff. null when the plan cannot be costed. */
+/**
+ * One costed 2027 plan with its 2026 counterpart diff. null when the plan cannot be costed.
+ * With the user's medications (data.meds, private: from ui/meds-store.js) and the brochure facts (data.brochure),
+ * the priced drugs join the cost (engine `drugs`) and `meds` carries the per-drug summary (rx-model planMeds).
+ */
 export function makeRow(data, state, code) {
   const meta = planMeta(data, 2027, code);
   const input = planInput(data, 2027, code);
   if (!meta || !input || !input.rate[state.enrollment]) return null;
   const inputs = costInputs(state);
+  const meds = data.meds ? planMeds(data.brochure ?? null, data.meds, code, input.benefits) : null;
+  if (meds?.entries.length) inputs.drugs = meds.entries;
   let cost;
   try { cost = planTotal(input, inputs); } catch { return null; }
   if (!Number.isFinite(cost.total)) return null;
@@ -83,6 +90,7 @@ export function makeRow(data, state, code) {
     facts2026,
     diff: diffPlan(facts2026, facts),
     account: input.accountType ?? null,
+    meds,
   };
 }
 
@@ -171,6 +179,8 @@ export function computeRows(data, state, { type = 'all' } = {}) {
     if (!servesState(data.serviceArea, code, st)) continue;
     if (nets.size && !nets.has(meta.network_family || 'Other')) continue;
     if (type !== 'all' && meta.type !== type) continue;
+    // GLP-1 filter: applies once the brochure facts are in (before that nothing is hidden)
+    if (state.glp1 && data.brochure && !glp1Covered(code, data.brochure)) continue;
     const row = makeRow(data, state, code);
     if (!row) continue;
     if (state.account === 'hsa' && row.account !== 'HSA') continue;
@@ -199,7 +209,7 @@ export function sortRows(rows, key = 'total') {
 
 /** True when any results filter is narrowing the plans open in the state (network, account or plan type). */
 export function filtersActive(state, type = 'all') {
-  return (state.networks?.length ?? 0) > 0 || (state.account ?? 'any') !== 'any' || (type ?? 'all') !== 'all';
+  return (state.networks?.length ?? 0) > 0 || (state.account ?? 'any') !== 'any' || (type ?? 'all') !== 'all' || state.glp1 === true;
 }
 
 /**
@@ -239,7 +249,7 @@ export function rankWithMine(data, state, rows, sortKey = 'total', { type = 'all
   if (!base) return plain('uncostable');
 
   // overall: every plan open in the state, no network/account/type filter
-  const everyRow = filtersOn ? computeRows(data, { ...state, networks: [], account: 'any' }, { type: 'all' }) : rows;
+  const everyRow = filtersOn ? computeRows(data, { ...state, networks: [], account: 'any', glp1: false }, { type: 'all' }) : rows;
   const overall = everyRow.some((r) => r.code === code) ? everyRow : [...everyRow, base];
   const globalRank = sortRows(overall, sortKey).findIndex((r) => r.code === code) + 1;
 

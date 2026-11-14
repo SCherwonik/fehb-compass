@@ -45,6 +45,22 @@ export function loadDataProgressive(base = DEFAULT_BASE) {
   return { core, full };
 }
 
+/**
+ * Brochure facts (data/brochure_facts.json, about 1.6 MB): prescription tiers, drug lookup links and the
+ * "what changed in 2027" lists, verified against the 2027 plan brochures. Loaded after the plans are ranked
+ * (it is not needed for the first paint). Resolves to the parsed file, or null when it is missing or broken:
+ * the app then works without brochure facts.
+ */
+export async function loadBrochureFacts(base = DEFAULT_BASE) {
+  try {
+    const facts = await fetchJson('brochure_facts.json', base);
+    return facts && typeof facts === 'object' && facts.plans && typeof facts.plans === 'object' ? facts : null;
+  } catch (err) {
+    console.warn('Brochure facts not loaded:', err?.message ?? err);
+    return null;
+  }
+}
+
 /** Sorted unique state codes that appear in any plan's service area. */
 export function statesFromServiceArea(serviceArea) {
   const set = new Set();

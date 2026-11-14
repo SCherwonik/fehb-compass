@@ -19,7 +19,9 @@
 //   view:            'cards' | 'board'                    results layout (ranked cards or the horizontal compare board)
 //   group:           'top3' | 'carrier' | 'type' | 'account' | 'all'   which plans the board shows
 //   includeMine:     boolean                              always show the 2027 version of currentPlan2026 (pinned first)
+//   glp1:            boolean                              only plans whose 2027 brochure covers GLP-1 drugs for weight loss
 // }
+// (The user's medications are private: they live in localStorage under ui/meds-store.js, never in this state or the hash.)
 //
 // URL hash: URLSearchParams with compact keys, default values omitted, e.g.
 //   #s=r&e=f&st=VA&a=h&n=Aetna&n=Kaiser+Permanente&c=104&sc=w&d=1&p=104,224&v=b&g=c
@@ -56,6 +58,7 @@ export const DEFAULT_STATE = Object.freeze({
   view: 'cards',
   group: 'top3',
   includeMine: true,
+  glp1: false,
   droppedCustom: 0,
 });
 
@@ -148,6 +151,7 @@ export function sanitizeState(input) {
     view: pickEnum(s.view, VIEW, DEFAULT_STATE.view),
     group: pickEnum(s.group, GROUP, DEFAULT_STATE.group),
     includeMine: s.includeMine !== false,
+    glp1: s.glp1 === true,
     droppedCustom: Number.isInteger(s.droppedCustom) && s.droppedCustom > 0 ? Math.min(MAX_CUSTOM_LINES, s.droppedCustom) : 0,
   };
 }
@@ -264,6 +268,7 @@ export function encodeHash(state) {
   if (s.view !== DEFAULT_STATE.view) p.set('v', VIEW[s.view]);
   if (s.group !== DEFAULT_STATE.group) p.set('g', GROUP[s.group]);
   if (!s.includeMine) p.set('m', '0');
+  if (s.glp1) p.set('w', '1');
 
   const encoded = [];
   let i = 0;
@@ -358,6 +363,7 @@ export function decodeState(hash, opts = {}) {
     view: has(VIEW_IN, one('v')) ? VIEW_IN[one('v')] : undefined,
     group: has(GROUP_IN, one('g')) ? GROUP_IN[one('g')] : undefined,
     includeMine: one('m') !== '0',
+    glp1: one('w') === '1',
     droppedCustom,
   });
 }

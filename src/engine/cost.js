@@ -80,7 +80,11 @@ function parseTierRaw(raw) {
 
 /**
  * Expand usage into priced events: {service, label, price}.
- * `drugs` entries: {tier, fillsPerYear, price}.
+ * `drugs` entries, either form:
+ *   legacy:   {tier, fillsPerYear, price}  priced from the plan's OPM tier copays (benefits.copays rx_tierN)
+ *   brochure: {label, fillsPerYear, price, share, deductibleApplies}  priced from the tier terms the caller
+ *             looked up (see ui/rx-model.js planMeds); share = {kind: 'usd'|'pct'|'zero'|'full', value?, cap?, floor?}
+ * Brochure entries become events tagged with their `drug` index.
  * usage.custom lines (validated by scenarios.js sanitizeLine) become events tagged with their line index,
  * after every scenario event, so the scenario uses the deductible first.
  */
@@ -97,9 +101,11 @@ function buildEvents(usage, prices, drugs) {
   add(usage.hospitalStays, 'inpatient_admission', 'inpatient admission', prices.inpatientStay);
   add(usage.hospitalStays, 'inpatient_surgeon', 'inpatient surgeon', prices.surgery);
   add((usage.rxMonthly || 0) * 12, 'rx_tier1', 'generic prescription fill', prices.rxGenericFill);
-  for (const d of drugs || []) {
-    add(d.fillsPerYear, `rx_tier${d.tier}`, `tier ${d.tier} prescription fill`, d.price);
-  }
+  (drugs || []).forEach((d, drug) => {
+    if (!d || typeof d !== 'object') return;
+    if (d.share && typeof d.share === 'object') add(d.fillsPerYear, 'rx_brochure', d.label || 'prescription', d.price, { drug });
+    else add(d.fillsPerYear, `rx_tier${d.tier}`, `tier ${d.tier} prescription fill`, d.price);
+  });
   (usage.custom || []).forEach((l, line) => {
     const meta = CUSTOM_KINDS[l.kind];
     if (!meta) return;
@@ -115,7 +121,13 @@ const usd0 = (n) => `$${Math.round(n).toLocaleString('en-US')}`;
 /**
  * Expected out-of-pocket cost. `benefits` must be RESOLVED (see resolveBenefits).
  * assumptions: {prices?: partial ASSUMED_PRICES overrides}.
- * Returns {deductiblePaid, coinsurancePaid, copays, oonPaid, total, warnings, flat, custom, oonEstimate}.
+ * Returns {deductiblePaid, coinsurancePaid, copays, oonPaid, total, warnings, flat, custom, oonEstimate,
+ *          drugs, drugsPaid, drugsDeductible, notCoveredPaid}.
+ * Brochure-form drugs (see buildEvents) share the deductible and the OOP max with everything else, follow their
+ * tier's deductibleApplies (null = the plan default: HDHPs yes, others no), and are reported apart:
+ * `drugs` = [{label, fillsPerYear, cost}], `drugsPaid` = their total (including `drugsDeductible`, the part of the
+ * deductible they used, which is also in deductiblePaid). Not-covered drugs ({kind:'full'}) are paid in full and do
+ * not count toward the OOP max (`notCoveredPaid`). Their copays/coinsurance are NOT in `copays`/`coinsurancePaid`.
  * `flat` is true when every used service was a fixed copay / $0 (no price sensitivity).
  * `custom`: one entry per usage.custom line with its cost contribution, warnings and notes.
  * Out-of-network lines are paid in full (OPM lists no out-of-network cost sharing), counted against the plan's
@@ -128,6 +140,10 @@ export function expectedOop(benefits, usage, assumptions = {}, drugs = []) {
   let dedLeft = benefits.deductible || 0;
   const defaultDed = benefits.deductibleDefault === true;
   let deductiblePaid = 0, coinsurancePaid = 0, copays = 0, total = 0, oonPaid = 0;
+  let drugsPaid = 0, drugsDeductible = 0, notCoveredPaid = 0;
+  const drugLines = (drugs || []).map((d) => (d && typeof d === 'object' && d.share && typeof d.share === 'object'
+    ? { label: d.label || 'prescription', fillsPerYear: d.fillsPerYear || 0, cost: 0, drugId: d.drugId }
+    : null));
   const warnings = [];
   const warned = new Set();
   let flat = true;
@@ -170,6 +186,40 @@ export function expectedOop(benefits, usage, assumptions = {}, drugs = []) {
   for (const e of buildEvents(usage, prices, drugs)) {
     const price = e.price || 0;
     const custom = e.line !== undefined;
+
+    if (e.drug !== undefined) {
+      // a medication priced from its brochure tier terms
+      flat = false;
+      const D = drugs[e.drug];
+      const L = drugLines[e.drug];
+      const s = D.share;
+      if (s.kind === 'full') { // not covered: full price, outside the OOP max
+        notCoveredPaid += Math.max(0, price);
+        L.cost += Math.max(0, price);
+        continue;
+      }
+      if (total >= oopMax || s.kind === 'zero') continue;
+      const applies = D.deductibleApplies === true || (D.deductibleApplies !== false && defaultDed);
+      let dedPiece = 0, sharePiece = 0;
+      if (s.kind === 'usd' || s.kind === 'pct') {
+        dedPiece = applies ? Math.min(dedLeft, price) : 0;
+        const rest = price - dedPiece;
+        if (s.kind === 'usd') sharePiece = Math.min(Number.isFinite(s.value) ? s.value : 0, rest);
+        else {
+          sharePiece = rest * ((Number.isFinite(s.value) ? s.value : 0) / 100);
+          if (Number.isFinite(s.floor)) sharePiece = Math.max(sharePiece, Math.min(s.floor, rest));
+          if (Number.isFinite(s.cap)) sharePiece = Math.min(sharePiece, s.cap);
+        }
+      }
+      const d = take(dedPiece);
+      dedLeft -= d;
+      deductiblePaid += d;
+      drugsDeductible += d;
+      const sp = take(Math.max(0, sharePiece));
+      drugsPaid += d + sp;
+      L.cost += d + sp;
+      continue;
+    }
 
     if (custom && e.oon) {
       flat = false;
@@ -251,12 +301,17 @@ export function expectedOop(benefits, usage, assumptions = {}, drugs = []) {
   }
 
   for (const L of lines) L.cost = cents(L.cost);
+  const drugOut = drugLines.filter(Boolean).map((L) => ({ ...L, cost: cents(L.cost) }));
   return {
     deductiblePaid: cents(deductiblePaid),
     coinsurancePaid: cents(coinsurancePaid),
     copays: cents(copays),
     oonPaid: cents(oonPaid),
-    total: cents(total + oonPaid),
+    total: cents(total + oonPaid + notCoveredPaid),
+    drugs: drugOut,
+    drugsPaid: cents(drugsPaid + notCoveredPaid),
+    drugsDeductible: cents(drugsDeductible),
+    notCoveredPaid: cents(notCoveredPaid),
     warnings,
     flat,
     custom: lines,
@@ -301,6 +356,10 @@ export function planTotal(plan, inputs) {
       accountType: hra ? 'HRA' : 'HSA',
       oonPaid: o.oonPaid,
       oonEstimate: o.oonEstimate,
+      drugs: o.drugs,
+      drugsPaid: o.drugsPaid,
+      drugsDeductible: o.drugsDeductible,
+      notCoveredPaid: o.notCoveredPaid,
       custom: o.custom,
       warnings: o.warnings,
     },

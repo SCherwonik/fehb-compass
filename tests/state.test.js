@@ -37,6 +37,7 @@ const FULL = {
   view: 'board',
   group: 'carrier',
   includeMine: false,
+  glp1: true,
 };
 
 test('decodeState("#garbage") returns defaults', () => {

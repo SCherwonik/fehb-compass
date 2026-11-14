@@ -274,6 +274,27 @@ function finishRow(row) {
   return { ...row, differs: !norm.every((t) => t === norm[0]), best: rowBest(row.cells, row.dir) };
 }
 
+/**
+ * A pre-parsed cell from an extra source: { text, display, kind, value?, unit?, note?, name?, cite?, link?, badge? }.
+ * cite = { short, label, href|null } (a source page), link = { href, text } (an outbound link; hrefs are
+ * already checked by the source, see rx-model normalizeUrl), badge = { kind, text, why } (a data caveat).
+ */
+function richCell(v) {
+  const display = String(v.display ?? v.text ?? '');
+  return {
+    text: v.text == null ? (display || null) : String(v.text),
+    kind: typeof v.kind === 'string' ? v.kind : 'text',
+    display: display || 'Not listed',
+    value: Number.isFinite(v.value) ? v.value : null,
+    unit: v.unit ?? null,
+    ...(v.note ? { note: String(v.note) } : {}),
+    ...(v.name ? { name: String(v.name) } : {}),
+    ...(v.cite ? { cite: v.cite } : {}),
+    ...(v.link ? { link: v.link } : {}),
+    ...(v.badge ? { badge: v.badge } : {}),
+  };
+}
+
 const oonCell = (code, v) => (Number.isFinite(v)
   ? { code, field: null, text: usdExact(v), kind: v === 0 ? 'nothing' : 'value', display: usdExact(v), value: v, unit: v === 0 ? 'zero' : 'usd' }
   : { code, field: null, text: null, kind: 'na', display: 'Not listed', value: null, unit: null });
@@ -342,11 +363,11 @@ export function buildMatrix(plans, { enrollment = 'self', status = 'active', ext
     const cells = list.map((p) => {
       let v = null;
       try { v = x.get(p); } catch { v = null; }
-      return { code: p.code, field: null, ...parseCell(v) };
+      return { code: p.code, field: null, ...(v && typeof v === 'object' ? richCell(v) : parseCell(v)) };
     });
     if (cells.every((c) => c.kind === 'missing')) continue;
     rowsBySection.get(sec).push({
-      key: x.key, label: x.label, hint: x.hint, fields: [], source: 'extra', dir: x.dir === undefined ? 'min' : x.dir, seq: Infinity, cells,
+      key: x.key, label: x.label, hint: x.hint, sub: x.sub, fields: [], source: 'extra', dir: x.dir === undefined ? 'min' : x.dir, seq: Infinity, cells,
     });
   }
 
@@ -430,7 +451,7 @@ export function matrixBoardSections(sections, { open = {} } = {}) {
         key: `mx:${s.id}:${r.key}`,
         label: r.label,
         labelSub: r.sub,
-        hint: r.hint ? `OPM field: ${r.hint}` : undefined,
+        hint: r.hint ? (r.source === 'extra' ? r.hint : `OPM field: ${r.hint}`) : undefined,
         differs: r.differs,
         best: r.dir ?? null,
         // best-in-row over the board group's own cells, with the matrix's unit-aware rule
@@ -454,6 +475,9 @@ export function boardCell(c) {
     kind: c.kind,
     tone: KIND_TONE[c.kind],
     value: Number.isFinite(c.value) ? c.value : null,
+    cite: c.cite,
+    link: c.link,
+    badge: c.badge,
     mx: c,
   };
 }
