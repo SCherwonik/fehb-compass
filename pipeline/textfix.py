@@ -47,6 +47,32 @@ GLUED = {
 _GLUED = re.compile(
     "(?<![A-Za-z])(" + "|".join(re.escape(k) for k in GLUED) + ")(?![a-z])")
 
+# Plain misspellings found by a corpus sweep (rare word within edit distance 1-2 of a
+# frequent one, judged unambiguous from context). Whole-word, case-insensitive,
+# initial capital preserved.
+TYPOS = {
+    "vist": "visit", "vsit": "visit", "isit": "visit", "ioffice": "office",
+    "deducible": "deductible", "deductilble": "deductible",
+    "eyeglassess": "eyeglasses", "appy": "apply", "anr": "and",
+    "addmission": "admission", "admisison": "admission", "alloowance": "allowance",
+    "allowanceup": "allowance up", "copayup": "copay up", "authorizaton": "authorization",
+    "calendary": "calendar", "hopsital": "hospital", "maxiumum": "maximum",
+    "nnual": "annual", "surery": "surgery", "co ins": "coins",
+}
+# Clipped at the end of the cell text (only repaired when it is the last word).
+TRUNCATED = {"admi": "admission", "offic": "office", "copaymen": "copayment",
+             "allowanc": "allowance"}
+_TYPOS = re.compile(
+    r"(?<![A-Za-z'])(" + "|".join(re.escape(k) for k in TYPOS) + r")(?![A-Za-z'])", re.I)
+_TRUNC = re.compile(
+    r"(?<![A-Za-z'])(" + "|".join(TRUNCATED) + r")$", re.I)
+
+
+def _keep_case(m: re.Match, table: dict) -> str:
+    rep = table[m.group(1).lower()]
+    return rep[0].upper() + rep[1:] if m.group(1)[0].isupper() else rep
+
+
 MIN_JOINED_COUNT = 3     # joined word must appear intact in >= 3 distinct corpus strings
 MIN_JOINED_LEN = 6
 KNOWN_FRAGMENT_COUNT = 8  # a 3+ letter fragment counts as a real word from this many strings
@@ -54,7 +80,7 @@ KNOWN_FRAGMENT_RATIO = 0.25  # ...and only if not rarer than 1/4 of the word it 
 
 _WORD = re.compile(r"[A-Za-z]+")
 # Zero-width so that overlapping pairs ('Max copaym ent') are all examined.
-_PAIR = re.compile(r"(?=(?<![\w$%/.'\-])([A-Za-z]+) ([a-z]+)(?![\w'/\-]))")
+_PAIR = re.compile(r"(?=(?<![\w$%/.'])([A-Za-z]+) ([a-z]+)(?![\w'/\-]))")
 _DIGITS = re.compile(
     r"(?:(?<![^:;(,/])|(?<=[:;(,/] ))(\d) (\d{1,2})(?=-days?\b| days?\b|%)")
 
@@ -118,6 +144,8 @@ def fix_spacing(text: str, vocab: Counter | None = None) -> str:
     """Repair spacing artifacts in `text`; word joins need a `vocab` from build_vocab()."""
     t = re.sub(r"\s+", " ", text.replace("\u00a0", " ")).strip()
     t = _GLUED.sub(lambda m: GLUED[m.group(1)], t)
+    t = _TYPOS.sub(lambda m: _keep_case(m, TYPOS), t)
+    t = _TRUNC.sub(lambda m: _keep_case(m, TRUNCATED), t)
     t = _DIGITS.sub(r"\1\2", t)
     for rx, rep in _PUNCT_RULES:
         t = rx.sub(rep, t)
