@@ -356,7 +356,8 @@ export function renderInputs(form, { data, store, meds }) {
   form.replaceChildren(
     group('Coverage', status.el, medicareNote, enrollment.el),
     group('Location', zip.el, location.el),
-    group('Plans to consider', current.el, mine.el, account.el, networks, glp1?.el, dvIn.plans),
+    group('Your 2026 plan', current.el, mine.el),
+    group('Filters', account.el, networks, glp1?.el, dvIn.plans),
     group('Your year', year.el, dental, dvAddon.el, dvIn.year),
   );
 

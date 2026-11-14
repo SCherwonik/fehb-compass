@@ -270,7 +270,10 @@ h1, h2, h3, p { margin: 0; }
   flex: 1 1 auto;
   min-width: 0;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap; /* one line: this bar stays on screen, so it must stay thin; every detail is in the editor */
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
   gap: 6px;
   margin: 0;
   padding: 0;
@@ -289,8 +292,7 @@ h1, h2, h3, p { margin: 0; }
   font-size: var(--text-sm);
   line-height: 1.25;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  flex: none;
 }
 .sit-chip[data-id="who"], .sit-chip[data-id="where"] { color: var(--text); font-weight: var(--weight-medium); }
 .sit-chip.is-warn { color: var(--warning); border-color: color-mix(in srgb, var(--warning) 32%, transparent); background: color-mix(in srgb, var(--warning) 9%, transparent); }
@@ -305,23 +307,28 @@ h1, h2, h3, p { margin: 0; }
   padding: var(--space-5);
 }
 @media (min-width: 640px) { .sit-editor { padding: var(--space-6); } }
+/* Columns, not a grid: the groups are very different heights (Coverage is short, "Plans to consider" is tall), so a
+   grid left big blank cells. CSS columns pack them top to bottom, and 23rem keeps even a five-way segmented
+   control (Healthy / Typical / Condition / Worst / None) wide enough to read. */
 .sit-editor .inputs {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--space-4);
-  align-items: start;
+  display: block;
+  column-width: 23rem;
+  column-gap: var(--space-4);
 }
-@media (min-width: 720px) { .sit-editor .inputs { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (min-width: 1180px) { .sit-editor .inputs { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 .sit-editor .group {
-  margin: 0;
+  display: block;
+  break-inside: avoid;
+  margin: 0 0 var(--space-4);
   padding: var(--space-5);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: color-mix(in srgb, var(--surface-sunken) 55%, transparent);
 }
-.sit-editor .group + .group { margin-top: 0; border-top: 1px solid var(--border); }
-.sit-editor .panel-skeleton { grid-column: 1 / -1; }
+.sit-editor .group + .group { margin-top: 0; margin-bottom: var(--space-4); border-top: 1px solid var(--border); }
+.sit-editor .panel-skeleton { column-span: all; }
+/* a group whose fields are all switched off for this tab (e.g. the health plan pick on Dental & Vision) disappears
+   with them instead of leaving an empty card */
+.sit-editor .group:not(:has(> :not(.group-title):not(.is-off):not([hidden]))) { display: none; }
 .sit-editor > .md { margin-top: var(--space-4); }
 .sit-foot {
   display: flex;
