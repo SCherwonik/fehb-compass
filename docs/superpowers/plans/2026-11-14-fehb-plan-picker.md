@@ -164,3 +164,17 @@
 - [ ] **Step 3:** Add Pages workflow publishing the repo root; create the GitHub repo and push (confirm repo name and visibility with the user first).
 - [ ] **Step 4:** Verify the live URL loads and shows data.
 - [ ] **Step 5: Commit** `feat: polish, print, deploy`.
+
+---
+
+## Added tasks (owner request 2026-11-14; see spec Addendum)
+
+### Task 5b: Compare Board (horizontal ranked board)
+**Files:** Create `src/ui/board.js`, `src/ui/grouping.js`, `styles/board.css`; Modify `src/ui/results.js` (view toggle), `src/state.js` (`view: 'cards'|'board'`, `group: 'top3'|'carrier'|'type'|'account'|'all'`). Test: `tests/grouping.test.js`.
+**Interfaces:** Produces `groupPlans(rows, mode, n=3) -> [{key, label, rows}]` (rows already ranked; Top-N per group; 'top3' = single group of 3; 'all' = single group of everything, ranks global); `buildBoardRows(row) -> sections` row definitions for the board.
+- [ ] Failing tests: top3 per carrier returns <=3 rows each in rank order; 'all' preserves order; empty input -> []; ties stable; plan with null fields renders "—" not NaN.
+- [ ] Implement grouping + board UI (sticky row labels/column headers, scroll-snap, edge fades, keyboard + drag scroll, rank badges, best-in-row highlight, group headers inside the scroll, FLIP re-rank on input change, reduced-motion respected). Verify in browser on desktop and mobile.
+- [ ] Commit.
+
+### Task 7 (revised): Dental and vision tab (FEDVIP)
+Uses the same `board.js`; adds a Dental/Vision tab with ZIP -> eligible plans via FEDVIP zip/rating-region data; opt-in toggle adds dental/vision premium to medical totals. The OPM web tool is not scraped.
