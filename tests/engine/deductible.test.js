@@ -22,6 +22,8 @@ const APPLIES = [
   '30% - of the Plan allowance (deductible applies)',
   '$30 Copayment - Deductible may or may not apply; coinsurance applies to eligible charge', // ambiguous: assume it applies
   'Subject to deductible',
+  'Member Pays Nothing - + Deductible, + cost-shares apply if member has no other coverage', // "+ Deductible"
+  '$350 Copayment - per admission after deductible. Nothing for maternity care.',
 ];
 const NO_DEDUCTIBLE = [
   '$30 Copayment - No deductible.',
@@ -29,6 +31,12 @@ const NO_DEDUCTIBLE = [
   '$20 Copayment - Deductible does not apply',
   '15% Coinsurance - No deductible',
   'Member Pays Nothing - No deductible.',
+  'Member Pays Nothing - Plan deductible is waived.', // real 2027 string
+  '$30 Copayment - deductible waived',
+  '$30 Copayment - waived deductible',
+  '$20 Copayment - Not subject to deductible', // beats "subject to deductible"
+  'Member Pays Nothing - (Deductible does not apply)',
+  '$50 Copayment - first two visits, no deductible 30% coinsurance deductible applies thereafter-no charge for first two maternity ultrasounds',
 ];
 const SILENT = ['$30 Copayment', 'Generic - $0 Copayment', '$350 Copayment - Waived if Admitted', '$20 Copayment - per visit'];
 

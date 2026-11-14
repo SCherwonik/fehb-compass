@@ -24,7 +24,13 @@ export function resolveBenefits(benefits, enrollment) {
 }
 
 // Phrase classes found in every 2027 copay `raw` string (see tests/engine/deductible.test.js).
-const NO_DED = /no deductible|deductible does not apply/i;
+const NO_DED = new RegExp([
+  'no deductible',
+  'deductibles? (?:does|do) not apply',
+  'deductibles? (?:is |are )?waived', // "Plan deductible is waived." / "deductible waived"
+  'waived (?:the |your |plan )?deductible',
+  'not subject to (?:the )?deductible', // must beat DED's "subject to deductible"
+].join('|'), 'i');
 const DED = new RegExp([
   'deductible applies',
   'deductible may or may not apply', // ambiguous: assume it applies (conservative, and marks the total estimated)
@@ -32,6 +38,7 @@ const DED = new RegExp([
   'calendar year deductible', // HDHP lines: "$0 Copayment - $1,750/$3,500 Calendar Year Deductible"
   'annual [a-z ]{0,20}deductible', // "$X annual hospital deductible ... then 20% coinsurance"
   'plus deductible',
+  '\\+ ?deductible', // "+ Deductible, + cost-shares apply"
   'subject to (?:the )?deductible',
 ].join('|'), 'i');
 
