@@ -58,6 +58,8 @@ TYPOS = {
     "allowanceup": "allowance up", "copayup": "copay up", "authorizaton": "authorization",
     "calendary": "calendar", "hopsital": "hospital", "maxiumum": "maximum",
     "nnual": "annual", "surery": "surgery", "co ins": "coins",
+    "per aper admission": "per admission",
+    "upto": "up to", "inpat cost": "inpatient cost",
 }
 # Clipped at the end of the cell text (only repaired when it is the last word).
 TRUNCATED = {"admi": "admission", "offic": "office", "copaymen": "copayment",
