@@ -73,7 +73,7 @@ export function initShare({ store, copyBtn, printBtn }) {
     if (ok) {
       copyBtn.classList.add('is-done');
       setTimeout(() => copyBtn.classList.remove('is-done'), 1600);
-      toast(`Link copied. It holds your choices, not your medications.${lines}`, { sticky: Boolean(lines), returnTo: copyBtn });
+      toast(`Link copied. Your medications list is never included. Your own cost descriptions are.${lines}`, { sticky: Boolean(lines), returnTo: copyBtn });
       return;
     }
     // No clipboard access: show the link selected so it can be copied by hand.

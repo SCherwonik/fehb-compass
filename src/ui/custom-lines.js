@@ -39,6 +39,9 @@ export function createCustomLines({ store }) {
       type: 'button', class: 'cl-preset', 'data-preset': p.id, title: p.description,
     }, svg(ICON_PLUS), p.label)));
 
+  // descriptions travel in the page link and share links (unlike the medications list): say so where they are typed
+  const privacyHint = h('p', { class: 'field-hint cl-privacy', id: 'cl-label-privacy', hidden: true },
+    'Descriptions are saved in the page link and in links you share, so keep them general. Your medications list is never put in a link.');
   const el = h('fieldset', { class: 'field cl' },
     h('legend', { class: 'field-label' }, 'Your own costs'),
     h('p', { class: 'field-hint field-hint-top' },
@@ -47,6 +50,7 @@ export function createCustomLines({ store }) {
     presets,
     presetMsg,
     list,
+    privacyHint,
     h('div', { class: 'cl-foot' }, addBtn, h('span', { class: 'cl-meta' }, summary, countLive)),
     overflowNote);
 
@@ -71,7 +75,7 @@ export function createCustomLines({ store }) {
       Object.entries(CUSTOM_KINDS).map(([k, m]) => h('option', { value: k }, m.label)));
     const label = h('input', {
       type: 'text', class: 'cl-input cl-label', id: `${id}-label`, maxlength: String(MAX_LABEL), autocomplete: 'off',
-      'aria-label': 'Description (optional)',
+      'aria-label': 'Description (optional)', 'aria-describedby': 'cl-label-privacy',
     });
     const price = h('input', {
       type: 'number', class: 'cl-input cl-num', id: `${id}-price`, min: '0', max: String(MAX_LINE_PRICE), step: '1',
@@ -284,6 +288,7 @@ export function createCustomLines({ store }) {
     addBtn.disabled = n >= MAX_CUSTOM_LINES;
     for (const b of presets.querySelectorAll('button')) b.disabled = n >= MAX_CUSTOM_LINES;
     list.hidden = n === 0;
+    privacyHint.hidden = n === 0;
   }
 
   paintMeta();
