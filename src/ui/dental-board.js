@@ -37,7 +37,6 @@ function loadUi() {
     in2: f?.in2 === true,
   });
   return {
-    group: DV_GROUP_MODES.includes(v.group) ? v.group : 'top3',
     diffOnly: v.diffOnly === true,
     lastKind: v.lastKind === 'vision' ? 'vision' : 'dental',
     open: v.open && typeof v.open === 'object' ? Object.fromEntries(Object.entries(v.open).filter(([, b]) => typeof b === 'boolean').slice(0, 40)) : {},
@@ -180,7 +179,7 @@ export function createDvPanel({ store }) {
     if (t.name === 'dv-dental-use') store.set({ dentalUse: t.value });
     else if (t.name === 'dv-vision-use') store.set({ visionUse: t.value });
     else if (t.name === 'dv-area') setFilter({ area: t.value });
-    else if (t === groupSel) { ui.group = t.value; saveUi(ui); render(store.get()); }
+    else if (t === groupSel) store.set({ dvGroup: t.value }); // in the share link (state.js), so it re-renders
     else if (t === mineSel) store.set(kindOf() === 'dental' ? { myDental: t.value || null } : { myVision: t.value || null });
     else if (t === diff) { ui.diffOnly = t.checked; saveUi(ui); render(store.get(), { animate: false }); }
     else if (t === oon.input) setFilter({ oon: t.checked });
@@ -253,7 +252,7 @@ export function createDvPanel({ store }) {
     presetHow.textContent = kind === 'dental'
       ? `${describeDentalPreset(s.dentalUse)}. Assumed list prices for one person: in-network dentists usually charge plan members less, so out-of-pocket here is more likely high than low.`
       : 'Copays come from OPM’s text. Frame and contact allowances are not published by OPM, so costs above them are not counted.';
-    groupSel.value = ui.group;
+    groupSel.value = s.dvGroup;
     diff.checked = ui.diffOnly;
     limits.textContent = OPM_LIMITS[kind];
     const f = ui[kind];
@@ -313,7 +312,7 @@ export function createDvPanel({ store }) {
     }
     empty.hidden = true;
     board.el.hidden = false;
-    const groups = groupPlans(res.others, ui.group);
+    const groups = groupPlans(res.others, s.dvGroup);
     if (res.mine) groups.unshift({ key: 'mine', label: 'Your plan', rows: [res.mine], total: 1, note: '2027 rates' });
     const ctx = dvContext(res.ranked, s, kind, res.mine);
     const onBoard = groups.flatMap((g) => g.rows);
@@ -328,7 +327,7 @@ export function createDvPanel({ store }) {
     board.update({
       groups,
       sections: fs.sections,
-      header: (row, g) => dvHeader(row, g.rows, ctx, g.key === 'mine' ? '' : scopeText(ui.group, g)),
+      header: (row, g) => dvHeader(row, g.rows, ctx, g.key === 'mine' ? '' : scopeText(s.dvGroup, g)),
       ctx,
       summary: `Showing ${shown} of ${rows.length} ${kind} plans${res.mine ? ', plus your plan' : ''}.`,
       enter: !open,

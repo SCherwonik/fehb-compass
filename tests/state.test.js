@@ -38,6 +38,7 @@ const FULL = {
   visionPlan: 'none',
   myDental: '02AP-11-Standard',
   myVision: '02AP-17-High',
+  dvGroup: 'carrier',
   custom: [{ label: 'Physio', kind: 'therapy', price: 120, perYear: 12 }, { label: 'Insulin', kind: 'rx_brand', price: 300, perYear: 12, tier: 3, outOfNetwork: true }],
   dental: true,
   selectedPlans: ['104', '224', '8W4'],

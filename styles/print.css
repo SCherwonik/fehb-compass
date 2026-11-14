@@ -1,0 +1,160 @@
+/* FEHB Compass print / Save as PDF. Loaded with media="print" (index.html), so these rules are plain.
+   Goal: a 1-2 page summary. Black on white, no glass, blur, shadows or motion. The input panel is replaced by
+   the "Your situation" summary that app.js builds before printing (#print-summary); the cards view prints the
+   top plans with the math for the best one; the board prints as a table on a landscape page.
+   The board's long sections (benefit details, What changed in 2027) are left out: open the compare view to
+   print those in full. */
+
+@page { size: letter portrait; margin: 0.5in 0.5in 0.55in; }
+@page wide { size: letter landscape; margin: 0.4in; }
+
+/* !important: the dark theme rules in tokens.css are more specific */
+:root, :root[data-theme] {
+  --bg: #fff !important; --text: #000 !important; --text-muted: #222 !important; --text-subtle: #444 !important;
+  --accent: #000 !important; --accent-strong: #000 !important; --accent-2: #000 !important; --accent-soft: transparent !important;
+  --surface-glass: #fff !important; --surface-glass-strong: #fff !important; --surface-raised: #fff !important; --surface-sunken: #fff !important; --surface-hover: transparent !important;
+  --border: #bbb !important; --border-strong: #888 !important; --border-control: #888 !important;
+  --warning: #000 !important; --danger: #000 !important;
+  --board-bg: #fff !important;
+  color-scheme: light;
+}
+
+*, *::before, *::after {
+  animation: none !important;
+  transition: none !important;
+  text-shadow: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+html, body { background: #fff !important; color: #000 !important; }
+/* the screen type scale is in rem: a smaller root scales every component down for paper */
+html { font-size: 11.5px !important; }
+body { display: block; font-size: 10pt; line-height: 1.4; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+/* ---------- things that do nothing on paper ---------- */
+.ambient, .topbar, .skip-link, .icon-btn, .pill-btn, .toast, .tray, .about, .noscript,
+.panel, .rtools, .info-toggle, .counted-note, .card-actions, .cmp-toggle, .assume-dismiss,
+.dv-tabs, .dv-controls, .mx-tools, .bd-top .bd-nav, .bd-fade, .bd-hint, .bd-more, .mx-more,
+.md, .rx-tier-select, .chg-toggle, .footer-links, .skeleton, .panel-skeleton,
+.bd-meter, .bar, .savings-glow, .card-chg { display: none !important; }
+
+.glass, .card, .board, .compare, .savings, .dv, .counted-note, .rhead-mine, .assume-chip {
+  background: #fff !important;
+  box-shadow: none !important;
+  border-color: #bbb !important;
+}
+
+.page { max-width: none; padding: 0; }
+.layout { display: block; }
+.intro { margin: 0 0 8pt; }
+.intro-title { font-size: 16pt; letter-spacing: -0.01em; }
+.intro-lede { display: none; }
+
+/* ---------- "Your situation" summary (built in app.js before printing) ---------- */
+#print-summary { display: block !important; margin: 0 0 10pt; padding: 8pt 10pt; border: 1px solid #888; border-radius: 6pt; break-inside: avoid; }
+#print-summary h2 { font-size: 11pt; margin: 0 0 4pt; }
+#print-summary dl { display: grid; grid-template-columns: max-content 1fr; gap: 1pt 10pt; margin: 0; font-size: 9pt; }
+#print-summary dt { font-weight: 600; }
+#print-summary dd { margin: 0; }
+#print-summary .ps-link { margin-top: 5pt; font-size: 8pt; word-break: break-all; }
+#print-summary .ps-note { margin-top: 3pt; font-size: 8pt; }
+
+/* ---------- results header ---------- */
+.results-frame { display: block; }
+.results-frame > * + * { margin-top: 8pt; }
+.rhead { display: block; }
+.rhead-title { font-size: 13pt; }
+.rhead-sub, .rhead-filtered { font-size: 9pt; color: #222; }
+.assume { margin-top: 4pt; }
+.assume-chip { border: 1px solid #999 !important; color: #000 !important; font-size: 8pt; padding: 1pt 5pt; }
+.savings { padding: 6pt 10pt; border: 1px solid #888; break-inside: avoid; }
+
+/* ---------- cards: top plans only, math for the best one ---------- */
+.cards { display: block; margin: 0; padding: 0; }
+.cards > .card:nth-child(n+6) { display: none !important; }
+.card {
+  content-visibility: visible !important;
+  break-inside: avoid;
+  margin: 0 0 6pt !important;
+  padding: 7pt 10pt !important;
+  border: 1px solid #999 !important;
+  border-radius: 6pt;
+  transform: none !important;
+  opacity: 1 !important;
+}
+.card-rank { border: 1px solid #000; background: #fff !important; color: #000 !important; box-shadow: none !important; }
+.card-name { font-size: 11pt; }
+.card-total-num { font-size: 15pt; color: #000 !important; }
+.facts { gap: 4pt 12pt; margin-top: 4pt; }
+.fact-v { font-size: 10pt; }
+.fact-d, .card-meta, .card-share { font-size: 8pt; color: #222 !important; }
+.tag { border: 1px solid #999 !important; background: #fff !important; color: #000 !important; font-size: 7.5pt; }
+.card-math { display: none !important; }
+.card.print-math .card-math { display: block !important; margin-top: 6pt; border-top: 1px solid #999; padding-top: 6pt; }
+.card.print-math .math-clip { visibility: visible !important; overflow: visible; }
+.card.print-math .math-inner { opacity: 1 !important; transform: none !important; display: grid; grid-template-columns: 1.1fr 1fr; gap: 6pt 14pt; font-size: 8.5pt; }
+.math-prices { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+.dot { border: 1px solid #000; background: #fff !important; }
+
+/* ---------- compare (only when it is open on screen) ---------- */
+.compare[hidden] { display: none !important; }
+.compare { break-before: page; padding: 6pt; border: 1px solid #888; }
+.compare-scroll, .mx-clip { overflow: visible !important; max-height: none !important; }
+
+/* ---------- board: a table on a landscape page, best 6 plans, summary sections only ---------- */
+.board:not([hidden]) { page: wide; break-before: page; border: 0 !important; border-radius: 0; overflow: visible !important; }
+.board { --bw-label: 1.45in; --bw-col: 1.4in; --band-h: 0px; --pin-w: 0px; font-size: 8pt; }
+.bd-top { padding: 0 0 4pt; border: 0; }
+.bd-summary { color: #000; font-size: 9pt; }
+.bd-scroll { overflow: visible !important; max-height: none !important; scroll-snap-type: none; }
+.bd-table { width: 100% !important; font-size: 8pt; border-collapse: collapse !important; }
+.bd-col-label { width: 1.45in; }
+.bd-col { width: auto; }
+.bd-table th, .bd-table td {
+  position: static !important;
+  background: #fff !important;
+  box-shadow: none !important;
+  border: 1px solid #bbb !important;
+  padding: 3pt 4pt !important;
+}
+.bd-bands { display: none; }
+.bd-table tr > :nth-child(n+8) { display: none !important; } /* the row label + the best 6 plans */
+.bd-table col:nth-child(n+8) { visibility: collapse; }
+.bd-heads th { vertical-align: top; }
+.bd-h { padding: 0; gap: 1pt; }
+.bd-name { display: block; overflow: visible; -webkit-line-clamp: unset; min-height: 0; font-size: 8.5pt; }
+.bd-sub { white-space: normal; overflow: visible; }
+.bd-legend { display: none !important; }
+.bd-why { -webkit-line-clamp: unset; min-height: 0; font-size: 7pt; }
+.bd-num { font-size: 11pt; }
+.bd-rank, .bd-chip { border: 1px solid #000 !important; background: #fff !important; color: #000 !important; box-shadow: none !important; }
+.bd-head.is-top .bd-h::before, .bd-head.is-mine .bd-h::after { display: none; }
+.bd-cell.is-best .bd-v { background: none !important; box-shadow: none !important; padding: 0; margin: 0; font-weight: 700; text-decoration: underline; }
+/* summary sections only: the long brochure lists and benefit sections stay on screen */
+.bd-group.is-collapsible, .bd-group-changes27 { display: none !important; }
+.bd-group.is-collapsed > .bd-row { display: table-row !important; }
+.bd-sec-row th { padding: 5pt 4pt 2pt !important; font-size: 9pt; border-left: 0 !important; border-right: 0 !important; }
+.bd-sec-toggle .mx-chev { display: none; }
+.bd-row, .bd-sec-row { break-inside: avoid; }
+.bd-table thead { display: table-header-group; } /* repeat the plan names on each page */
+.bd-note { -webkit-line-clamp: unset !important; display: block !important; }
+.board .sr-only { display: none; } /* the "not loaded" note on cells beyond the printed six */
+
+/* ---------- dental and vision tab ---------- */
+.dv .board:not([hidden]) { break-before: auto; }
+
+/* ---------- links as text ---------- */
+a { color: #000 !important; text-decoration: underline; }
+.results-frame a[href^="http"]::after, .dv a[href^="http"]::after, .footer a[href^="http"]::after {
+  content: " (" attr(href) ")";
+  font-size: 7pt;
+  word-break: break-all;
+}
+.rx-cite::after { content: none !important; }
+
+/* ---------- footer: provenance + the two plain sentences ---------- */
+.footer { border-top: 1px solid #888; padding: 6pt 0 0; margin-top: 10pt; font-size: 7.5pt; color: #000; break-inside: avoid; }
+.footer-inner { gap: 2pt; }
+
+h1, h2, h3, h4 { break-after: avoid; color: #000; }
+p, li { orphans: 2; widows: 2; }

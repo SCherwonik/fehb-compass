@@ -23,6 +23,7 @@
 //   visionPlan:      null | 'none' | FEDVIP id            e.g. '02AP-17-High' (<brochure>-<option>)
 //   myDental:        null | FEDVIP id                     your 2026 dental plan (same id in 2027), pinned on the board
 //   myVision:        null | FEDVIP id                     your 2026 vision plan
+//   dvGroup:         'top3' | 'carrier' | 'all'           which plans the dental/vision board shows ("Show")
 //   selectedPlans:   string[]                             2027 enrollment codes pinned for comparison
 //   view:            'cards' | 'board'                    results layout (ranked cards or the horizontal compare board)
 //   group:           'top3' | 'carrier' | 'type' | 'account' | 'all'   which plans the board shows
@@ -74,6 +75,7 @@ export const DEFAULT_STATE = Object.freeze({
   visionPlan: null,
   myDental: null,
   myVision: null,
+  dvGroup: 'top3',
   droppedCustom: 0,
 });
 
@@ -103,6 +105,7 @@ const GROUP = { top3: 't', carrier: 'c', type: 'p', account: 'a', all: 'x' };
 const TAB = { medical: 'm', dental: 'd', vision: 'v' };
 const DENTAL_USE = { cleanings: 'c', typical: 't', major: 'm', braces: 'b' };
 const VISION_USE = { exam: 'e', glasses: 'g', contacts: 'c' };
+const DV_GROUP = { top3: 't', carrier: 'c', all: 'x' };
 
 const invert = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [v, k]));
 const STATUS_IN = invert(STATUS);
@@ -114,6 +117,7 @@ const GROUP_IN = invert(GROUP);
 const TAB_IN = invert(TAB);
 const DENTAL_USE_IN = invert(DENTAL_USE);
 const VISION_USE_IN = invert(VISION_USE);
+const DV_GROUP_IN = invert(DV_GROUP);
 const OVERRIDE_IN = invert(OVERRIDE);
 const KIND_IN = invert(KIND);
 
@@ -184,6 +188,7 @@ export function sanitizeState(input) {
     visionPlan: validPick(s.visionPlan),
     myDental: validFedvip(s.myDental),
     myVision: validFedvip(s.myVision),
+    dvGroup: pickEnum(s.dvGroup, DV_GROUP, DEFAULT_STATE.dvGroup),
     droppedCustom: Number.isInteger(s.droppedCustom) && s.droppedCustom > 0 ? Math.min(MAX_CUSTOM_LINES, s.droppedCustom) : 0,
   };
 }
@@ -308,6 +313,7 @@ export function encodeHash(state) {
   if (s.visionPlan) p.set('vp', s.visionPlan);
   if (s.myDental) p.set('md', s.myDental);
   if (s.myVision) p.set('mv', s.myVision);
+  if (s.dvGroup !== DEFAULT_STATE.dvGroup) p.set('dg', DV_GROUP[s.dvGroup]);
 
   const encoded = [];
   let i = 0;
@@ -410,6 +416,7 @@ export function decodeState(hash, opts = {}) {
     visionPlan: one('vp'),
     myDental: one('md'),
     myVision: one('mv'),
+    dvGroup: has(DV_GROUP_IN, one('dg')) ? DV_GROUP_IN[one('dg')] : undefined,
     droppedCustom,
   });
 }
