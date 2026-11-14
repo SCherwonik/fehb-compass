@@ -91,7 +91,8 @@ async function main() {
   // Back/forward or a pasted link: adopt the hash, minus anything the data does not know.
   window.addEventListener('hashchange', () => {
     const next = sanitizeAgainstData(decodeState(location.hash, { storage: undefined }), vocab);
-    if (encodeState(next) !== encodeState(store.get())) store.set(next);
+    // droppedCustom is not part of the link, so compare it separately (a pasted link may announce missing lines)
+    if (encodeState(next) !== encodeState(store.get()) || next.droppedCustom !== store.get().droppedCustom) store.set(next);
     writeHash(store.get());
   });
 

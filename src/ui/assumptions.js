@@ -1,6 +1,6 @@
 // "What you're assuming": plain-language summaries of the scenario, fine-tune overrides and custom lines.
 // DOM-free (shared by the input panel and the results header; unit tested under node).
-import { SCENARIOS, OVERRIDE_FIELDS, applyOverrides, lineSpend } from '../engine/scenarios.js';
+import { SCENARIOS, OVERRIDE_FIELDS, MAX_CUSTOM_LINES, applyOverrides, lineSpend } from '../engine/scenarios.js';
 
 export const SCENARIO_LABELS = {
   healthy: 'Healthy', typical: 'Typical', condition: 'Managing a condition', worst: 'Worst case', nothing: 'Start from nothing',
@@ -76,9 +76,33 @@ export function assumptionChips(state) {
     chips.push({ id: 'custom', text: plural(custom.length, 'custom line'), tone: 'accent',
       title: `${money(spend)} a year of your own costs before plan cost sharing` });
   }
+  if (state.droppedCustom > 0) {
+    chips.push({ id: 'dropped', text: `${plural(state.droppedCustom, 'line')} not in link`, tone: 'warn', dismissible: true,
+      title: droppedText(state.droppedCustom) });
+  }
   if (custom.some((l) => l.outOfNetwork && l.perYear > 0)) {
     chips.push({ id: 'oon', text: 'Out-of-network estimate', tone: 'warn',
       title: 'Out-of-network lines are counted at full cost: OPM publishes no out-of-network cost sharing.' });
   }
   return chips;
+}
+
+/** Notice for a pasted link whose extra custom lines live only in the sender's browser. */
+export function droppedText(n) {
+  return `This link had ${n} more custom ${n === 1 ? 'line' : 'lines'} that couldn’t be included in the link.`;
+}
+
+/** Editor footer: "N of 25 lines, $X a year" (spend before plan cost sharing), from the lines themselves. */
+export function customSummary(lines) {
+  const list = lines ?? [];
+  const head = `${list.length} of ${MAX_CUSTOM_LINES} lines`;
+  if (!list.length) return head;
+  return `${head}, ${money(list.reduce((a, l) => a + lineSpend(l), 0))} a year`;
+}
+
+/** True when the IN-NETWORK part of expected care reached the in-network OOP max (OON spend is separate). */
+export function inNetworkAtMax(cost) {
+  const max = cost?.breakdown?.oopMax;
+  if (max == null) return false;
+  return (cost.oop - (cost.breakdown.oonPaid || 0)) >= max - 0.5;
 }

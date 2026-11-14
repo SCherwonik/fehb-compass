@@ -232,7 +232,9 @@ export function expectedOop(benefits, usage, assumptions = {}, drugs = []) {
       dedPiece = useDed(defaultDed);
       if (dedPiece > 0) flat = false;
     } else if (custom) {
-      fallback(`the plan's benefit reads "${c.raw || 'blank'}"`);
+      const raw = String(c.raw ?? '').trim();
+      fallback(raw ? `the plan's benefit reads "${raw}"`
+        : isRx ? `the plan lists no tier ${e.service.slice(7)} drug benefit` : 'the plan’s data has no entry for it');
     } else {
       warnOnce(e, c.raw);
       continue;

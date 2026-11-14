@@ -276,3 +276,9 @@ test('costInputs layers overrides and custom lines on the chosen scenario', asyn
   assert.deepEqual(n, { ...SCENARIOS.nothing, custom: [] });
   assert.deepEqual(costInputs({ status: 'active', enrollment: 'self', scenario: 'bogus' }).usage, { ...SCENARIOS.typical, custom: [] });
 });
+
+test('a blank plan field is described in plain English, not as "blank"', { skip }, () => {
+  const w = one('571', line('rx_specialty', 1000, 1, { tier: 5 })).breakdown.custom[0].warnings[0];
+  assert.ok(!/blank|""/.test(w), w);
+  assert.match(w, /no tier 5 drug benefit|has no entry/i);
+});

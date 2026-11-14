@@ -137,3 +137,61 @@ test('a short list stays fully in the hash', () => {
   assert.equal(res.inline, 2);
   assert.ok(!/cx=/.test(res.hash));
 });
+
+// ---------- review fixes ----------
+
+test('a link whose overflow is not in this browser reports how many lines were left out', () => {
+  const lines = [L('pcp', 150, 4), L('er', 2200, 1)];
+  const hash = `${encodeState({ ...defaultState(), custom: lines })}&cx=2`;
+  const d = decodeState(hash);
+  assert.equal(d.droppedCustom, 2);
+  assert.deepEqual(d.custom, lines);
+  // same browser with the overflow saved: nothing dropped
+  const storage = memoryStorage();
+  const big = { ...defaultState(), custom: BIG };
+  const res = encodeHash(big);
+  saveOverflow(res, storage);
+  assert.equal(decodeState(res.hash, { storage }).droppedCustom, 0);
+  assert.equal(decodeState(res.hash, { storage: memoryStorage() }).droppedCustom, res.overflow.length);
+  assert.equal(decodeState(res.hash).droppedCustom, res.overflow.length);
+  // never more than the list could hold, never from garbage
+  assert.equal(decodeState('#cx=999').droppedCustom, 25);
+  assert.equal(decodeState('#cx=abc').droppedCustom, 0);
+  assert.equal(decodeState('#cx=-3').droppedCustom, 0);
+});
+
+test('droppedCustom is a notice, not part of the link: defaults to 0, never encoded, sanitized', () => {
+  assert.equal(defaultState().droppedCustom, 0);
+  assert.equal(encodeState({ ...defaultState(), droppedCustom: 3 }), '');
+  assert.equal(sanitizeState({ droppedCustom: 3 }).droppedCustom, 3);
+  for (const bad of [-1, 2.5, '3', NaN, 1e9, null]) assert.ok([0, 25].includes(sanitizeState({ droppedCustom: bad }).droppedCustom), String(bad));
+  // round trip of a fully populated state is unchanged
+  const s = { ...defaultState(), scenario: 'worst', overrides: { hospitalStays: 4 }, custom: [L('pcp', 150, 4), L('rx_brand', 30, 12, { tier: 2, outOfNetwork: true })] };
+  assert.deepEqual(decodeState(encodeState(s)), s);
+});
+
+test('compact line encoding: one short key, kind+price and count+flags fused, older cl= links still decode', () => {
+  const s = { ...defaultState(), custom: [L('pcp', 150, 4), L('rx_brand', 412.5, 12, { tier: 2, outOfNetwork: true })] };
+  const hash = encodeState(s);
+  assert.match(hash, /(^|&)l=p150_4_pcp\+line(&|$)/);
+  assert.match(hash, /(^|&)l=b412\.5_12ot2_rx_brand\+line(&|$)/);
+  assert.ok(!/cl=/.test(hash));
+  assert.deepEqual(decodeState('#cl=e_2200_1__ER+visit&cl=b_400_12_ot2_Pill').custom, [
+    { label: 'ER visit', kind: 'er', price: 2200, perYear: 1 },
+    { label: 'Pill', kind: 'rx_brand', price: 400, perYear: 12, tier: 2, outOfNetwork: true },
+  ]);
+  for (const bad of ['#l=q150_1_x', '#l=p_1_x', '#l=p1e9_1_x', '#l=p150_1x_x', '#l=p150', '#l=p150_1']) {
+    assert.deepEqual(decodeState(bad).custom, [], bad);
+  }
+});
+
+test('overrides equal to the active scenario are pruned, so they cannot resurface on a scenario change', () => {
+  const s = sanitizeState({ scenario: 'condition', overrides: { erVisits: 1, hospitalStays: 3 } });
+  assert.deepEqual(s.overrides, { hospitalStays: 3 }); // condition already has 1 ER visit
+  const store = createStore({ ...defaultState(), overrides: { erVisits: 1 } }, { storage: null });
+  store.set({ scenario: 'condition' });
+  assert.deepEqual(store.get().overrides, {});
+  store.set({ scenario: 'typical' });
+  assert.deepEqual(store.get().overrides, {}, 'the stale ER override does not come back');
+  assert.ok(!/o=/.test(encodeState(store.get())));
+});

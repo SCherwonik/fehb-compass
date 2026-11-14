@@ -7,6 +7,7 @@ import {
   sanitizeLine, lineSpend,
 } from '../engine/scenarios.js';
 import { encodeHash } from '../state.js';
+import { customSummary, droppedText } from './assumptions.js';
 import { reduceMotion, EASE_OUT, tweenNumber } from './motion.js';
 
 const ICON_PLUS = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3.2v9.6M3.2 8h9.6"/></svg>';
@@ -24,24 +25,29 @@ let uid = 0;
  */
 export function createCustomLines({ store }) {
   const list = h('ol', { class: 'cl-list', 'aria-label': 'Your own costs' });
-  const count = h('span', { class: 'cl-count', 'aria-live': 'polite' });
-  const total = h('span', { class: 'cl-total num' });
+  const summary = h('span', { class: 'cl-summary num' });
+  const countLive = h('span', { class: 'sr-only', 'aria-live': 'polite' }); // announces add/remove only, not keystrokes
+  const droppedMsg = h('span', { class: 'cl-dropped-text' });
+  const droppedBtn = h('button', { type: 'button', class: 'btn btn-quiet cl-dropped-dismiss' }, 'Dismiss');
+  const dropped = h('div', { class: 'cl-dropped', role: 'status', hidden: true }, droppedMsg, droppedBtn);
+  droppedBtn.addEventListener('click', () => store.set({ droppedCustom: 0 }));
   const addBtn = h('button', { type: 'button', class: 'btn btn-quiet cl-add' }, svg(ICON_PLUS), 'Add a cost');
   const presetMsg = h('p', { class: 'field-hint cl-msg', role: 'status' });
   const overflowNote = h('p', { class: 'field-hint cl-overflow', hidden: true });
   const presets = h('div', { class: 'cl-presets', role: 'group', 'aria-label': 'Add a worst-case bundle' },
     CUSTOM_PRESETS.map((p) => h('button', {
-      type: 'button', class: 'cl-preset', 'data-preset': p.id, title: p.description, 'aria-describedby': `cl-preset-${p.id}`,
-    }, svg(ICON_PLUS), p.label, h('span', { class: 'sr-only', id: `cl-preset-${p.id}` }, p.description))));
+      type: 'button', class: 'cl-preset', 'data-preset': p.id, title: p.description,
+    }, svg(ICON_PLUS), p.label)));
 
   const el = h('fieldset', { class: 'field cl' },
     h('legend', { class: 'field-label' }, 'Your own costs'),
     h('p', { class: 'field-hint field-hint-top' },
       'Add visits, tests, prescriptions or out-of-network care at your own prices. They stack on top of the year above.'),
+    dropped,
     presets,
     presetMsg,
     list,
-    h('div', { class: 'cl-foot' }, addBtn, h('span', { class: 'cl-meta' }, count, total)),
+    h('div', { class: 'cl-foot' }, addBtn, h('span', { class: 'cl-meta' }, summary, countLive)),
     overflowNote);
 
   /** rows: [{ id, el, line (last valid), fields }] in display order */
@@ -52,6 +58,7 @@ export function createCustomLines({ store }) {
   function commit() {
     const next = lines();
     committed = JSON.stringify(next);
+    paintMeta();
     store.set({ custom: next });
   }
   let timer = 0;
@@ -177,7 +184,7 @@ export function createCustomLines({ store }) {
     const { line, error } = readRow(row);
     row.fields.err.textContent = error;
     row.el.classList.toggle('is-invalid', Boolean(error));
-    if (line) { row.line = line; paintRow(row); commitSoon(); }
+    if (line) { row.line = line; paintRow(row); paintMeta(); commitSoon(); }
   });
   list.addEventListener('change', (e) => {
     const row = rowOf(e.target);
@@ -268,11 +275,12 @@ export function createCustomLines({ store }) {
       : added === 0 ? `No room: the list holds ${MAX_CUSTOM_LINES} lines.` : `Added ${added} of ${p.lines.length} lines: the list holds ${MAX_CUSTOM_LINES}.`;
   });
 
+  // Footer total: recomputed from the rows' current valid values on every edit, add, remove and sync.
   function paintMeta() {
     const n = rows.length;
-    count.textContent = `${n} of ${MAX_CUSTOM_LINES} lines`;
-    const spend = rows.reduce((a, r) => a + lineSpend(r.line), 0);
-    total.textContent = n ? `, ${money(spend)} a year` : '';
+    summary.textContent = customSummary(lines());
+    const live = `${n} of ${MAX_CUSTOM_LINES} lines`;
+    if (countLive.textContent !== live) countLive.textContent = live;
     addBtn.disabled = n >= MAX_CUSTOM_LINES;
     for (const b of presets.querySelectorAll('button')) b.disabled = n >= MAX_CUSTOM_LINES;
     list.hidden = n === 0;
@@ -291,6 +299,8 @@ export function createCustomLines({ store }) {
         list.replaceChildren(...rows.map((r) => r.el));
         paintMeta();
       }
+      dropped.hidden = !(state.droppedCustom > 0);
+      if (state.droppedCustom > 0) droppedMsg.textContent = droppedText(state.droppedCustom);
       const res = encodeHash(state);
       overflowNote.hidden = res.overflow.length === 0;
       if (res.overflow.length) {

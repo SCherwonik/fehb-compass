@@ -24,13 +24,17 @@
 // URL hash: URLSearchParams with compact keys, default values omitted, e.g.
 //   #s=r&e=f&st=VA&a=h&n=Aetna&n=Kaiser+Permanente&c=104&sc=w&d=1&p=104,224&v=b&g=c
 // Every field is validated independently; a malformed or unknown value falls back to its default.
-// Fine-tune overrides: o=h3.e2 (field letter + count). Custom lines go last, one `cl` param each:
-//   cl=<kind letter>_<price>_<perYear>_<flags>_<label>   flags: 'o' out-of-network, 't<n>' drug tier
+// Fine-tune overrides: o=h3.e2 (field letter + count). Custom lines go last, one `l` param each:
+//   l=<kind letter><price>_<perYear><flags>_<label>   flags: 'o' out-of-network, 't<n>' drug tier
+//   (links made before this format used cl=<kind>_<price>_<perYear>_<flags>_<label>; still decoded)
 // When the lines would push the hash past HASH_BUDGET chars, the ones that do not fit are saved in localStorage
 // (OVERFLOW_KEY, keyed by a signature of the inline lines) and `cx=N` records how many; the same browser restores
-// them, any other browser gets the inline lines only.
+// them; any other browser gets the inline lines only, and decode reports the rest in `droppedCustom`.
+//
+// droppedCustom: integer 0..25, a notice only (never encoded): how many custom lines a pasted link announced
+// with cx=N that this browser could not restore. The UI shows it until dismissed (set back to 0).
 
-import { sanitizeLines, sanitizeOverrides, MAX_CUSTOM_LINES } from './engine/scenarios.js';
+import { SCENARIOS, sanitizeLines, sanitizeOverrides, MAX_CUSTOM_LINES } from './engine/scenarios.js';
 
 export const STORAGE_KEY = 'fehb-compass:state:v1';
 export const OVERFLOW_KEY = 'fehb-compass:custom-overflow:v1';
@@ -52,6 +56,7 @@ export const DEFAULT_STATE = Object.freeze({
   view: 'cards',
   group: 'top3',
   includeMine: true,
+  droppedCustom: 0,
 });
 
 export function defaultState() {
@@ -127,6 +132,7 @@ function validNetworks(v) {
 export function sanitizeState(input) {
   const s = input && typeof input === 'object' ? input : {};
   const loc = s.location && typeof s.location === 'object' ? s.location : {};
+  const scenario = pickEnum(s.scenario, SCENARIO, DEFAULT_STATE.scenario);
   return {
     status: pickEnum(s.status, STATUS, DEFAULT_STATE.status),
     enrollment: pickEnum(s.enrollment, ENROLLMENT, DEFAULT_STATE.enrollment),
@@ -134,15 +140,23 @@ export function sanitizeState(input) {
     account: pickEnum(s.account, ACCOUNT, DEFAULT_STATE.account),
     networks: validNetworks(s.networks),
     currentPlan2026: validPlan(s.currentPlan2026),
-    scenario: pickEnum(s.scenario, SCENARIO, DEFAULT_STATE.scenario),
-    overrides: sanitizeOverrides(s.overrides),
+    scenario,
+    overrides: pruneOverrides(sanitizeOverrides(s.overrides), SCENARIOS[scenario]),
     custom: sanitizeLines(s.custom),
     dental: s.dental === true,
     selectedPlans: validPlanList(s.selectedPlans),
     view: pickEnum(s.view, VIEW, DEFAULT_STATE.view),
     group: pickEnum(s.group, GROUP, DEFAULT_STATE.group),
     includeMine: s.includeMine !== false,
+    droppedCustom: Number.isInteger(s.droppedCustom) && s.droppedCustom > 0 ? Math.min(MAX_CUSTOM_LINES, s.droppedCustom) : 0,
   };
+}
+
+/** Overrides equal to the active scenario's own value are dropped, so a stale one cannot resurface later. */
+function pruneOverrides(o, base) {
+  const out = {};
+  for (const [k, v] of Object.entries(o)) if (!base || base[k] !== v) out[k] = v;
+  return out;
 }
 
 /** Most plans the side-by-side compare view shows at once. */
@@ -176,13 +190,27 @@ export function sanitizeAgainstData(state, vocab) {
 
 // ---- URL hash ----
 
-/** One custom line -> 'kind_price_perYear_flags_label' (the label may contain anything, including '_'). */
+/** One custom line -> '<kind><price>_<perYear><flags>_<label>' (the label may contain anything, including '_'). */
 function encodeLine(l) {
   const flags = `${l.outOfNetwork ? 'o' : ''}${Number.isInteger(l.tier) ? `t${l.tier}` : ''}`;
-  return `${KIND[l.kind]}_${l.price}_${l.perYear}_${flags}_${l.label}`;
+  return `${KIND[l.kind]}${l.price}_${l.perYear}${flags}_${l.label}`;
 }
 
 function decodeLine(str) {
+  if (typeof str !== 'string' || str.length > 400) return null;
+  const parts = str.split('_');
+  if (parts.length < 3) return null;
+  const head = parts[0].match(/^([a-z])(\d+(?:\.\d+)?)$/);
+  const mid = parts[1].match(/^(\d+)(o?)(?:t(\d))?$/);
+  if (!head || !mid || !has(KIND_IN, head[1])) return null;
+  const line = { label: parts.slice(2).join('_'), kind: KIND_IN[head[1]], price: Number(head[2]), perYear: Number(mid[1]) };
+  if (mid[2]) line.outOfNetwork = true;
+  if (mid[3] !== undefined) line.tier = Number(mid[3]);
+  return line;
+}
+
+/** Lines from links made before the compact format: 'kind_price_perYear_flags_label' in `cl` params. */
+function decodeLegacyLine(str) {
   if (typeof str !== 'string' || str.length > 400) return null;
   const parts = str.split('_');
   if (parts.length < 5) return null;
@@ -242,10 +270,10 @@ export function encodeHash(state) {
   for (; i < s.custom.length; i++) {
     const e = encodeLine(s.custom[i]);
     const trial = new URLSearchParams(p);
-    trial.append('cl', e);
+    trial.append('l', e);
     // reserve room for "&cx=NN" in case later lines have to spill
     if (trial.toString().length + 7 > HASH_BUDGET) break;
-    p.append('cl', e);
+    p.append('l', e);
     encoded.push(e);
   }
   const overflow = s.custom.slice(i);
@@ -294,17 +322,26 @@ export function decodeState(hash, opts = {}) {
     return defaultState();
   }
   const one = (k) => p.get(k) ?? undefined;
-  // custom lines: compact `cl` params, or the older JSON `cu` param
+  // custom lines: compact `l` params, the older `cl` params, or the oldest JSON `cu` param
+  const ls = p.getAll('l').slice(0, MAX_CUSTOM_LINES);
   const cl = p.getAll('cl').slice(0, MAX_CUSTOM_LINES);
-  let custom = sanitizeLines(cl.map(decodeLine));
+  const inlineRaw = ls.length ? ls : cl;
+  let custom = sanitizeLines(ls.length ? ls.map(decodeLine) : cl.map(decodeLegacyLine));
   const cu = one('cu');
-  if (!cl.length && cu) {
+  if (!inlineRaw.length && cu) {
     try { custom = sanitizeLines(JSON.parse(cu)); } catch { custom = []; }
   }
-  const cx = Number(one('cx'));
-  if (opts && Object.prototype.hasOwnProperty.call(opts, 'storage') && Number.isInteger(cx) && cx > 0) {
-    const sig = lineSig(cl);
-    custom = custom.concat(readOverflow(opts.storage, sig, MAX_CUSTOM_LINES - custom.length));
+  // cx=N: N more lines did not fit the link. Restore them from this browser when asked; report the rest.
+  const cxRaw = one('cx');
+  const cx = cxRaw && /^\d{1,4}$/.test(cxRaw) ? Number(cxRaw) : 0;
+  let droppedCustom = 0;
+  if (cx > 0) {
+    const room = MAX_CUSTOM_LINES - custom.length;
+    const restored = opts && Object.prototype.hasOwnProperty.call(opts, 'storage')
+      ? readOverflow(opts.storage, lineSig(inlineRaw), room)
+      : [];
+    custom = custom.concat(restored);
+    droppedCustom = Math.max(0, Math.min(cx, room) - restored.length);
   }
   return sanitizeState({
     status: STATUS_IN[one('s')] ?? undefined,
@@ -321,6 +358,7 @@ export function decodeState(hash, opts = {}) {
     view: has(VIEW_IN, one('v')) ? VIEW_IN[one('v')] : undefined,
     group: has(GROUP_IN, one('g')) ? GROUP_IN[one('g')] : undefined,
     includeMine: one('m') !== '0',
+    droppedCustom,
   });
 }
 

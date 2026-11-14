@@ -292,3 +292,38 @@
 @media (prefers-reduced-motion: reduce) {
   .ft-def, .ft-step, .ft-range::-webkit-slider-thumb, .cl-preset, .cl-del { transition: none; }
 }
+
+/* ---------- a shared link that could not carry every custom line ---------- */
+.cl-dropped {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-3);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--warning) 35%, transparent);
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+  color: var(--warning);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+}
+.cl-dropped-text { flex: 1 1 14rem; }
+.cl-dropped-dismiss { min-height: 32px; color: var(--warning); }
+.cl-dropped-dismiss:hover { background: color-mix(in srgb, var(--warning) 14%, transparent); }
+.assume-dismiss {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin-right: -6px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.assume-dismiss svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+.assume-dismiss:hover { background: color-mix(in srgb, currentColor 16%, transparent); }

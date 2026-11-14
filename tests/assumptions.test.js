@@ -37,3 +37,31 @@ test('assumptionChips: scenario, changes, custom lines and out-of-network', () =
   assert.deepEqual(many.map((c) => c.text), ['Typical year', '3 adjustments']);
   for (const k of Object.keys(SCENARIOS)) assert.ok(SCENARIO_LABELS[k], k);
 });
+
+test('customSummary: count and yearly spend recomputed from the lines themselves', async () => {
+  const { customSummary } = await import('../src/ui/assumptions.js');
+  assert.equal(customSummary([]), '0 of 25 lines');
+  const one = [{ label: '', kind: 'specialist', price: 250, perYear: 1 }];
+  assert.equal(customSummary(one), '1 of 25 lines, $250 a year');
+  assert.equal(customSummary([{ ...one[0], price: 300 }]), '1 of 25 lines, $300 a year', 'an edited price changes the total');
+  assert.equal(customSummary([one[0], { label: '', kind: 'lab', price: 100, perYear: 4 }]), '2 of 25 lines, $650 a year');
+});
+
+test('assumptionChips: a link that lost lines gets a dismissible warning chip, without duplicated text', () => {
+  const chips = assumptionChips({ ...defaultState(), droppedCustom: 2 });
+  const c = chips.find((x) => x.id === 'dropped');
+  assert.equal(c.text, '2 lines not in link');
+  assert.equal(c.tone, 'warn');
+  assert.equal(c.dismissible, true);
+  assert.equal(c.title, 'This link had 2 more custom lines that couldn’t be included in the link.');
+  assert.equal(assumptionChips(defaultState()).some((x) => x.id === 'dropped'), false);
+});
+
+test('inNetworkAtMax compares only the in-network part with the in-network OOP max', async () => {
+  const { inNetworkAtMax } = await import('../src/ui/assumptions.js');
+  const cost = (oop, oonPaid, oopMax) => ({ oop, breakdown: { oonPaid, oopMax } });
+  assert.equal(inNetworkAtMax(cost(5000, 0, 5000)), true);
+  assert.equal(inNetworkAtMax(cost(5000, 1000, 5000)), false, 'OON spend does not fake a capped in-network total');
+  assert.equal(inNetworkAtMax(cost(6000, 1000, 5000)), true);
+  assert.equal(inNetworkAtMax(cost(100, 0, null)), false);
+});

@@ -1,7 +1,7 @@
 // Ranked results: header + toolbar, savings banner, compare view, keyed card list or the Compare Board, compare tray.
 // Cards are keyed by plan code and updated in place; reordering uses FLIP limited to visible cards.
 import { h, svg, segmented, ICON_CHECK, ICON_CHEVRON, mineSwitch } from './inputs.js';
-import { assumptionChips, describeUsage, effectiveUsage, overrideChanges } from './assumptions.js';
+import { assumptionChips, describeUsage, effectiveUsage, overrideChanges, inNetworkAtMax } from './assumptions.js';
 import { computeRows, savingsVsCurrent, availablePlans, SORTS, rankWithMine } from './model.js';
 import { GROUP_LABELS, GROUP_MODES } from './grouping.js';
 import { createResultsBoard, mineNoteText } from './results-board.js';
@@ -88,6 +88,9 @@ export function createResults(main, { store }) {
   const mineNote = h('p', { class: 'rhead-mine', hidden: true });
   const assume = h('ul', { class: 'assume', 'aria-label': 'Your assumptions' });
   let assumeKey = '';
+  assume.addEventListener('click', (e) => {
+    if (e.target.closest('[data-dismiss="dropped"]')) store.set({ droppedCustom: 0 });
+  });
   const head = h('header', { class: 'rhead' },
     h('div', { class: 'rhead-copy' }, title, countRow, infoNote, sub, assume, mineNote),
     h('div', { class: 'rtools' }, viewCtl.el, groupCtl, sortCtl.el, typeCtl.el, mineCtl.el));
@@ -351,7 +354,7 @@ export function createResults(main, { store }) {
       ? `${usdExact(rate.monthly_retiree)} a month × 12`
       : `${usdExact(rate.biweekly_active)} per paycheck × 26`;
     const careSum = b.deductiblePaid + b.coinsurancePaid + b.copays + (b.oonPaid || 0);
-    const hitMax = b.oopMax != null && cost.oop >= b.oopMax - 0.5;
+    const hitMax = inNetworkAtMax(cost); // in-network part only: OON spend has its own limit
     const raw = row.account ? row.benefits.account_contribution?.[state.enrollment] ?? 0 : 0;
 
     const lines = [
@@ -472,8 +475,11 @@ export function createResults(main, { store }) {
     const animate = assumeKey !== '' && !reduceMotion();
     assumeKey = key;
     assume.replaceChildren(...chips.map((c) => {
+      // the detail lives in the title only (one description, not repeated as hidden text)
       const li = h('li', { class: `assume-chip is-${c.tone}`, 'data-id': c.id, title: c.title },
-        c.tone === 'warn' && svg(ICON_WARN), c.text, h('span', { class: 'sr-only' }, `: ${c.title}`));
+        c.tone === 'warn' && svg(ICON_WARN), c.text,
+        c.dismissible && h('button', { type: 'button', class: 'assume-dismiss', 'aria-label': `Dismiss: ${c.title}`, 'data-dismiss': c.id },
+          svg('<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.6 4.6l6.8 6.8M11.4 4.6l-6.8 6.8"/></svg>')));
       if (animate && !before.has(c.id)) {
         li.animate([{ opacity: 0, transform: 'scale(0.9)', filter: 'blur(3px)' }, { opacity: 1, transform: 'none', filter: 'none' }],
           { duration: 320, easing: EASE_OUT });
