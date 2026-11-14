@@ -5,7 +5,8 @@
 // {
 //   status:          'active' | 'retiree'              premium basis (payroll biweekly x26 vs annuity monthly x12)
 //   enrollment:      'self' | 'self_plus_one' | 'family'
-//   location:        { state: string|null, zip: string|null }   2-letter USPS code; 5-digit ZIP (no UI yet)
+//   location:        { state: string|null, zip: string|null }   2-letter USPS code; 5-digit ZIP (sets the state and
+//                    drives FEDVIP dental regions/eligibility; ui/zip.js)
 //   account:         'any' | 'hsa' | 'hra'               HSA/HRA preference filter
 //   networks:        string[]                             network_family names; [] means "all"
 //   currentPlan2026: string|null                          2026 enrollment code, e.g. '104'
@@ -14,7 +15,14 @@
 //                    layered on the scenario (ranges: engine OVERRIDE_FIELDS)
 //   custom:          line[] (max 25)                      { label, kind, price, perYear, tier?, outOfNetwork? }
 //                    validated by engine/scenarios.js sanitizeLine
-//   dental:          boolean                              add FEDVIP dental/vision to totals
+//   dental:          boolean                              add FEDVIP dental/vision to the medical totals
+//   tab:             'medical' | 'dental' | 'vision'      results tab (Dental & Vision has the two sub-tabs)
+//   dentalUse:       'cleanings' | 'typical' | 'major' | 'braces'   dental usage preset (engine/dental.js)
+//   visionUse:       'exam' | 'glasses' | 'contacts'      vision usage preset
+//   dentalPlan:      null | 'none' | FEDVIP id            plan added to the total (null = cheapest for you)
+//   visionPlan:      null | 'none' | FEDVIP id            e.g. '02AP-17-High' (<brochure>-<option>)
+//   myDental:        null | FEDVIP id                     your 2026 dental plan (same id in 2027), pinned on the board
+//   myVision:        null | FEDVIP id                     your 2026 vision plan
 //   selectedPlans:   string[]                             2027 enrollment codes pinned for comparison
 //   view:            'cards' | 'board'                    results layout (ranked cards or the horizontal compare board)
 //   group:           'top3' | 'carrier' | 'type' | 'account' | 'all'   which plans the board shows
@@ -59,6 +67,13 @@ export const DEFAULT_STATE = Object.freeze({
   group: 'top3',
   includeMine: true,
   glp1: false,
+  tab: 'medical',
+  dentalUse: 'typical',
+  visionUse: 'glasses',
+  dentalPlan: null,
+  visionPlan: null,
+  myDental: null,
+  myVision: null,
   droppedCustom: 0,
 });
 
@@ -85,6 +100,9 @@ const KIND = {
 };
 const VIEW = { cards: 'c', board: 'b' };
 const GROUP = { top3: 't', carrier: 'c', type: 'p', account: 'a', all: 'x' };
+const TAB = { medical: 'm', dental: 'd', vision: 'v' };
+const DENTAL_USE = { cleanings: 'c', typical: 't', major: 'm', braces: 'b' };
+const VISION_USE = { exam: 'e', glasses: 'g', contacts: 'c' };
 
 const invert = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [v, k]));
 const STATUS_IN = invert(STATUS);
@@ -93,6 +111,9 @@ const ACCOUNT_IN = invert(ACCOUNT);
 const SCENARIO_IN = invert(SCENARIO);
 const VIEW_IN = invert(VIEW);
 const GROUP_IN = invert(GROUP);
+const TAB_IN = invert(TAB);
+const DENTAL_USE_IN = invert(DENTAL_USE);
+const VISION_USE_IN = invert(VISION_USE);
 const OVERRIDE_IN = invert(OVERRIDE);
 const KIND_IN = invert(KIND);
 
@@ -101,6 +122,8 @@ const has = (o, k) => typeof k === 'string' && Object.prototype.hasOwnProperty.c
 const STATE_RE = /^[A-Z]{2}$/;
 const ZIP_RE = /^\d{5}$/;
 const PLAN_RE = /^[A-Z0-9]{2,4}$/;
+/** FEDVIP plan id: OPM brochure number plus option, e.g. 02AP-17-High. */
+export const FEDVIP_ID_RE = /^[0-9A-Z]{4}-[0-9]{2}-(High|Standard)$/;
 const MAX_LIST = 40;
 
 // ---- field validators: return a valid value or the default ----
@@ -109,6 +132,8 @@ const pickEnum = (v, allowed, dflt) => (has(allowed, v) ? v : dflt);
 const validState = (v) => (typeof v === 'string' && STATE_RE.test(v) ? v : null);
 const validZip = (v) => (typeof v === 'string' && ZIP_RE.test(v) ? v : null);
 const validPlan = (v) => (typeof v === 'string' && PLAN_RE.test(v) ? v : null);
+const validFedvip = (v) => (typeof v === 'string' && FEDVIP_ID_RE.test(v) ? v : null);
+const validPick = (v) => (v === 'none' ? 'none' : validFedvip(v));
 
 function validPlanList(v) {
   if (!Array.isArray(v)) return [];
@@ -152,6 +177,13 @@ export function sanitizeState(input) {
     group: pickEnum(s.group, GROUP, DEFAULT_STATE.group),
     includeMine: s.includeMine !== false,
     glp1: s.glp1 === true,
+    tab: pickEnum(s.tab, TAB, DEFAULT_STATE.tab),
+    dentalUse: pickEnum(s.dentalUse, DENTAL_USE, DEFAULT_STATE.dentalUse),
+    visionUse: pickEnum(s.visionUse, VISION_USE, DEFAULT_STATE.visionUse),
+    dentalPlan: validPick(s.dentalPlan),
+    visionPlan: validPick(s.visionPlan),
+    myDental: validFedvip(s.myDental),
+    myVision: validFedvip(s.myVision),
     droppedCustom: Number.isInteger(s.droppedCustom) && s.droppedCustom > 0 ? Math.min(MAX_CUSTOM_LINES, s.droppedCustom) : 0,
   };
 }
@@ -269,6 +301,13 @@ export function encodeHash(state) {
   if (s.group !== DEFAULT_STATE.group) p.set('g', GROUP[s.group]);
   if (!s.includeMine) p.set('m', '0');
   if (s.glp1) p.set('w', '1');
+  if (s.tab !== DEFAULT_STATE.tab) p.set('t', TAB[s.tab]);
+  if (s.dentalUse !== DEFAULT_STATE.dentalUse) p.set('du', DENTAL_USE[s.dentalUse]);
+  if (s.visionUse !== DEFAULT_STATE.visionUse) p.set('vu', VISION_USE[s.visionUse]);
+  if (s.dentalPlan) p.set('dp', s.dentalPlan);
+  if (s.visionPlan) p.set('vp', s.visionPlan);
+  if (s.myDental) p.set('md', s.myDental);
+  if (s.myVision) p.set('mv', s.myVision);
 
   const encoded = [];
   let i = 0;
@@ -364,6 +403,13 @@ export function decodeState(hash, opts = {}) {
     group: has(GROUP_IN, one('g')) ? GROUP_IN[one('g')] : undefined,
     includeMine: one('m') !== '0',
     glp1: one('w') === '1',
+    tab: has(TAB_IN, one('t')) ? TAB_IN[one('t')] : undefined,
+    dentalUse: has(DENTAL_USE_IN, one('du')) ? DENTAL_USE_IN[one('du')] : undefined,
+    visionUse: has(VISION_USE_IN, one('vu')) ? VISION_USE_IN[one('vu')] : undefined,
+    dentalPlan: one('dp'),
+    visionPlan: one('vp'),
+    myDental: one('md'),
+    myVision: one('mv'),
     droppedCustom,
   });
 }

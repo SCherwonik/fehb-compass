@@ -1,6 +1,6 @@
 // Entry point: theme, state (URL hash + saved), staged data load, input panel, ranked results.
 import { createStore, loadInitialState, encodeState, encodeHash, saveOverflow, decodeState, sanitizeAgainstData } from './state.js';
-import { loadDataProgressive, loadBrochureFacts } from './data.js';
+import { loadDataProgressive, loadBrochureFacts, fedvipHub } from './data.js';
 import { renderInputs } from './ui/inputs.js';
 import { initTheme } from './ui/theme.js';
 import { createResults } from './ui/results.js';
@@ -8,6 +8,8 @@ import { dataVocabulary } from './ui/model.js';
 import { createMedsStore } from './ui/meds-store.js';
 import { createMedsPanel } from './ui/meds.js';
 import { setBrochureFacts } from './ui/rx-model.js';
+import { createDvTabs, createDvPanel, revealPanel } from './ui/dental-board.js';
+import { sanitizeDvState } from './ui/dv-model.js';
 
 const NEEDLE_ANGLE = { nothing: -64, healthy: -42, typical: -12, condition: 24, worst: 58 };
 
@@ -60,6 +62,27 @@ function showLoadError(form, err) {
   form.replaceChildren(msg);
 }
 
+// Medical | Dental & Vision tabs at the top of the results region, and the Dental & Vision panel after it.
+function mountDentalVision(main) {
+  const frame = main.querySelector('.results-frame');
+  if (!frame) return;
+  frame.id = 'results-frame';
+  frame.setAttribute('role', 'tabpanel');
+  frame.setAttribute('aria-labelledby', 'dvt-medical');
+  const tabs = createDvTabs({ store });
+  const panel = createDvPanel({ store });
+  main.prepend(tabs.el);
+  main.append(panel.el);
+  const sync = (s, prev) => {
+    tabs.sync(s);
+    frame.hidden = s.tab !== 'medical';
+    panel.render(s, { animate: Boolean(prev && prev.tab === s.tab) });
+    if (prev && (prev.tab === 'medical') !== (s.tab === 'medical')) revealPanel(s.tab === 'medical' ? frame : panel.el);
+  };
+  sync(store.get());
+  store.subscribe(sync);
+}
+
 async function main() {
   initTheme(document.getElementById('theme-toggle'));
 
@@ -101,11 +124,22 @@ async function main() {
 
   // Back/forward or a pasted link: adopt the hash, minus anything the data does not know.
   window.addEventListener('hashchange', () => {
-    const next = sanitizeAgainstData(decodeState(location.hash, { storage: undefined }), vocab);
+    let next = sanitizeAgainstData(decodeState(location.hash, { storage: undefined }), vocab);
+    if (fedvipHub.get()) next = sanitizeDvState(next, fedvipHub.get());
     // droppedCustom is not part of the link, so compare it separately (a pasted link may announce missing lines)
     if (encodeState(next) !== encodeState(store.get()) || next.droppedCustom !== store.get().droppedCustom) store.set(next);
     writeHash(store.get());
   });
+
+  // FEDVIP dental and vision (data/fedvip.json, about 530 KB): needed now for a dental tab, the add-on or a ZIP
+  // in the link; otherwise fetched once the medical plans are ranked.
+  fedvipHub.subscribe((fv) => {
+    const clean = sanitizeDvState(store.get(), fv);
+    if (clean !== store.get()) store.set(clean);
+    results.setFedvip(fv);
+  });
+  const s0 = store.get();
+  if (s0.tab !== 'medical' || s0.dental || s0.location.zip) fedvipHub.load();
 
   // Stage 2 (rates + benefits): rank plans.
   try {
@@ -116,6 +150,8 @@ async function main() {
     results.showError(err);
     return;
   }
+  mountDentalVision(document.getElementById('results'));
+  fedvipHub.load();
 
   // Stage 3 (brochure facts, about 1.6 MB): prescription tiers, drug lookup links, what changed in 2027.
   const facts = await loadBrochureFacts();

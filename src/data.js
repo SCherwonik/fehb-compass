@@ -29,12 +29,13 @@ export async function loadData(base = DEFAULT_BASE) {
 
 // Small files the input panel needs (about 200 KB) vs. the heavy cost data (benefits.json is about 2.3 MB).
 const CORE = ['plans', 'serviceArea', 'meta'];
-const COST = ['rates', 'benefits', 'dentalVision'];
+// (dental_vision.json is superseded by fedvip.json, which loads lazily: see loadFedvip.)
+const COST = ['rates', 'benefits'];
 
 /**
  * Two stages so the panel paints before benefits.json arrives. The heavy files start only once the
  * small ones are in, so on a slow link they do not steal bandwidth from what the first paint needs.
- * Returns { core: Promise<{plans, serviceArea, meta}>, full: Promise<all six files> }.
+ * Returns { core: Promise<{plans, serviceArea, meta}>, full: Promise<core plus rates and benefits> }.
  */
 export function loadDataProgressive(base = DEFAULT_BASE) {
   const core = loadKeys(CORE, base);
@@ -60,6 +61,40 @@ export async function loadBrochureFacts(base = DEFAULT_BASE) {
     return null;
   }
 }
+
+let fedvipPromise = null;
+/**
+ * FEDVIP dental and vision data (data/fedvip.json, about 530 KB: plans, regional rates, benefits, ZIP geography,
+ * both years). Loaded once, on demand or after the medical plans are ranked. Resolves to the parsed file, or
+ * null when it is missing or malformed (a later call retries).
+ */
+export function loadFedvip(base = DEFAULT_BASE) {
+  if (!fedvipPromise) {
+    fedvipPromise = fetchJson('fedvip.json', base)
+      .then((fv) => (fv && typeof fv === 'object' && fv.years?.['2027']?.plans && fv.meta?.board ? fv : null))
+      .catch((err) => { console.warn('FEDVIP data not loaded:', err?.message ?? err); return null; })
+      .then((fv) => { if (!fv) fedvipPromise = null; return fv; });
+  }
+  return fedvipPromise;
+}
+
+// One shared handle on the FEDVIP data for every view (ZIP field, dental tab, add-on, medical totals).
+let fvData = null;
+const fvSubs = new Set();
+export const fedvipHub = {
+  get: () => fvData,
+  /** Start (or join) the load; subscribers hear about it once it arrives. */
+  load(base) {
+    return loadFedvip(base).then((fv) => {
+      if (fv && fv !== fvData) {
+        fvData = fv;
+        for (const fn of [...fvSubs]) { try { fn(fv); } catch (err) { console.error(err); } }
+      }
+      return fv;
+    });
+  },
+  subscribe(fn) { fvSubs.add(fn); return () => fvSubs.delete(fn); },
+};
 
 /** Sorted unique state codes that appear in any plan's service area. */
 export function statesFromServiceArea(serviceArea) {

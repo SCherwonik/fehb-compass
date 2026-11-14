@@ -31,7 +31,8 @@ let uid = 0;
 const idSafe = (k) => String(k).replace(/[^A-Za-z0-9_-]+/g, '_');
 
 /**
- * createBoard({ label, hooks }) -> { el, update(opts) }
+ * createBoard({ label, hooks, legend }) -> { el, update(opts) }
+ * legend: [[dotClass, text]] for the corner key (default: premium / expected care / account money).
  * hooks: { [cell.hook]: (row, td, cell) => void } custom renderers (e.g. the formulary task).
  * onSectionToggle(sectionKey, open): called when the user opens or closes a collapsible section.
  * Sections may be collapsible ({ collapsible, open, prominent, note, count }); row definitions may carry
@@ -42,7 +43,9 @@ const idSafe = (k) => String(k).replace(/[^A-Za-z0-9_-]+/g, '_');
  * Header descriptor: { title, subtitle, chips: [{text, tone}], total, totalLabel, bar: {p,o,d}, why }.
  * Rows need `code` and `rank`; `isMine` pins the column (sticky on wide screens).
  */
-export function createBoard({ label = 'Plan comparison board', hooks = {}, onSectionToggle } = {}) {
+const LEGEND = [['prem', 'Premium'], ['oop', 'Expected care'], ['dep', 'Account money']];
+
+export function createBoard({ label = 'Plan comparison board', hooks = {}, onSectionToggle, legend = LEGEND } = {}) {
   const id = `bd${++uid}`;
   const caption = h('caption', { class: 'sr-only' });
   const colgroup = h('colgroup');
@@ -50,9 +53,7 @@ export function createBoard({ label = 'Plan comparison board', hooks = {}, onSec
   const corner = h('th', { class: 'bd-corner', scope: 'col' },
     h('span', { class: 'sr-only' }, 'Measure'),
     h('span', { class: 'bd-legend', 'aria-hidden': 'true' },
-      h('span', {}, h('i', { class: 'dot dot-prem' }), 'Premium'),
-      h('span', {}, h('i', { class: 'dot dot-oop' }), 'Expected care'),
-      h('span', {}, h('i', { class: 'dot dot-dep' }), 'Account money')));
+      legend.map(([dot, text]) => h('span', {}, h('i', { class: `dot dot-${dot}` }), text))));
   const headRow = h('tr', { class: 'bd-heads' }, corner);
   const thead = h('thead', {}, bandRow, headRow);
   const table = h('table', { class: 'bd-table' }, caption, colgroup, thead);

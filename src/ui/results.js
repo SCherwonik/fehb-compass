@@ -2,7 +2,8 @@
 // Cards are keyed by plan code and updated in place; reordering uses FLIP limited to visible cards.
 import { h, svg, segmented, ICON_CHECK, ICON_CHEVRON, mineSwitch } from './inputs.js';
 import { assumptionChips, describeUsage, effectiveUsage, overrideChanges, inNetworkAtMax } from './assumptions.js';
-import { computeRows, savingsVsCurrent, availablePlans, SORTS, rankWithMine, baseTotal } from './model.js';
+import { computeRows, savingsVsCurrent, availablePlans, SORTS, rankWithMine, baseTotal, dvCost, basisOf, basisNote } from './model.js';
+import { dvMathLines } from './dental-board.js';
 import { GROUP_LABELS, GROUP_MODES } from './grouping.js';
 import { createResultsBoard, mineNoteText } from './results-board.js';
 import { renderCompare, revealCompare } from './compare.js';
@@ -54,6 +55,7 @@ function loadUi() {
 export function createResults(main, { store, onRanked }) {
   const ui = { ...loadUi(), compareOpen: false };
   let data = null;
+  let fedvip = null; // data/fedvip.json once loaded (dental/vision add-on)
   let rx = { facts: null, factsStatus: 'loading', meds: null };
   const cards = new Map(); // code -> card record
   const visible = new Set(); // card elements intersecting the viewport (count-up only runs there)
@@ -279,6 +281,7 @@ export function createResults(main, { store, onRanked }) {
     }
     const anim = animateNums && visible.has(rec.el);
     tweenNumber(r.total, row.cost.total, usd, { animate: anim });
+    setText(r.totalLabel, dvCost(row) ? 'per year, incl. dental/vision' : 'per year, estimated');
 
     // bar: premium | expected care, with the deposit shown as a hatched portion at the end
     const gross = row.cost.premium + row.cost.oop;
@@ -313,7 +316,7 @@ export function createResults(main, { store, onRanked }) {
 
     // chips: your plan / vs your plan, firmness, status, warnings (rebuilt only when their content changes)
     // compared without medications when the user has any (they are priced only where tiers are recorded)
-    const vsExcl = Boolean(data.meds);
+    const vsExcl = basisNote(basisOf(Boolean(data.meds), dvCost(row) > 0)).replace('medications', 'meds');
     const vsMine = mine && !row.isMine ? Math.round(baseTotal(row) - baseTotal(mine)) : null;
     rec.el.classList.toggle('is-mine', Boolean(row.isMine));
     // the pinned plan sits outside the ranking: its number is the overall rank in the state
@@ -328,8 +331,8 @@ export function createResults(main, { store, onRanked }) {
         row.isMine && h('li', { class: 'tag tag-mine' }, 'Your plan · 2027'),
         rankTag && h('li', { class: 'tag' }, rankTag),
         row.isMine && mineWhere && h('li', { class: 'tag' }, `Not listed for ${mineWhere}`),
-        vsMine != null && h('li', { class: `tag tag-vs tag-vs-${deltaTone(vsMine)}`, title: vsExcl ? 'Estimated yearly totals compared without your medications, which are priced only on plans where you recorded tiers' : 'Estimated yearly total compared with your plan in 2027' },
-          deltaTone(vsMine) === 'flat' ? `Same as your plan${vsExcl ? ' (excl. meds)' : ''}` : `${signedUsd(vsMine)} vs your plan${vsExcl ? ' (excl. meds)' : ''}`),
+        vsMine != null && h('li', { class: `tag tag-vs tag-vs-${deltaTone(vsMine)}`, title: vsExcl ? `Estimated yearly totals compared ${vsExcl}: the same on both sides or not priced on every plan` : 'Estimated yearly total compared with your plan in 2027' },
+          deltaTone(vsMine) === 'flat' ? `Same as your plan${vsExcl ? ` (${vsExcl})` : ''}` : `${signedUsd(vsMine)} vs your plan${vsExcl ? ` (${vsExcl})` : ''}`),
         row.cost.firmness === 'fixed'
           ? h('li', { class: 'tag tag-fixed', title: 'Every service in this scenario is a flat copay, so this total does not depend on assumed prices.' }, 'Fixed cost')
           : h('li', { class: 'tag tag-est', title: 'Part of this total depends on assumed prices for care. See the math.' }, 'Estimated'),
@@ -388,6 +391,7 @@ export function createResults(main, { store, onRanked }) {
             ? `${usd(raw)} available; only counts against care costs`
             : 'the plan puts this in your account')),
         `− ${usd(cost.hsaOffset)}`),
+      ...dvMathLines(row.dv, mathLine),
       mathLine('Estimated yearly total', usd(cost.total), 'math-total'),
     ].filter(Boolean);
 
@@ -447,8 +451,10 @@ export function createResults(main, { store, onRanked }) {
     let detail;
     // With medications priced on some plans, every figure here is WITHOUT them (2026 plans and plans with no
     // recorded tiers cannot carry them); what they add is said separately below.
-    const excl = v.basis === 'excl-meds';
+    const excl = v.basis !== 'total';
     const tot = (r) => (excl ? baseTotal(r) : r.cost.total);
+    const what = { 'excl-meds': 'your medications', 'excl-dv': 'dental and vision', 'excl-meds-dv': 'your medications, dental and vision' }[v.basis];
+    const meds = v.basis === 'excl-meds' || v.basis === 'excl-meds-dv';
     let medsNote = '';
     if (v.kind === 'continuing') {
       const same = v.best.code === v.current.code;
@@ -456,12 +462,12 @@ export function createResults(main, { store, onRanked }) {
         headline = h('p', { class: 'savings-title' }, same
           ? 'Your current plan is still your cheapest match.'
           : 'Staying put is the cheapest choice shown.');
-        detail = `${v.current.plan.name} comes to about ${usd(tot(v.current))} in 2027 for your situation${excl ? ', excluding your medications' : ''}.`;
+        detail = `${v.current.plan.name} comes to about ${usd(tot(v.current))} in 2027 for your situation${excl ? `, excluding ${what}` : ''}.`;
       } else {
         headline = h('p', { class: 'savings-title' }, 'You’d save ', num, ' a year vs your current plan');
-        detail = `${v.best.plan.name} at ${usd(tot(v.best))}, versus ${usd(tot(v.current))} for ${v.current.plan.name} in 2027${excl ? ', both excluding your medications' : ''}.`;
+        detail = `${v.best.plan.name} at ${usd(tot(v.best))}, versus ${usd(tot(v.current))} for ${v.current.plan.name} in 2027${excl ? `, both excluding ${what}` : ''}.`;
       }
-      if (excl) {
+      if (meds) {
         medsNote = same
           ? `Your medications add ${usd(v.currentMeds)} on this plan.`
           : `Your medications add ${usd(v.bestMeds)} on ${v.best.plan.name} and ${usd(v.currentMeds)} on your plan, for the drugs whose tiers you recorded on each.`;
@@ -470,9 +476,9 @@ export function createResults(main, { store, onRanked }) {
       const name = v.currentPlan?.name ?? `plan ${state.currentPlan2026}`;
       headline = h('p', { class: 'savings-title' }, `${name} is not offered in 2027.`);
       detail = v.amount == null
-        ? `The cheapest 2027 match is ${v.best.plan.name} at ${usd(tot(v.best))}${excl ? ', excluding your medications' : ''}.`
-        : `The cheapest 2027 match, ${v.best.plan.name}, comes to ${usd(tot(v.best))}: ${usd(Math.abs(v.amount))} ${v.amount >= 0 ? 'less' : 'more'} than your plan would have cost in 2026 (${usd(v.current2026Total)})${excl ? '. Both exclude your medications' : ''}.`;
-      if (excl) medsNote = `Plus your medications: ${usd(v.bestMeds)} on ${v.best.plan.name}, not yet priced for 2026.`;
+        ? `The cheapest 2027 match is ${v.best.plan.name} at ${usd(tot(v.best))}${excl ? `, excluding ${what}` : ''}.`
+        : `The cheapest 2027 match, ${v.best.plan.name}, comes to ${usd(tot(v.best))}: ${usd(Math.abs(v.amount))} ${v.amount >= 0 ? 'less' : 'more'} than your plan would have cost in 2026 (${usd(v.current2026Total)})${excl ? `. Both exclude ${what}` : ''}.`;
+      if (meds) medsNote = `Plus your medications: ${usd(v.bestMeds)} on ${v.best.plan.name}, not yet priced for 2026.`;
     }
     const prevNum = savings.querySelector('.savings-num');
     if (prevNum) num._num = prevNum._num;
@@ -532,6 +538,8 @@ export function createResults(main, { store, onRanked }) {
   let first = true;
   function render(state = store.get()) {
     if (!data) return;
+    // the Dental & Vision tab hides this frame (src/ui/dental-board.js): skip the work until it is back
+    if (state.tab !== 'medical') { renderTray(state, true); return; }
     const isBoard = state.view === 'board';
     const filteredRows = computeRows(data, state, { type: ui.type });
     const res = rankWithMine(data, state, filteredRows, isBoard ? 'total' : ui.sort, { type: ui.type });
@@ -617,8 +625,16 @@ export function createResults(main, { store, onRanked }) {
   }
 
   return {
+    el: frame,
+    /** FEDVIP data (lazy-loaded): dental/vision line items join the totals when state.dental is on. */
+    setFedvip(fv) {
+      fedvip = fv;
+      if (!data) return;
+      data = { ...data, fedvip };
+      render();
+    },
     setData(d) {
-      data = { ...d, brochure: rx.facts, meds: rx.meds?.drugs?.length ? rx.meds : null };
+      data = { ...d, fedvip, brochure: rx.facts, meds: rx.meds?.drugs?.length ? rx.meds : null };
       io = new IntersectionObserver((entries) => {
         for (const e of entries) (e.isIntersecting ? visible.add(e.target) : visible.delete(e.target));
       }, { rootMargin: '10% 0px' });

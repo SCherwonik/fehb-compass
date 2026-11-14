@@ -11,7 +11,7 @@
 // The dental/vision board (Task 7) supplies its own sections and header in this same shape.
 import { usd, signedUsd, signedPct, deltaTone, DASH } from './format.js';
 import { FLAG_TEXT } from '../engine/diff.js';
-import { baseTotal, medsCost, anyMeds } from './model.js';
+import { baseTotal, medsCost, anyMeds, anyDv, dvCost, basisOf, basisNote } from './model.js';
 
 const fin = (n) => typeof n === 'number' && Number.isFinite(n);
 const cents = (n) => Math.round(n * 100) / 100;
@@ -57,7 +57,9 @@ export function valueScores(rows, enrollment) {
   let best = Infinity;
   for (const r of rows ?? []) {
     const ceiling = worstCase(r, enrollment);
-    const weighted = ceiling == null || !fin(r.cost?.total) ? null : VALUE_WEIGHT * r.cost.total + (1 - VALUE_WEIGHT) * ceiling;
+    // dental/vision (same amount on every plan) is left out, so the toggle never moves a score
+    const total = fin(r.cost?.total) ? r.cost.total - dvCost(r) : null;
+    const weighted = ceiling == null || total == null ? null : VALUE_WEIGHT * total + (1 - VALUE_WEIGHT) * ceiling;
     const ok = weighted != null && weighted > 0;
     out.set(r.code, { ceiling, weighted: ok ? weighted : null, score: null });
     if (ok && weighted < best) best = weighted;
@@ -100,6 +102,8 @@ export function boardContext(rankedRows, state, mine = null, baseline = null) {
     values: valueScores(rows, state?.enrollment ?? 'self'),
     // medications priced on some plan: the "vs" totals compare without them (rows with `when: medsOn` say so)
     medsOn: anyMeds(mine ? [...rows, mine] : rows),
+    // dental/vision added to the totals: the "vs" totals leave it out too (2026 never has it)
+    dvOn: anyDv(mine ? [...rows, mine] : rows),
     minTotal: totals.length ? Math.min(...totals) : null,
     mine, // the user's 2027 plan row when "include my plan" is on: baseline for the "vs your plan" rows
     // when the user's 2026 plan ended (no 2027 version): its 2026 figures, for the "vs your 2026 plan (ended)" rows
@@ -131,13 +135,14 @@ function changeCell(field, extra) {
 const ACCOUNT_TEXT = { HSA: 'Health savings account', HRA: 'Health reimbursement arrangement' };
 
 // "vs your plan": each column minus the user's own 2027 plan (negative = cheaper than staying put).
-// `excl`: a total compared without medications (when any are priced), and the cell says so.
+// `excl`: a total compared without medications or dental/vision (when either is in the totals), and the cell says so.
+const exclNote = (ctx) => basisNote(basisOf(ctx.medsOn, ctx.dvOn));
 function vsMineCell(get, excl = false) {
   return (row, ctx) => {
     if (!ctx.mine) return { text: DASH, value: null, tone: 'muted' };
     const a = get(row);
     const b = get(ctx.mine);
-    const basis = excl && ctx.medsOn ? 'excl. medications' : '';
+    const basis = excl ? exclNote(ctx) : '';
     if (row.code === ctx.mine.code) return { text: usd(b), sub: basis ? `your baseline, ${basis}` : 'your baseline', tone: 'muted', value: null };
     if (!fin(a) || !fin(b)) return { text: DASH, value: null, tone: 'muted' };
     const n = a - b;
@@ -155,7 +160,7 @@ function vsEndedCell(get, key, excl = false) {
     if (!fin(a) || !fin(b)) return { text: DASH, value: null, tone: 'muted' };
     const n = a - b;
     const tone = deltaTone(n);
-    const basis = excl && ctx.medsOn ? 'excl. your medications' : '';
+    const basis = excl ? exclNote(ctx).replace('medications', 'your medications') : '';
     if (tone === 'flat') return { text: 'Same', sub: basis || undefined, tone: 'flat', value: 0 };
     return { text: signedUsd(n), sub: `${n < 0 ? `less than ${usd(b)} in 2026` : `more than ${usd(b)} in 2026`}${basis ? `, ${basis}` : ''}`, tone, value: n };
   };
@@ -195,7 +200,9 @@ export const MEDICAL_SECTIONS = [
       {
         key: 'total', label: 'Estimated total', strong: true, best: 'min',
         hint: 'Premium plus expected care costs, minus HSA or HRA money, for your scenario.',
-        cell: (r) => money(r.cost.total, { sub: r.cost.firmness === 'fixed' ? 'fixed copays' : 'estimated' }),
+        cell: (r) => money(r.cost.total, {
+          sub: `${r.cost.firmness === 'fixed' ? 'fixed copays' : 'estimated'}${dvCost(r) ? `, incl. dental/vision ${usd(dvCost(r))}` : ''}`,
+        }),
       },
       { key: 'premium', label: 'Premium', best: 'min', cell: (r) => money(r.cost.premium, { sub: 'per year' }) },
       {
@@ -378,7 +385,7 @@ export function medicalHeader(row, group, ctx, scope) {
     subtitle: row.plan?.carrier || row.plan?.network_family || '',
     chips,
     total: row.cost?.total,
-    totalLabel: 'per year, estimated',
+    totalLabel: dvCost(row) ? 'per year, incl. dental/vision' : 'per year, estimated',
     bar: { p: row.cost?.premium ?? 0, o: row.cost?.oop ?? 0, d: row.cost?.hsaOffset ?? 0 },
     why: whyLine(row, group, ctx, scope),
   };

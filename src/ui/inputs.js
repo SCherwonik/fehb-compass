@@ -5,6 +5,9 @@ import { countsByFamily, groupCurrentPlanOptions } from './model.js';
 import { describeUsage } from './assumptions.js';
 import { createScenarioSection } from './scenario.js';
 import { glp1Filter } from './meds.js';
+import { createZipField, lookupZip } from './zip.js';
+import { createDvAddon } from './dental-board.js';
+import { fedvipHub } from '../data.js';
 
 const VISIBLE_NETWORKS = 8;
 const reduceMotion = () => globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
@@ -287,9 +290,14 @@ export function renderInputs(form, { data, store, meds }) {
   // -- where
   const location = selectField({
     id: 'in-state', label: 'State', placeholder: 'Choose your state',
-    hint: 'Plans are matched by state for now. ZIP lookup for regional HMOs is coming.',
+    hint: 'Plans are matched by state. Your ZIP code fills this in.',
     groups: [{ options: states.map((c) => [c, STATE_NAMES[c] ?? c]) }],
   });
+
+  const stateName = (c) => STATE_NAMES[c] ?? c;
+  const stateHint = location.el.querySelector('.field-hint');
+  const zip = createZipField({ h, store, getFedvip: fedvipHub.get, onNeedData: () => fedvipHub.load(), stateName });
+  fedvipHub.subscribe(() => { zip.refresh(); sync(store.get()); });
 
   // -- current plan: searchable, grouped by whether it carries into 2027 for the chosen state
   const plans27 = plansForYear(data.plans, 2027);
@@ -349,18 +357,19 @@ export function renderInputs(form, { data, store, meds }) {
     h('label', { class: 'switch', for: 'in-dental' },
       h('span', { class: 'switch-copy' },
         h('span', { class: 'switch-title' }, 'Add dental and vision'),
-        h('span', { class: 'switch-hint' }, 'Include FEDVIP premiums in your yearly total.')),
+        h('span', { class: 'switch-hint' }, 'Include a FEDVIP dental and vision plan in your yearly total.')),
       dentalInput,
       h('span', { class: 'switch-track', 'aria-hidden': 'true' }, h('span', { class: 'switch-knob' }))));
+  const dvAddon = createDvAddon({ store });
 
   const group = (title, ...fields) => h('section', { class: 'group' },
     h('h3', { class: 'group-title' }, title), fields);
 
   form.replaceChildren(
     group('Coverage', status.el, enrollment.el),
-    group('Location', location.el),
+    group('Location', zip.el, location.el),
     group('Plans to consider', current.el, mine.el, account.el, networks, glp1?.el),
-    group('Your year', year.el, dental),
+    group('Your year', year.el, dental, dvAddon.el),
   );
 
   // ---------- events ----------
@@ -371,7 +380,12 @@ export function renderInputs(form, { data, store, meds }) {
     else if (t.name === 'enrollment') store.set({ enrollment: t.value });
     else if (t.name === 'account') store.set({ account: t.value });
     else if (t.name === 'scenario') store.set({ scenario: t.value });
-    else if (t === location.select) store.set({ location: { state: t.value || null } });
+    else if (t === location.select) {
+      // a state that contradicts the ZIP drops the ZIP (it would price dental for the wrong place)
+      const z = store.get().location.zip;
+      const zs = z && fedvipHub.get() ? lookupZip(fedvipHub.get(), z).state : null;
+      store.set({ location: { state: t.value || null, zip: z && zs === (t.value || null) ? z : null } });
+    }
     else if (t === dentalInput) store.set({ dental: t.checked });
     else if (t === mine.input) store.set({ includeMine: t.checked });
     else if (t.classList.contains('chip-input')) {
@@ -442,6 +456,12 @@ export function renderInputs(form, { data, store, meds }) {
     status.sync(s.status);
     enrollment.sync(s.enrollment);
     location.sync(s.location.state);
+    zip.sync(s);
+    const z = s.location.zip;
+    const zs = z && fedvipHub.get() ? lookupZip(fedvipHub.get(), z).state : null;
+    stateHint.textContent = z && zs && zs === s.location.state
+      ? `From ZIP ${z}. Choose another state to override it.`
+      : 'Plans are matched by state. Your ZIP code fills this in.';
     syncCurrentModel(s.location.state);
     current.sync(s.currentPlan2026);
     mine.sync(s);
@@ -449,6 +469,7 @@ export function renderInputs(form, { data, store, meds }) {
     syncChips(s, true);
     year.sync(s);
     dentalInput.checked = s.dental;
+    dvAddon.sync(s);
     glp1?.sync(s);
   }
 

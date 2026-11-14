@@ -6,6 +6,7 @@ import { diffPlan, planFacts } from '../engine/diff.js';
 import { statesFromServiceArea } from '../data.js';
 import { groupPlans } from './grouping.js';
 import { glp1Covered, planMeds } from './rx-model.js';
+import { dvAddOn } from './dv-model.js';
 
 const cents = (n) => Math.round(n * 100) / 100;
 
@@ -81,6 +82,9 @@ export function makeRow(data, state, code) {
     cost = meds?.entries.length ? planTotal(input, { ...inputs, drugs: meds.entries }) : base;
   } catch { return null; }
   if (!Number.isFinite(cost.total) || !Number.isFinite(base.total)) return null;
+  // "Add dental and vision": the same FEDVIP line items join every plan's total (data.fedvip: lazy-loaded)
+  const dv = state.dental && data.fedvip ? dvAddOn(data.fedvip, state) : null;
+  if (dv && dv.total > 0) cost = { ...cost, total: cents(cost.total + dv.total) };
   const facts = planFacts(input, inputs);
   const facts2026 = planFacts(planInput(data, 2026, code), inputs);
   return {
@@ -94,7 +98,8 @@ export function makeRow(data, state, code) {
     diff: diffPlan(facts2026, facts),
     account: input.accountType ?? null,
     meds,
-    // total without the user's medications: the like-for-like basis for comparisons (see baseTotal)
+    dv,
+    // total without the user's medications or dental/vision: the like-for-like basis for comparisons (see baseTotal)
     baseTotal: base.total,
   };
 }
@@ -102,17 +107,31 @@ export function makeRow(data, state, code) {
 /**
  * Comparison basis. Medications are priced only on 2027 plans where the user recorded tiers, so any comparison
  * with a 2026 figure, or between plans with different records, uses totals WITHOUT medications on both sides.
- * baseTotal(row): the total without medications; medsCost(row): what the medications add on this plan (engine
- * figure: deductible, OOP max and HRA effects included).
+ * Dental/vision (the "add dental and vision" toggle) is left out of comparisons the same way: 2026 totals never
+ * carry it, and between 2027 plans it is the same amount on both sides.
+ * baseTotal(row): the total without medications or dental/vision; medsCost(row): what the medications add on
+ * this plan (engine figure: deductible, OOP max and HRA effects included); dvCost(row): the dental/vision amount.
  */
 export function baseTotal(row) {
   return Number.isFinite(row?.baseTotal) ? row.baseTotal : row?.cost?.total ?? null;
 }
+export function dvCost(row) {
+  const t = row?.dv?.total;
+  return Number.isFinite(t) && t > 0 ? t : 0;
+}
 export function medsCost(row) {
-  return row?.meds?.entries?.length && Number.isFinite(row.cost?.total) ? cents(row.cost.total - baseTotal(row)) : 0;
+  return row?.meds?.entries?.length && Number.isFinite(row.cost?.total) ? cents(row.cost.total - dvCost(row) - baseTotal(row)) : 0;
 }
 /** True when any of these rows has priced medications (comparisons then say they exclude them). */
 export const anyMeds = (rows) => (rows ?? []).some((r) => r?.meds?.entries?.length > 0);
+/** True when dental/vision is part of these rows' totals. */
+export const anyDv = (rows) => (rows ?? []).some((r) => dvCost(r) > 0);
+
+/** 'total' | 'excl-meds' | 'excl-dv' | 'excl-meds-dv' from the two flags. */
+export const basisOf = (meds, dv) => (meds ? (dv ? 'excl-meds-dv' : 'excl-meds') : dv ? 'excl-dv' : 'total');
+const BASIS_NOTE = { 'excl-meds': 'excl. medications', 'excl-dv': 'excl. dental/vision', 'excl-meds-dv': 'excl. medications and dental/vision' };
+/** Short label for a comparison basis ('' for plain totals). */
+export const basisNote = (basis) => BASIS_NOTE[basis] ?? '';
 
 /** True when a plan (by code) is open to someone in `st`: nationwide, or a service area that lists the state. */
 export function servesState(serviceArea, code, st) {
@@ -327,15 +346,16 @@ export function boardGroups(data, state, rows, n = 3) {
  * Savings banner model.
  * {kind:'none'} | {kind:'continuing', current, best, amount} | {kind:'ended', currentPlan, current2026Total, best, amount}
  * amount = current minus best (positive = you'd save). best = cheapest eligible row, or null.
- * basis: 'total', or 'excl-meds' when any row has priced medications: best and amount then use baseTotal (no
- * medications on either side, since 2026 plans and plans without recorded tiers cannot carry them);
+ * basis: 'total', or 'excl-meds' when any row has priced medications ('excl-dv' with dental/vision added,
+ * 'excl-meds-dv' with both): best and amount then use baseTotal (neither on either side, since 2026 plans and
+ * plans without recorded tiers cannot carry them);
  * bestTotal / currentTotal are those totals, bestMeds / currentMeds (2027 only) what the medications add.
  */
 export function savingsVsCurrent(data, state, rows) {
   const code = state.currentPlan2026;
   if (!code) return { kind: 'none' };
   const current = rows.find((r) => r.code === code) ?? (planMeta(data, 2027, code) ? makeRow(data, state, code) : null);
-  const basis = anyMeds(rows) || anyMeds([current]) ? 'excl-meds' : 'total';
+  const basis = basisOf(anyMeds(rows) || anyMeds([current]), anyDv(rows) || anyDv([current]));
   let best = null;
   for (const r of rows) if (!best || baseTotal(r) < baseTotal(best)) best = r;
   const bestInfo = { basis, bestTotal: best ? baseTotal(best) : null, bestMeds: best ? medsCost(best) : null };
