@@ -68,6 +68,7 @@
 .dvt-tab[aria-selected="true"] .dv-ico { stroke: var(--accent); }
 
 /* ---------- panel ---------- */
+.rhead-sub-line { display: block; }
 .dv { display: grid; gap: var(--space-5); }
 .dv > * { min-width: 0; }
 .dv-head { align-items: flex-start; }

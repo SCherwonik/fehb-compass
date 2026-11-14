@@ -296,7 +296,9 @@ export function createDvPanel({ store }) {
     const where = zip ? ` for ZIP ${zip}` : '';
     title.textContent = `${all.length} ${kind} ${all.length === 1 ? 'plan' : 'plans'}${where}`;
     const preset = (kind === 'dental' ? DENTAL_PRESETS[s.dentalUse] : VISION_PRESETS[s.visionUse]).label.toLowerCase();
-    sub.textContent = `Ranked by yearly premium plus expected ${kind === 'dental' ? 'out-of-pocket' : 'copays'} for “${preset}”: ${who}. FEDVIP is separate from your health plan.`;
+    // the "separate from your health plan" reminder always sits on its own second line
+    sub.replaceChildren(`Ranked by yearly premium plus expected ${kind === 'dental' ? 'out-of-pocket' : 'copays'} for “${preset}”: ${who}.`,
+      h('span', { class: 'rhead-sub-line' }, 'FEDVIP is separate from your health plan.'));
     const on = filtersOn(f);
     filtered.hidden = !on;
     filtered.textContent = `${rows.length} of ${all.length} after filters`;
