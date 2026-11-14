@@ -1,0 +1,1029 @@
+{
+ "generated_by": "adjudication of Rx crosscheck mismatches",
+ "decisions": [
+  {
+   "plan_code": "634",
+   "brochure": "73-005",
+   "option": "Standard Option",
+   "tier": "Tier 1",
+   "extraction": {
+    "retail_30": {
+     "value": 5,
+     "unit": "usd"
+    },
+    "quote": "$5 per generic maintenance drug prescription",
+    "page": 74
+   },
+   "sheet": "Preferred Generic - $15 Copayment",
+   "ruling": "brochure_correct",
+   "confidence": "medium",
+   "page": 74,
+   "quote": "$5 per generic maintenance drug prescription",
+   "corrected": null,
+   "reason": "The brochure prints no tier numbers; its Standard column lists $5 (generic maintenance) then $15 (all other generics) and the spreadsheet carries the same two prices with the numbers reversed (its own High Option row numbers them the other way).",
+   "sheet_note": "OPM spreadsheet Tier 1: Preferred Generic - $15 Copayment (brochure: $5 per generic maintenance drug, $15 for all other generics; tier numbers are not printed)"
+  },
+  {
+   "plan_code": "634",
+   "brochure": "73-005",
+   "option": "Standard Option",
+   "tier": "Tier 2",
+   "extraction": {
+    "retail_30": {
+     "value": 15,
+     "unit": "usd"
+    },
+    "quote": "$15 for all other generic drug prescriptions",
+    "page": 74
+   },
+   "sheet": "Generic - $5 Copayment",
+   "ruling": "brochure_correct",
+   "confidence": "medium",
+   "page": 74,
+   "quote": "$15 for all other generic drug prescriptions",
+   "corrected": null,
+   "reason": "The brochure prints no tier numbers; its Standard column lists $5 (generic maintenance) then $15 (all other generics) and the spreadsheet carries the same two prices with the numbers reversed.",
+   "sheet_note": "OPM spreadsheet Tier 2: Generic - $5 Copayment (brochure: $5 per generic maintenance drug, $15 for all other generics; tier numbers are not printed)"
+  },
+  {
+   "plan_code": "644",
+   "brochure": "73-017",
+   "option": "Standard Option",
+   "tier": "Tier 4",
+   "extraction": {
+    "retail_30": {
+     "value": 25,
+     "unit": "pct"
+    },
+    "quote": "25% up to $500 per prescription or refill for a 30-day supply of covered Specialty Drugs filled through a contracted specialty pharmacy",
+    "page": 66
+   },
+   "sheet": "Non-Preferred Drugs - 50% Coinsurance",
+   "ruling": "brochure_correct",
+   "confidence": "high",
+   "page": 66,
+   "quote": "Tier 4 (Specialty Drugs): 25% up to $500 per prescription or refill",
+   "corrected": null,
+   "reason": "The brochure has only four tiers and Tier 4 is Specialty at 25% up to $500; the spreadsheet puts that 25% specialty price in its Tier 5 and fills its Tier 4 slot with a tier the brochure does not have (50%).",
+   "sheet_note": "OPM spreadsheet Tier 4: Non-Preferred Drugs - 50% Coinsurance (its Tier 5 carries the 25% specialty price)"
+  },
+  {
+   "plan_code": "UX1",
+   "brochure": "73-017",
+   "option": "Basic Option",
+   "tier": "Tier 4",
+   "extraction": {
+    "retail_30": {
+     "value": 30,
+     "unit": "pct"
+    },
+    "quote": "30% up to $500 per prescription or refill for a 30-day supply of covered Specialty Drugs filled through a contracted specialty pharmacy",
+    "page": 66
+   },
+   "sheet": "Non-Preferred Drugs - 50% Coinsurance",
+   "ruling": "brochure_correct",
+   "confidence": "high",
+   "page": 66,
+   "quote": "Tier 4 (Specialty Drugs): 30% up to $500 per prescription or refill",
+   "corrected": null,
+   "reason": "Basic column Tier 4 (Specialty) is 30% up to $500; the spreadsheet puts the 30% in its Tier 5 and fills Tier 4 with a tier the brochure does not have (50%).",
+   "sheet_note": "OPM spreadsheet Tier 4: Non-Preferred Drugs - 50% Coinsurance (its Tier 5 carries the 30% specialty price)"
+  },
+  {
+   "plan_code": "654",
+   "brochure": "73-019",
+   "option": "Standard Option",
+   "tier": "Tier 2",
+   "extraction": {
+    "retail_30": {
+     "value": 60,
+     "unit": "usd"
+    },
+    "quote": "$60 for preferred brand-name drugs (up to a 30-day supply at a Plan pharmacy)",
+    "page": 97
+   },
+   "sheet": "Generic - $5 Copayment",
+   "ruling": "brochure_correct",
+   "confidence": "medium",
+   "page": 97,
+   "quote": "$5 for preventive maintenance drugs; $15 for preferred generic drugs; $60 for preferred brand-name drugs; $80 for non-preferred drugs; $250 for specialty drugs",
+   "corrected": null,
+   "reason": "The brochure prints no tier numbers; the prices are right and equal the spreadsheet's Tier 3/4/5 because the spreadsheet counts the $5 preventive-maintenance line as its Tier 2 (the High Option column has no such line, so its numbering agrees)."
+  },
+  {
+   "plan_code": "654",
+   "brochure": "73-019",
+   "option": "Standard Option",
+   "tier": "Tier 3",
+   "extraction": {
+    "retail_30": {
+     "value": 80,
+     "unit": "usd"
+    },
+    "quote": "$80 for non-preferred drugs (up to a 30-day supply at a Plan pharmacy)",
+    "page": 97
+   },
+   "sheet": "Preferred Brand - $60 Copayment",
+   "ruling": "brochure_correct",
+   "confidence": "medium",
+   "page": 97,
+   "quote": "$5 for preventive maintenance drugs; $15 for preferred generic drugs; $60 for preferred brand-name drugs; $80 for non-preferred drugs; $250 for specialty drugs",
+   "corrected": null,
+   "reason": "The brochure prints no tier numbers; the prices are right and equal the spreadsheet's Tier 3/4/5 because the spreadsheet counts the $5 preventive-maintenance line as its Tier 2 (the High Option column has no such line, so its numbering agrees)."
+  },
+  {
+   "plan_code": "654",
+   "brochure": "73-019",
+   "option": "Standard Option",
+   "tier": "Tier 4",
+   "extraction": {
+    "retail_30": {
+     "value": 250,
+     "unit": "usd"
+    },
+    "quote": "$250 for specialty drugs for up to a 30-day supply at a Plan pharmacy",
+    "page": 97
+   },
+   "sheet": "Non-Preferred Drugs - $80 Copayment",
+   "ruling": "brochure_correct",
+   "confidence": "medium",
+   "page": 97,
+   "quote": "$5 for preventive maintenance drugs; $15 for preferred generic drugs; $60 for preferred brand-name drugs; $80 for non-preferred drugs; $250 for specialty drugs",
+   "corrected": null,
+   "reason": "The brochure prints no tier numbers; the prices are right and equal the spreadsheet's Tier 3/4/5 because the spreadsheet counts the $5 preventive-maintenance line as its Tier 2 (the High Option column has no such line, so its numbering agrees)."
+  },
+  {
+   "plan_code": "N41",
+   "brochure": "73-019",
+   "option": "Prosper",
+   "tier": "Tier 2",
+   "extraction": {
+    "retail_30": {
+     "value": 70,
+     "unit": "usd"
+    },
+    "quote": "$70 for preferred brand-name drugs (up to a 30-day supply at a Plan pharmacy)",
+    "page": 97
+   },
+   "sheet": "Generic - $5 Copayment",
+   "ruling": "brochure_correct",
+   "confidence": "medium",
+   "page": 97,
+   "quote": "$5 for preventive maintenance drugs; $15 for preferred generic drugs; $70 for preferred brand-name drugs; $100 for non-preferred drugs; $340 for specialty drugs",
+   "corrected": null,
+   "reason": "The brochure prints no tier numbers; the prices are right and equal the spreadsheet's Tier 3/4/5 because the spreadsheet counts the $5 preventive-maintenance line as its Tier 2 (the High Option column has no such line, so its numbering agrees)."
+  },
+  {
+   "plan_code": "N41",
+   "brochure": "73-019",
+   "option": "Prosper",
+   "tier": "Tier 3",
+   "extraction": {
+    "retail_30": {
+     "value": 100,
+     "unit": "usd"
+    },
+    "quote": "$100 for non-preferred drugs (up to a 30-day supply at a Plan pharmacy)",
+    "page": 97
+   },
+   "sheet": "Preferred Brand - $70 Copayment",
+   "ruling": "brochure_correct",
+   "confidence": "medium",
+   "page": 97,
+   "quote": "$5 for preventive maintenance drugs; $15 for preferred generic drugs; $70 for preferred brand-name drugs; $100 for non-preferred drugs; $340 for specialty drugs",
+   "corrected": null,
+   "reason": "The brochure prints no tier numbers; the prices are right and equal the spreadsheet's Tier 3/4/5 because the spreadsheet counts the $5 preventive-maintenance line as its Tier 2 (the High Option column has no such line, so its numbering agrees)."
+  },
+  {
+   "plan_code": "N41",
+   "brochure": "73-019",
+   "option": "Prosper",
+   "tier": "Tier 4",
+   "extraction": {
+    "retail_30": {
+     "value": 340,
+     "unit": "usd"
+    },
+    "quote": "$340 for specialty drugs for up to a 30-day supply at a Plan pharmacy",
+    "page": 97
+   },
+   "sheet": "Non-Preferred Drugs - $100 Copayment",
+   "ruling": "brochure_correct",
+   "confidence": "medium",
+   "page": 97,
+   "quote": "$5 for preventive maintenance drugs; $15 for preferred generic drugs; $70 for preferred brand-name drugs; $100 for non-preferred drugs; $340 for specialty drugs",
+   "corrected": null,
+   "reason": "The brochure prints no tier numbers; the prices are right and equal the spreadsheet's Tier 3/4/5 because the spreadsheet counts the $5 preventive-maintenance line as its Tier 2 (the High Option column has no such line, so its numbering agrees)."
+  },
+  {
+   "plan_code": "L11",
+   "brochure": "73-051",
+   "option": "Standard Option",
+   "tier": "Tier 1",
+   "extraction": {
+    "retail_30": {
+     "value": 30,
+     "unit": "usd"
+    },
+    "quote": "$30 per prescription/refill",
+    "page": 73
+   },
+   "sheet": "Generic - $10 Copayment",
+   "ruling": "brochure_correct",
+   "confidence": "high",
+   "page": 73,
+   "quote": "Plan-participating community pharmacy: Tier 1 $30 per prescription/refill",
+   "corrected": null,
+   "reason": "The extraction uses the Plan-participating community (retail) pharmacy price; the spreadsheet carries the lower Plan medical office pharmacy price ($10/$30/$60) from the same table.",
+   "sheet_note": "OPM spreadsheet lists the Plan medical office pharmacy price ($10/$30/$60); the community retail pharmacy price in the brochure is $30/$60/$90"
+  },
+  {
+   "plan_code": "L11",
+   "brochure": "73-051",
+   "option": "Standard Option",
+   "tier": "Tier 2",
+   "extraction": {
+    "retail_30": {
+     "value": 60,
+     "unit": "usd"
+    },
+    "quote": "$60 per prescription/refill",
+    "page": 73
+   },
+   "sheet": "Preferred Brand - $30 Copayment",
+   "ruling": "brochure_correct",
+   "confidence": "high",
+   "page": 73,
+   "quote": "Tier 2 - Preferred $60 per prescription/refill $180 per 90-day supply Tier 3",
+   "corrected": null,
+   "reason": "The extraction uses the Plan-participating community (retail) pharmacy price; the spreadsheet carries the lower Plan medical office pharmacy price ($10/$30/$60) from the same table.",
+   "sheet_note": "OPM spreadsheet lists the Plan medical office pharmacy price ($10/$30/$60); the community retail pharmacy price in the brochure is $30/$60/$90"
+  },
+  {
+   "plan_code": "L11",
+   "brochure": "73-051",
+   "option": "Standard Option",
+   "tier": "Tier 3",
+   "extraction": {
+    "retail_30": {
+     "value": 90,
+     "unit": "usd"
+    },
+    "quote": "$90 per prescription/refill",
+    "page": 73
+   },
+   "sheet": "Non-Preferred Drugs - $60 Copayment",
+   "ruling": "brochure_correct",
+   "confidence": "high",
+   "page": 73,
+   "quote": "Tier 3 - Non-Preferred $90 per prescription/refill",
+   "corrected": null,
+   "reason": "The extraction uses the Plan-participating community (retail) pharmacy price; the spreadsheet carries the lower Plan medical office pharmacy price ($10/$30/$60) from the same table.",
+   "sheet_note": "OPM spreadsheet lists the Plan medical office pharmacy price ($10/$30/$60); the community retail pharmacy price in the brochure is $30/$60/$90"
+  },
+  {
+   "plan_code": "L14",
+   "brochure": "73-051",
+   "option": "HDHP",
+   "tier": "Tier 1",
+   "extraction": {
+    "retail_30": {
+     "value": 30,
+     "unit": "usd"
+    },
+    "quote": "$30 per prescription/refill",
+    "page": 137
+   },
+   "sheet": "Generic - $10 Copayment",
+   "ruling": "brochure_correct",
+   "confidence": "high",
+   "page": 137,
+   "quote": "Plan-participating community pharmacy: Tier 1 $30 per prescription/refill",
+   "corrected": null,
+   "reason": "The extraction uses the Plan-participating community (retail) pharmacy price; the spreadsheet carries the lower Plan medical office pharmacy price ($10/$30/$60, page 136) from the same table.",
+   "sheet_note": "OPM spreadsheet lists the Plan medical office pharmacy price ($10/$30/$60); the community retail pharmacy price in the brochure is $30/$60/$90"
+  },
+  {
+   "plan_code": "L14",
+   "brochure": "73-051",
+   "option": "HDHP",
+   "tier": "Tier 2",
+   "extraction": {
+    "retail_30": {
+     "value": 60,
+     "unit": "usd"
+    },
+    "quote": "$60 per prescription/refill",
+    "page": 137
+   },
+   "sheet": "Preferred Brand - $30 Copayment",
+   "ruling": "brochure_correct",
+   "confidence": "high",
+   "page": 137,
+   "quote": "Tier 2 - Preferred $60 per prescription/refill $180 per 90-day supply Tier 3",
+   "corrected": null,
+   "reason": "The extraction uses the Plan-participating community (retail) pharmacy price; the spreadsheet carries the lower Plan medical office pharmacy price ($10/$30/$60, page 136) from the same table.",
+   "sheet_note": "OPM spreadsheet lists the Plan medical office pharmacy price ($10/$30/$60); the community retail pharmacy price in the brochure is $30/$60/$90"
+  },
+  {
+   "plan_code": "L14",
+   "brochure": "73-051",
+   "option": "HDHP",
+   "tier": "Tier 3",
+   "extraction": {
+    "retail_30": {
+     "value": 90,
+     "unit": "usd"
+    },
+    "quote": "$90 per prescription/refill",
+    "page": 137
+   },
+   "sheet": "Non-Preferred Drugs - $60 Copayment",
+   "ruling": "brochure_correct",
+   "confidence": "high",
+   "page": 137,
+   "quote": "Tier 3 - Non-Preferred $90 per prescription/refill",
+   "corrected": null,
+   "reason": "The extraction uses the Plan-participating community (retail) pharmacy price; the spreadsheet carries the lower Plan medical office pharmacy price ($10/$30/$60, page 136) from the same table.",
+   "sheet_note": "OPM spreadsheet lists the Plan medical office pharmacy price ($10/$30/$60); the community retail pharmacy price in the brochure is $30/$60/$90"
+  },
+  {
+   "plan_code": "JP1",
+   "brochure": "73-100",
+   "option": "High Option",
+   "tier": "Specialty Tier 1",
+   "extraction": {
+    "retail_30": {
+     "value": 25,
+     "unit": "usd"
+    },
+    "quote": "Tier 1 $25 (Specialty Medications, 30-day supply)",
+    "page": 65
+   },
+   "sheet": "Generic - $15 Copayment",
+   "ruling": "brochure_correct",
+   "confidence": "high",
+   "page": 65,
+   "quote": "Specialty Medications 30-Day supply Tier 1 $25 Tier 2 $150 Tier 3 $350 Tier 4 $500",
+   "corrected": null,
+   "reason": "These are the brochure's separate Specialty schedule ($25/$150/$350/$500); the crosscheck wrongly compared them with the spreadsheet's non-specialty Tier 1-3, which the extraction's non-specialty tiers already match.",
+   "sheet_note": "OPM spreadsheet has no separate specialty schedule; its Tier 1-3 are the non-specialty $15/$60/$150 tiers"
+  },
+  {
+   "plan_code": "JP1",
+   "brochure": "73-100",
+   "option": "High Option",
+   "tier": "Specialty Tier 2",
+   "extraction": {
+    "retail_30": {
+     "value": 150,
+     "unit": "usd"
+    },
+    "quote": "Tier 2 $150 (Specialty Medications, 30-day supply)",
+    "page": 65
+   },
+   "sheet": "Preferred Brand - $60 Copayment",
+   "ruling": "brochure_correct",
+   "confidence": "high",
+   "page": 65,
+   "quote": "Specialty Medications 30-Day supply Tier 1 $25 Tier 2 $150 Tier 3 $350 Tier 4 $500",
+   "corrected": null,
+   "reason": "These are the brochure's separate Specialty schedule ($25/$150/$350/$500); the crosscheck wrongly compared them with the spreadsheet's non-specialty Tier 1-3, which the extraction's non-specialty tiers already match.",
+   "sheet_note": "OPM spreadsheet has no separate specialty schedule; its Tier 1-3 are the non-specialty $15/$60/$150 tiers"
+  },
+  {
+   "plan_code": "JP1",
+   "brochure": "73-100",
+   "option": "High Option",
+   "tier": "Specialty Tier 3",
+   "extraction": {
+    "retail_30": {
+     "value": 350,
+     "unit": "usd"
+    },
+    "quote": "Tier 3 $350 (Specialty Medications, 30-day supply)",
+    "page": 65
+   },
+   "sheet": "Non-Preferred Brand - $150 Copayment",
+   "ruling": "brochure_correct",
+   "confidence": "high",
+   "page": 65,
+   "quote": "Specialty Medications 30-Day supply Tier 1 $25 Tier 2 $150 Tier 3 $350 Tier 4 $500",
+   "corrected": null,
+   "reason": "These are the brochure's separate Specialty schedule ($25/$150/$350/$500); the crosscheck wrongly compared them with the spreadsheet's non-specialty Tier 1-3, which the extraction's non-specialty tiers already match.",
+   "sheet_note": "OPM spreadsheet has no separate specialty schedule; its Tier 1-3 are the non-specialty $15/$60/$150 tiers"
+  },
+  {
+   "plan_code": "PS4",
+   "brochure": "73-563",
+   "option": "Standard Option - Central",
+   "tier": "Tier 4",
+   "extraction": {
+    "retail_30": {
+     "value": 50,
+     "unit": "pct"
+    },
+    "quote": "50% of the plan allowance up to a maximum out-of-pocket of $500 per prescription",
+    "page": 115
+   },
+   "sheet": "Preferred Specialty Tier - 100% Coinsurance",
+   "ruling": "brochure_correct",
+   "confidence": "high",
+   "page": 115,
+   "quote": "Tier 4 - Specialty Pharmaceuticals 50% of the plan allowance up to a maximum out-of-pocket of $500 per prescription",
+   "corrected": null,
+   "reason": "The brochure states 50% (capped at $500 per prescription) for Tier 4 Specialty; the spreadsheet's 100% coinsurance is not supported anywhere in the brochure."
+  },
+  {
+   "plan_code": "JK1",
+   "brochure": "73-776",
+   "option": "High Option",
+   "tier": "Tier 5",
+   "extraction": {
+    "retail_30": {
+     "value": 200,
+     "unit": "usd"
+    },
+    "quote": "Non-Preferred Specialty drugs: $200 copayment",
+    "page": 80
+   },
+   "sheet": "Specialty Tier - $250 Copayment",
+   "ruling": "brochure_correct",
+   "confidence": "high",
+   "page": 80,
+   "quote": "Non-Preferred Specialty drugs: $200 copayment",
+   "corrected": null,
+   "reason": "The High column (printed first) shows $200 for Non-Preferred Specialty and the Standard column $250; the spreadsheet's JK1 value of $250 is the Standard Option price."
+  },
+  {
+   "plan_code": "N61",
+   "brochure": "73-828",
+   "option": "Aetna Direct",
+   "tier": "Tier 1 Preferred Generic",
+   "extraction": {
+    "retail_30": {
+     "value": 0,
+     "unit": "usd"
+    },
+    "quote": "Tier 1 Preferred Generic: $0 per drug at preferred/standard pharmacy",
+    "page": 169
+   },
+   "sheet": "Preferred Generic - $10 Copayment",
+   "ruling": "sheet_correct",
+   "confidence": "high",
+   "page": 169,
+   "quote": "Medicare Part D Prescription Drug Plan - EGWP",
+   "corrected": null,
+   "reason": "These $0/$1/$45/$75/25% tiers come from the Medicare Part D PDP EGWP table (Medicare-primary members), not the commercial Aetna Direct tiers that were already extracted correctly, so they must not be listed as Aetna Direct tiers.",
+   "action": "drop"
+  },
+  {
+   "plan_code": "N61",
+   "brochure": "73-828",
+   "option": "Aetna Direct",
+   "tier": "Tier 2 Generic",
+   "extraction": {
+    "retail_30": {
+     "value": 1,
+     "unit": "usd"
+    },
+    "quote": "Tier 2 Generic: $1 per drug at preferred pharmacy; $2 per drug at standard pharmacy",
+    "page": 169
+   },
+   "sheet": "Preferred Brand - 30% Coinsurance",
+   "ruling": "sheet_correct",
+   "confidence": "high",
+   "page": 169,
+   "quote": "Medicare Part D Prescription Drug Plan - EGWP",
+   "corrected": null,
+   "reason": "These $0/$1/$45/$75/25% tiers come from the Medicare Part D PDP EGWP table (Medicare-primary members), not the commercial Aetna Direct tiers that were already extracted correctly, so they must not be listed as Aetna Direct tiers.",
+   "action": "drop"
+  },
+  {
+   "plan_code": "N61",
+   "brochure": "73-828",
+   "option": "Aetna Direct",
+   "tier": "Tier 3 Preferred Brand",
+   "extraction": {
+    "retail_30": {
+     "value": 45,
+     "unit": "usd"
+    },
+    "quote": "Tier 3 Preferred Brand: $45 per drug at preferred/standard pharmacy",
+    "page": 169
+   },
+   "sheet": "Non-Preferred Drugs - 50% Coinsurance",
+   "ruling": "sheet_correct",
+   "confidence": "high",
+   "page": 169,
+   "quote": "Medicare Part D Prescription Drug Plan - EGWP",
+   "corrected": null,
+   "reason": "These $0/$1/$45/$75/25% tiers come from the Medicare Part D PDP EGWP table (Medicare-primary members), not the commercial Aetna Direct tiers that were already extracted correctly, so they must not be listed as Aetna Direct tiers.",
+   "action": "drop"
+  },
+  {
+   "plan_code": "N61",
+   "brochure": "73-828",
+   "option": "Aetna Direct",
+   "tier": "Tier 4 Non-Preferred Brand",
+   "extraction": {
+    "retail_30": {
+     "value": 75,
+     "unit": "usd"
+    },
+    "quote": "Tier 4 Non-Preferred Brand: $75 per drug at preferred/standard pharmacy",
+    "page": 169
+   },
+   "sheet": "Preferred Specialty Tier - 50% Coinsurance",
+   "ruling": "sheet_correct",
+   "confidence": "high",
+   "page": 169,
+   "quote": "Medicare Part D Prescription Drug Plan - EGWP",
+   "corrected": null,
+   "reason": "These $0/$1/$45/$75/25% tiers come from the Medicare Part D PDP EGWP table (Medicare-primary members), not the commercial Aetna Direct tiers that were already extracted correctly, so they must not be listed as Aetna Direct tiers.",
+   "action": "drop"
+  },
+  {
+   "plan_code": "N61",
+   "brochure": "73-828",
+   "option": "Aetna Direct",
+   "tier": "Tier 5 Specialty",
+   "extraction": {
+    "retail_30": {
+     "value": 25,
+     "unit": "pct"
+    },
+    "quote": "Tier 5 Specialty (includes high-cost/unique generic and brand drugs): 25%, but not more than $250 per drug at preferred/standard pharmacy",
+    "page": 169
+   },
+   "sheet": "Specialty Tier - 50% Coinsurance",
+   "ruling": "sheet_correct",
+   "confidence": "high",
+   "page": 169,
+   "quote": "Medicare Part D Prescription Drug Plan - EGWP",
+   "corrected": null,
+   "reason": "These $0/$1/$45/$75/25% tiers come from the Medicare Part D PDP EGWP table (Medicare-primary members), not the commercial Aetna Direct tiers that were already extracted correctly, so they must not be listed as Aetna Direct tiers.",
+   "action": "drop"
+  },
+  {
+   "plan_code": "A81",
+   "brochure": "73-881",
+   "option": "Basic",
+   "tier": "Tier 2",
+   "extraction": {
+    "retail_30": {
+     "value": 25,
+     "unit": "usd"
+    },
+    "quote": "Tier 2 (Non-Preferred Generic) $25",
+    "page": 65
+   },
+   "sheet": "Generic - $20 Copayment",
+   "ruling": "brochure_correct",
+   "confidence": "high",
+   "page": 65,
+   "quote": "Tier 2 (Non-Preferred Generic) $25 Tier 3 (Preferred Brand) $65 Tier 4 (Non-Preferred Brand) $120 Tier 5 (Preferred Generic Specialty) 20%, up to a maximum of $400",
+   "corrected": null,
+   "reason": "The Basic block (printed second, after Standard) is $8/$25/$65/$120/20% (up to $400)/$400/$600; the extraction matches it and the spreadsheet's Basic row ($20/$60/30%/injectable 50%) does not."
+  },
+  {
+   "plan_code": "A81",
+   "brochure": "73-881",
+   "option": "Basic",
+   "tier": "Tier 3",
+   "extraction": {
+    "retail_30": {
+     "value": 65,
+     "unit": "usd"
+    },
+    "quote": "Tier 3 (Preferred Brand) $65",
+    "page": 65
+   },
+   "sheet": "Preferred Brand - $60 Copayment",
+   "ruling": "both_wrong",
+   "confidence": "high",
+   "page": 65,
+   "quote": "Tier 2 (Non-Preferred Generic) $25 Tier 3 (Preferred Brand) $65 Tier 4 (Non-Preferred Brand) $120 Tier 5 (Preferred Generic Specialty) 20%, up to a maximum of $400",
+   "corrected": {
+    "mail_90": {
+     "value": 162.5,
+     "unit": "usd",
+     "page": 67,
+     "quote": "Lesser of $162.50 copay or 30%"
+    }
+   },
+   "reason": "Retail $65 is right (Basic block) and the spreadsheet's $60 is wrong, but the extraction took the 90-day mail price from the Summary ($187.50) while Section 5(f) page 67 and the Section 2 change notice (page 18, $150 to $162.50) both give $162.50 for Basic."
+  },
+  {
+   "plan_code": "A81",
+   "brochure": "73-881",
+   "option": "Basic",
+   "tier": "Tier 4",
+   "extraction": {
+    "retail_30": {
+     "value": 120,
+     "unit": "usd"
+    },
+    "quote": "Tier 4 (Non-Preferred Brand) $120",
+    "page": 65
+   },
+   "sheet": "Non-Preferred Brand - 30% Coinsurance",
+   "ruling": "both_wrong",
+   "confidence": "medium",
+   "page": 65,
+   "quote": "Tier 2 (Non-Preferred Generic) $25 Tier 3 (Preferred Brand) $65 Tier 4 (Non-Preferred Brand) $120 Tier 5 (Preferred Generic Specialty) 20%, up to a maximum of $400",
+   "corrected": {
+    "mail_90": {
+     "value": 300,
+     "unit": "usd",
+     "page": 67,
+     "quote": "Tier 4 (Non-Preferred Brand) $300"
+    }
+   },
+   "reason": "Retail $120 is right (Basic block) and the spreadsheet's 30% is wrong, but the extraction took the mail price from the Summary ($500) while the Basic column of Section 5(f) page 67 (second of three blocks) shows a flat $300."
+  },
+  {
+   "plan_code": "A81",
+   "brochure": "73-881",
+   "option": "Basic",
+   "tier": "Tier 5",
+   "extraction": {
+    "retail_30": {
+     "value": 20,
+     "unit": "pct"
+    },
+    "quote": "20%, up to a maximum of $400",
+    "page": 65
+   },
+   "sheet": "Injectable Drugs - 50% Coinsurance",
+   "ruling": "brochure_correct",
+   "confidence": "high",
+   "page": 65,
+   "quote": "Tier 2 (Non-Preferred Generic) $25 Tier 3 (Preferred Brand) $65 Tier 4 (Non-Preferred Brand) $120 Tier 5 (Preferred Generic Specialty) 20%, up to a maximum of $400",
+   "corrected": null,
+   "reason": "The Basic block (printed second, after Standard) is $8/$25/$65/$120/20% (up to $400)/$400/$600; the extraction matches it and the spreadsheet's Basic row ($20/$60/30%/injectable 50%) does not."
+  },
+  {
+   "plan_code": "A84",
+   "brochure": "73-881",
+   "option": "Standard",
+   "tier": "Tier 1",
+   "extraction": {
+    "retail_30": {
+     "value": 8,
+     "unit": "usd"
+    },
+    "quote": "Tier 1 (Preferred Generic) $8",
+    "page": 65
+   },
+   "sheet": "Preferred Generic - $5 Copayment",
+   "ruling": "brochure_correct",
+   "confidence": "high",
+   "page": 65,
+   "quote": "Tier 1 (Preferred Generic) $8 Tier 2 (Non-Preferred Generic) $20 Tier 3 (Preferred Brand) 30%, up to a maximum of a $75 copay",
+   "corrected": null,
+   "reason": "The page prints three separate blocks in header order Standard, Basic, Value; the Standard block is $8/$20/30%/50%/20% (up to $400)/$400/$600 and the spreadsheet's Standard row ($5/$18, its Tier 5 being the $400 Tier 6 price) disagrees; the Value option, which matches the spreadsheet exactly, confirms the column order."
+  },
+  {
+   "plan_code": "A84",
+   "brochure": "73-881",
+   "option": "Standard",
+   "tier": "Tier 2",
+   "extraction": {
+    "retail_30": {
+     "value": 20,
+     "unit": "usd"
+    },
+    "quote": "Tier 2 (Non-Preferred Generic) $20",
+    "page": 65
+   },
+   "sheet": "Generic - $18 Copayment",
+   "ruling": "brochure_correct",
+   "confidence": "high",
+   "page": 65,
+   "quote": "Tier 1 (Preferred Generic) $8 Tier 2 (Non-Preferred Generic) $20 Tier 3 (Preferred Brand) 30%, up to a maximum of a $75 copay",
+   "corrected": null,
+   "reason": "The page prints three separate blocks in header order Standard, Basic, Value; the Standard block is $8/$20/30%/50%/20% (up to $400)/$400/$600 and the spreadsheet's Standard row ($5/$18, its Tier 5 being the $400 Tier 6 price) disagrees; the Value option, which matches the spreadsheet exactly, confirms the column order."
+  },
+  {
+   "plan_code": "A84",
+   "brochure": "73-881",
+   "option": "Standard",
+   "tier": "Tier 5",
+   "extraction": {
+    "retail_30": {
+     "value": 20,
+     "unit": "pct"
+    },
+    "quote": "20%, up to a maximum of $400",
+    "page": 65
+   },
+   "sheet": "Preferred Specialty Tier - $400 Copayment",
+   "ruling": "brochure_correct",
+   "confidence": "high",
+   "page": 65,
+   "quote": "Tier 4 (Non-Preferred Brand) 50%, up to a maximum of a $200 copay Tier 5 (Preferred Generic Specialty) 20%, up to a maximum of $400",
+   "corrected": null,
+   "reason": "The page prints three separate blocks in header order Standard, Basic, Value; the Standard block is $8/$20/30%/50%/20% (up to $400)/$400/$600 and the spreadsheet's Standard row ($5/$18, its Tier 5 being the $400 Tier 6 price) disagrees; the Value option, which matches the spreadsheet exactly, confirms the column order."
+  },
+  {
+   "plan_code": "P81",
+   "brochure": "73-881",
+   "option": "Basic",
+   "tier": "Tier 2",
+   "extraction": {
+    "retail_30": {
+     "value": 25,
+     "unit": "usd"
+    },
+    "quote": "Tier 2 (Non-Preferred Generic) $25",
+    "page": 65
+   },
+   "sheet": "Generic - $20 Copayment",
+   "ruling": "brochure_correct",
+   "confidence": "high",
+   "page": 65,
+   "quote": "Tier 2 (Non-Preferred Generic) $25 Tier 3 (Preferred Brand) $65 Tier 4 (Non-Preferred Brand) $120 Tier 5 (Preferred Generic Specialty) 20%, up to a maximum of $400",
+   "corrected": null,
+   "reason": "The Basic block (printed second, after Standard) is $8/$25/$65/$120/20% (up to $400)/$400/$600; the extraction matches it and the spreadsheet's Basic row ($20/$60/30%/injectable 50%) does not."
+  },
+  {
+   "plan_code": "P81",
+   "brochure": "73-881",
+   "option": "Basic",
+   "tier": "Tier 3",
+   "extraction": {
+    "retail_30": {
+     "value": 65,
+     "unit": "usd"
+    },
+    "quote": "Tier 3 (Preferred Brand) $65",
+    "page": 65
+   },
+   "sheet": "Preferred Brand - $60 Copayment",
+   "ruling": "both_wrong",
+   "confidence": "high",
+   "page": 65,
+   "quote": "Tier 2 (Non-Preferred Generic) $25 Tier 3 (Preferred Brand) $65 Tier 4 (Non-Preferred Brand) $120 Tier 5 (Preferred Generic Specialty) 20%, up to a maximum of $400",
+   "corrected": {
+    "mail_90": {
+     "value": 162.5,
+     "unit": "usd",
+     "page": 67,
+     "quote": "Lesser of $162.50 copay or 30%"
+    }
+   },
+   "reason": "Retail $65 is right (Basic block) and the spreadsheet's $60 is wrong, but the extraction took the 90-day mail price from the Summary ($187.50) while Section 5(f) page 67 and the Section 2 change notice (page 18, $150 to $162.50) both give $162.50 for Basic."
+  },
+  {
+   "plan_code": "P81",
+   "brochure": "73-881",
+   "option": "Basic",
+   "tier": "Tier 4",
+   "extraction": {
+    "retail_30": {
+     "value": 120,
+     "unit": "usd"
+    },
+    "quote": "Tier 4 (Non-Preferred Brand) $120",
+    "page": 65
+   },
+   "sheet": "Non-Preferred Brand - 30% Coinsurance",
+   "ruling": "both_wrong",
+   "confidence": "medium",
+   "page": 65,
+   "quote": "Tier 2 (Non-Preferred Generic) $25 Tier 3 (Preferred Brand) $65 Tier 4 (Non-Preferred Brand) $120 Tier 5 (Preferred Generic Specialty) 20%, up to a maximum of $400",
+   "corrected": {
+    "mail_90": {
+     "value": 300,
+     "unit": "usd",
+     "page": 67,
+     "quote": "Tier 4 (Non-Preferred Brand) $300"
+    }
+   },
+   "reason": "Retail $120 is right (Basic block) and the spreadsheet's 30% is wrong, but the extraction took the mail price from the Summary ($500) while the Basic column of Section 5(f) page 67 (second of three blocks) shows a flat $300."
+  },
+  {
+   "plan_code": "P81",
+   "brochure": "73-881",
+   "option": "Basic",
+   "tier": "Tier 5",
+   "extraction": {
+    "retail_30": {
+     "value": 20,
+     "unit": "pct"
+    },
+    "quote": "20%, up to a maximum of $400",
+    "page": 65
+   },
+   "sheet": "Injectable Drugs - 50% Coinsurance",
+   "ruling": "brochure_correct",
+   "confidence": "high",
+   "page": 65,
+   "quote": "Tier 2 (Non-Preferred Generic) $25 Tier 3 (Preferred Brand) $65 Tier 4 (Non-Preferred Brand) $120 Tier 5 (Preferred Generic Specialty) 20%, up to a maximum of $400",
+   "corrected": null,
+   "reason": "The Basic block (printed second, after Standard) is $8/$25/$65/$120/20% (up to $400)/$400/$600; the extraction matches it and the spreadsheet's Basic row ($20/$60/30%/injectable 50%) does not."
+  },
+  {
+   "plan_code": "P84",
+   "brochure": "73-881",
+   "option": "Standard",
+   "tier": "Tier 1",
+   "extraction": {
+    "retail_30": {
+     "value": 8,
+     "unit": "usd"
+    },
+    "quote": "Tier 1 (Preferred Generic) $8",
+    "page": 65
+   },
+   "sheet": "Preferred Generic - $5 Copayment",
+   "ruling": "brochure_correct",
+   "confidence": "high",
+   "page": 65,
+   "quote": "Tier 1 (Preferred Generic) $8 Tier 2 (Non-Preferred Generic) $20 Tier 3 (Preferred Brand) 30%, up to a maximum of a $75 copay",
+   "corrected": null,
+   "reason": "The page prints three separate blocks in header order Standard, Basic, Value; the Standard block is $8/$20/30%/50%/20% (up to $400)/$400/$600 and the spreadsheet's Standard row ($5/$18, its Tier 5 being the $400 Tier 6 price) disagrees; the Value option, which matches the spreadsheet exactly, confirms the column order."
+  },
+  {
+   "plan_code": "P84",
+   "brochure": "73-881",
+   "option": "Standard",
+   "tier": "Tier 2",
+   "extraction": {
+    "retail_30": {
+     "value": 20,
+     "unit": "usd"
+    },
+    "quote": "Tier 2 (Non-Preferred Generic) $20",
+    "page": 65
+   },
+   "sheet": "Generic - $18 Copayment",
+   "ruling": "brochure_correct",
+   "confidence": "high",
+   "page": 65,
+   "quote": "Tier 1 (Preferred Generic) $8 Tier 2 (Non-Preferred Generic) $20 Tier 3 (Preferred Brand) 30%, up to a maximum of a $75 copay",
+   "corrected": null,
+   "reason": "The page prints three separate blocks in header order Standard, Basic, Value; the Standard block is $8/$20/30%/50%/20% (up to $400)/$400/$600 and the spreadsheet's Standard row ($5/$18, its Tier 5 being the $400 Tier 6 price) disagrees; the Value option, which matches the spreadsheet exactly, confirms the column order."
+  },
+  {
+   "plan_code": "P84",
+   "brochure": "73-881",
+   "option": "Standard",
+   "tier": "Tier 5",
+   "extraction": {
+    "retail_30": {
+     "value": 20,
+     "unit": "pct"
+    },
+    "quote": "20%, up to a maximum of $400",
+    "page": 65
+   },
+   "sheet": "Preferred Specialty Tier - $400 Copayment",
+   "ruling": "brochure_correct",
+   "confidence": "high",
+   "page": 65,
+   "quote": "Tier 4 (Non-Preferred Brand) 50%, up to a maximum of a $200 copay Tier 5 (Preferred Generic Specialty) 20%, up to a maximum of $400",
+   "corrected": null,
+   "reason": "The page prints three separate blocks in header order Standard, Basic, Value; the Standard block is $8/$20/30%/50%/20% (up to $400)/$400/$600 and the spreadsheet's Standard row ($5/$18, its Tier 5 being the $400 Tier 6 price) disagrees; the Value option, which matches the spreadsheet exactly, confirms the column order."
+  },
+  {
+   "plan_code": "YF1",
+   "brochure": "73-899",
+   "option": "Basic Option",
+   "tier": "Tier 4",
+   "extraction": {
+    "retail_30": {
+     "value": 30,
+     "unit": "pct"
+    },
+    "quote": "30% up to $500 per prescription or refill for a 30-day supply of covered Specialty Drugs filled through a contracted specialty pharmacy",
+    "page": 66
+   },
+   "sheet": "Non-Preferred Drugs - 50% Coinsurance",
+   "ruling": "brochure_correct",
+   "confidence": "high",
+   "page": 66,
+   "quote": "Tier 4 (Specialty Drugs): 30% up to $500 per prescription or refill",
+   "corrected": null,
+   "reason": "Basic column Tier 4 (Specialty) is 30% up to $500; the spreadsheet puts the 30% in its Tier 5 and fills Tier 4 with a tier the brochure does not have (50%).",
+   "sheet_note": "OPM spreadsheet Tier 4: Non-Preferred Drugs - 50% Coinsurance (its Tier 5 carries the 30% specialty price)"
+  }
+ ],
+ "unmatched_options": [
+  {
+   "brochure": "71-004",
+   "option": "High Option (PPO providers and in-network pharmacies), Self Only",
+   "ruling": "map_to:471",
+   "reason": "Page 30 gives the High Option in-network out-of-pocket maximum; code 471 is the High Option and the qualifier only restates network and enrollment type."
+  },
+  {
+   "brochure": "71-004",
+   "option": "High Option (non-PPO providers or out-of-network pharmacies), Self Only",
+   "ruling": "map_to:471",
+   "reason": "Page 30 gives the High Option out-of-network out-of-pocket maximum; same plan code 471 (the fact keeps its out-of-network label)."
+  },
+  {
+   "brochure": "71-004",
+   "option": "Consumer Driven Option (in-network), Self Only",
+   "ruling": "map_to:474",
+   "reason": "Page 31 gives the Consumer Driven Option in-network out-of-pocket maximum; code 474 is the Consumer Driven Option."
+  },
+  {
+   "brochure": "71-004",
+   "option": "Consumer Driven Option (out-of-network), Self Only",
+   "ruling": "map_to:474",
+   "reason": "Page 30 gives the Consumer Driven Option out-of-network out-of-pocket maximum; code 474."
+  },
+  {
+   "brochure": "71-015",
+   "option": "UnitedHealthcare Medicare Advantage (PPO) for the SAMBA Health Benefit Plan",
+   "ruling": "map_to:441,444",
+   "reason": "Changes for 2027 (pages 16-17) describe the Medicare Advantage PPO companion offered to members of both SAMBA options (441 High, 444 Standard); the fact keeps its Medicare Advantage label."
+  },
+  {
+   "brochure": "71-017",
+   "option": "FEP Blue Focus - Self and Family",
+   "ruling": "map_to:131",
+   "reason": "FEP Blue Focus is the brochure's only plan (code 131); the qualifier is only the enrollment type (Self and Family deductible and catastrophic maximum, page 17)."
+  },
+  {
+   "brochure": "73-003",
+   "option": "Senior Advantage (MAPD)",
+   "ruling": "map_to:591,594,KC1",
+   "reason": "Pages 18 and 26 describe the Plan's associated Medicare Advantage (MA-PD) product, which applies to every option of the brochure (591 High, 594 Standard, KC1 Prosper); the fact keeps its Medicare label."
+  },
+  {
+   "brochure": "73-003",
+   "option": "PDP EGWP",
+   "ruling": "map_to:591,594,KC1",
+   "reason": "Pages 18 and 26 describe the Plan's associated Part D PDP EGWP, which applies to every option of the brochure (591, 594, KC1); the fact keeps its PDP EGWP label."
+  },
+  {
+   "brochure": "73-047",
+   "option": "Medicare Advantage High Option, Standard Option, and Prosper",
+   "ruling": "map_to:E31,E34,T71",
+   "reason": "The heading itself names High (E31), Standard (E34) and Prosper (T71)."
+  },
+  {
+   "brochure": "73-047",
+   "option": "Medicare Advantage High Option and Standard Option",
+   "ruling": "map_to:E31,E34",
+   "reason": "The heading names High (E31) and Standard (E34) only (Part B premium reimbursement change, page 18)."
+  },
+  {
+   "brochure": "73-321",
+   "option": "Senior Advantage High Option (1 and 2), Standard Option (1 and 2), and Prosper",
+   "ruling": "map_to:F81,F84,LA1",
+   "reason": "The heading names High (F81), Standard (F84) and Prosper (LA1); Senior Advantage 1 and 2 are Medicare variants of those options."
+  },
+  {
+   "brochure": "73-822",
+   "option": "Changes to Medicare Advantage (MAPD) and PDP EGWP",
+   "ruling": "map_to:621,624,FL1",
+   "reason": "Medicare Advantage and PDP EGWP changes (page 18) apply to the Plan's associated Medicare products for every option (621 High, 624 Standard, FL1 Prosper); the fact keeps its Medicare label."
+  },
+  {
+   "brochure": "73-822",
+   "option": "PDP EGWP (Medicare Part D)",
+   "ruling": "map_to:621,624,FL1",
+   "reason": "The page 26 TrOOP statement is for the Plan's associated PDP EGWP, which applies to every option (621, 624, FL1); the fact keeps its PDP EGWP label."
+  },
+  {
+   "brochure": "73-906",
+   "option": "Aetna Medicare Advantage Plan (Medicare Parts A and B are primary)",
+   "ruling": "map_to:Z24",
+   "reason": "Z24 is the brochure's only plan code and the Medicare Advantage variant is part of the same Aetna Advantage enrollment (pages 23 and 40); the fact keeps its Medicare label."
+  },
+  {
+   "brochure": "73-937",
+   "option": "Standard Option",
+   "ruling": "map_to:YJ4",
+   "reason": "The brochure cover lists YJ4 as Standard Option and YJ1 as Basic Option and states a $0 deductible for Standard; the spreadsheet's YJ4 row (deductible $0, PCP copay $30) is the Standard Option although it is labelled High Option, and its tiers $20/$40/$80 equal the extraction's Standard tiers.",
+   "set_option_name": true
+  }
+ ],
+ "summary": {
+  "decisions": 41,
+  "by_ruling": {
+   "brochure_correct": 32,
+   "sheet_correct": 5,
+   "both_wrong": 4
+  },
+  "by_confidence": {
+   "medium": 10,
+   "high": 31
+  },
+  "by_ruling_and_confidence": {
+   "brochure_correct/medium": 8,
+   "brochure_correct/high": 24,
+   "sheet_correct/high": 5,
+   "both_wrong/high": 2,
+   "both_wrong/medium": 2
+  },
+  "unmatched_options": 15,
+  "unmatched_by_ruling": {
+   "map_to": 15
+  }
+ }
+}

@@ -29,6 +29,7 @@ PIPELINE = Path(__file__).resolve().parent
 ROOT = PIPELINE.parent
 YEAR = "2027"
 OVERLAP_MIN = 0.8
+ADJUDICATION = PIPELINE / "rx_adjudication.json"
 MAX_QUOTE = 300
 
 PAGE_RE = re.compile(r"^=== PAGE (\d+) ===[ \t]*$", re.M)
@@ -633,6 +634,113 @@ def alt_sheet_tier(tier_label, retail30, raw):
     return out
 
 
+# --------------------------------------------------------------------------- adjudication
+
+CONFIDENT = ("high", "medium")
+
+
+def load_adjudication(path=ADJUDICATION):
+    """pipeline/rx_adjudication.json (decisions for crosscheck mismatches and unmatched options) or None."""
+    path = Path(path)
+    if not path.exists():
+        return None
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def option_map_for(adj, brochure, codes):
+    """{option string: [plan codes]} for unmatched options ruled 'map_to:<code>[,<code>]' in this brochure."""
+    out = {}
+    for u in (adj or {}).get("unmatched_options", []):
+        r = u.get("ruling") or ""
+        if u.get("brochure") != brochure or not r.startswith("map_to:"):
+            continue
+        to = [c.strip() for c in r[len("map_to:"):].split(",") if c.strip()]
+        bad = [c for c in to if c not in codes]
+        if bad:
+            raise ValueError(f"{brochure}: adjudication maps {u.get('option')!r} to {bad}, not codes of this brochure")
+        out[u["option"]] = to
+    return out
+
+
+def _sheet_text(d):
+    return d.get("sheet_note") or d.get("sheet")
+
+
+def adjudicate_tier(tier: dict, d: dict):
+    """Apply one adjudication decision to a tier whose crosscheck is 'mismatch'.
+    Returns the updated tier, or None when the tier is to be dropped."""
+    t = dict(tier)
+    ruling, conf = d.get("ruling"), d.get("confidence")
+    adj = {"ruling": ruling, "confidence": conf, "page": d.get("page"), "quote": d.get("quote")}
+    corrected, confident = d.get("corrected"), conf in CONFIDENT
+    t.pop("_alt", None)
+    if ruling == "brochure_correct" and confident:
+        t["crosscheck"] = "adjudicated_brochure"
+        t["sheet_discrepancy"] = _sheet_text(d)
+    elif ruling in ("sheet_correct", "both_wrong") and confident and d.get("action") == "drop":
+        return None
+    elif ruling in ("sheet_correct", "both_wrong") and confident and corrected:
+        for k, val in corrected.items():
+            if k in ("retail_30", "retail_90", "mail_90"):
+                cell = dict(t.get(k) or {})
+                cell.update(val)
+                cell["match"] = "adjudicated"
+                t[k] = cell
+            else:
+                t[k] = val
+        t["crosscheck"] = "adjudicated"
+        if ruling == "both_wrong":
+            t["sheet_discrepancy"] = _sheet_text(d)
+        t.pop("crosscheck_sheet", None)
+    else:  # undeterminable, low confidence, or no corrected values to apply
+        t["crosscheck"] = "unresolved"
+        t["flag"] = "rx_tier_unresolved"
+        t["flag_reason"] = d.get("reason")
+    t["adjudication"] = adj
+    return t
+
+
+def adjudicate_plans(plans: dict, adj):
+    """Apply tier decisions to plans (code -> plan entry). -> (counts, dropped list, unresolved list)."""
+    index = {}
+    for d in (adj or {}).get("decisions", []):
+        index[(d["plan_code"], d["tier"])] = d
+    counts, dropped, unresolved = Counter(), [], []
+    for code, p in plans.items():
+        new = []
+        for t in p["rx"]["tiers"]:
+            d = index.get((code, t["tier"])) if t.get("crosscheck") == "mismatch" else None
+            if d is None:
+                new.append(t)
+                continue
+            r = adjudicate_tier(t, d)
+            if r is None:
+                counts["dropped"] += 1
+                r30 = t.get("retail_30") or {}
+                dropped.append({"brochure": p["brochure"], "plan_code": code, "option": t.get("option"),
+                                "tier": t["tier"], "value": r30.get("value"), "unit": r30.get("unit"),
+                                "reason": d.get("reason")})
+                continue
+            counts[r["crosscheck"]] += 1
+            if r["crosscheck"] == "unresolved":
+                unresolved.append({"brochure": p["brochure"], "plan_code": code, "option": t.get("option"),
+                                   "tier": t["tier"], "reason": d.get("reason")})
+            new.append(r)
+        p["rx"]["tiers"] = new
+    return counts, dropped, unresolved
+
+
+def crosscheck_states(facts: dict):
+    """Counter of tier crosscheck states in a built facts file, plus the list of unresolved tiers."""
+    counts, unresolved = Counter(), []
+    for code, p in facts["plans"].items():
+        for t in p["rx"]["tiers"]:
+            counts[t.get("crosscheck")] += 1
+            if t.get("crosscheck") == "unresolved":
+                unresolved.append({"brochure": p["brochure"], "plan_code": code, "tier": t["tier"]})
+    return counts, unresolved
+
+
 # --------------------------------------------------------------------------- run
 
 def read_json(path: Path):
@@ -704,7 +812,7 @@ def fact_obj(f: Fact, trim_quotes=False):
     return o
 
 
-def build_brochure_entries(num, data, facts, codes_names, bench, trim_quotes):
+def build_brochure_entries(num, data, facts, codes_names, bench, trim_quotes, option_map=None):
     """Group verified facts by plan code. Returns (per_code dict, unmatched dict, dropped Counter, stats)."""
     per_code = {c: {"brochure": num, "option": None,
                     "rx": {"tiers": [], "rx_oop_max": [], "other_notable": []},
@@ -722,7 +830,10 @@ def build_brochure_entries(num, data, facts, codes_names, bench, trim_quotes):
     def targets(opt):
         key = opt if isinstance(opt, str) else None
         if key not in cache:
-            cache[key] = match_option_multi(opt, codes_names, single_opt_fallback=(n_opts == 1))
+            if option_map and key in option_map:
+                cache[key] = (sorted(option_map[key]), [], "adjudicated")
+            else:
+                cache[key] = match_option_multi(opt, codes_names, single_opt_fallback=(n_opts == 1))
         return cache[key]
 
     # ---- tiers (grouped cells)
@@ -839,7 +950,9 @@ def run(args) -> int:
     print(f"{'TOTAL':9} {'':32} {totals['facts']:5d} {tp:6.1f}")
 
     # ---- facts file + crosscheck
-    cc_counts, cc_all = Counter(), []
+    cc_counts, cc_before, cc_all = Counter(), Counter(), []
+    adj = None if args.no_adjudication else load_adjudication(args.adjudication)
+    adj_counts, adj_dropped, adj_unresolved, adj_mapped = Counter(), [], [], 0
     match_stats = Counter()
     unmatched_report = {}
     out_report = {"generated": args.date, "totals": {"facts": totals["facts"], "verified": totals["verified"],
@@ -859,8 +972,16 @@ def run(args) -> int:
                     if nm and nm not in names:
                         names.append(nm)
                 codes_names[c] = names
+            omap = option_map_for(adj, n, codes_names)
             per_code, unmatched, dropped, mlog = build_brochure_entries(n, data, facts, codes_names, bench,
-                                                                         args.trim_quotes)
+                                                                         args.trim_quotes, option_map=omap)
+            for u in (adj or {}).get("unmatched_options", []):
+                if u.get("brochure") == n and u.get("set_option_name") and u.get("option") in omap:
+                    for c in omap[u["option"]]:
+                        per_code[c]["option"] = u["option"]
+                    adj_mapped += 1
+                elif u.get("brochure") == n and u.get("option") in omap:
+                    adj_mapped += 1
             for opt, how, ok in mlog:
                 match_stats["matched" if ok else "unmatched"] += 1
                 match_stats[f"how:{how}"] += 1
@@ -868,7 +989,7 @@ def run(args) -> int:
                 plans_out[c] = p
                 for t in p["rx"]["tiers"]:
                     alt = t.pop("_alt", None)
-                    cc_counts[t["crosscheck"]] += 1
+                    cc_before[t["crosscheck"]] += 1
                     if t["crosscheck"] == "mismatch":
                         cc_all.append({"brochure": n, "plan_code": c, "option": p["option"], "tier": t["tier"],
                                        "extraction": (t["retail_30"] or {}).get("quote"),
@@ -878,6 +999,14 @@ def run(args) -> int:
                                            f"Tier {tier_number(t['tier'])}"),
                                        "page": (t["retail_30"] or {}).get("page"),
                                        "extraction_value_matches_sheet_tier": alt})
+            if adj is not None:
+                a_counts, a_dropped, a_unres = adjudicate_plans(per_code, adj)
+                adj_counts.update(a_counts)
+                adj_dropped.extend(a_dropped)
+                adj_unresolved.extend(a_unres)
+            for p in per_code.values():
+                for t in p["rx"]["tiers"]:
+                    cc_counts[t["crosscheck"]] += 1
             meta_b[n] = {"url": m["url"], "sha256": m["sha256"], "pages": m["pages"], "plan_codes": m["plan_codes"]}
             if unmatched:
                 meta_b[n]["unmatched_options"] = unmatched
@@ -894,20 +1023,31 @@ def run(args) -> int:
                                   "tier label/deductible_applies, network.type, covered/value flags and "
                                   "prior-approval/limit labels are extraction-derived, not verbatim-verified.",
                                   "tier notes are not carried.",
-                                  "crosscheck compares Tier N retail 30-day copay with data/benefits.json raw 'Tier N'."],
+                                  "crosscheck compares Tier N retail 30-day copay with data/benefits.json raw 'Tier N'.",
+                                  "crosscheck 'adjudicated_brochure' = brochure value kept, spreadsheet differs "
+                                  "(see sheet_discrepancy); 'adjudicated' = value corrected from the brochure text; "
+                                  "'unresolved' = could not be decided (flag rx_tier_unresolved must be surfaced); "
+                                  "see pipeline/rx_adjudication.json."],
                         "brochures": meta_b},
                "plans": plans_out}
+        if adj is not None:
+            out["meta"]["rx_adjudication"] = {
+                "source": "pipeline/rx_adjudication.json", "tiers": dict(adj_counts),
+                "unmatched_options_mapped": adj_mapped,
+                "dropped_tiers": adj_dropped, "unresolved_tiers": adj_unresolved}
         out_path = Path(args.out)
         out_path.parent.mkdir(parents=True, exist_ok=True)
         txt = json.dumps(out, ensure_ascii=False, separators=(",", ":"))
         out_path.write_text(txt, encoding="utf-8")
-        out_report["crosscheck"] = {"counts": dict(cc_counts), "mismatch_total": len(cc_all),
+        out_report["crosscheck"] = {"counts": dict(cc_counts), "counts_before_adjudication": dict(cc_before),
+                                    "adjudication": dict(adj_counts), "mismatch_total": len(cc_all),
                                     "mismatch_examples": cc_all[:10], "mismatches": cc_all}
         out_report["option_matching"] = {"matched": match_stats["matched"], "unmatched": match_stats["unmatched"],
                                          "how": {k[4:]: v for k, v in match_stats.items() if k.startswith("how:")},
                                          "unmatched_options": unmatched_report}
         out_report["facts_file_bytes"] = len(txt.encode("utf-8"))
         print(f"\nwrote {out_path} ({len(txt.encode('utf-8')) / 1e6:.2f} MB); dropped {meta_dropped['total']}")
+        print(f"crosscheck before adjudication: {dict(cc_before)}; adjudication: {dict(adj_counts)}")
         print(f"crosscheck: {dict(cc_counts)}; option matching: matched {match_stats['matched']}, "
               f"unmatched {match_stats['unmatched']}")
     rp = Path(args.report)
@@ -924,6 +1064,8 @@ def main(argv=None) -> int:
     ap.add_argument("--report", default=str(PIPELINE / "raw" / "validation_report.json"))
     ap.add_argument("--out", default=str(ROOT / "data" / "brochure_facts.json"))
     ap.add_argument("--date", default=datetime.date.today().isoformat())
+    ap.add_argument("--adjudication", default=str(ADJUDICATION), help="Rx adjudication decisions (JSON)")
+    ap.add_argument("--no-adjudication", action="store_true", help="do not apply pipeline/rx_adjudication.json")
     ap.add_argument("--no-facts", action="store_true", help="validate only; do not write data/brochure_facts.json")
     ap.add_argument("--trim-quotes", action="store_true", help=f"trim emitted quotes to {MAX_QUOTE} chars")
     args = ap.parse_args(argv)

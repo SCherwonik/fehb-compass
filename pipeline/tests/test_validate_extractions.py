@@ -271,7 +271,9 @@ def test_facts_file_every_fact_has_provenance():
     def walk(o):
         if isinstance(o, dict):
             if "quote" in o:
-                assert isinstance(o["page"], int) and o["quote"] and o["match"] in ("exact", "overlap", "partial")
+                assert isinstance(o["page"], int) and o["quote"]
+                if "ruling" not in o:  # adjudication blocks carry ruling/page/quote, not a match kind
+                    assert o["match"] in ("exact", "overlap", "partial", "adjudicated")
             for x in o.values():
                 walk(x)
         elif isinstance(o, list):
@@ -279,3 +281,169 @@ def test_facts_file_every_fact_has_provenance():
                 walk(x)
 
     walk(d["plans"])
+
+
+# ---------------------------------------------------------------- Rx adjudication
+
+def mk_tier(tier="Tier 2", value=60, unit="usd", option="Standard Option", cc="mismatch"):
+    return {"option": option, "tier": tier, "label": "preferred brand", "deductible_applies": False,
+            "retail_30": {"quote": f"${value}", "page": 5, "value": value, "unit": unit, "match": "exact"},
+            "retail_90": None, "mail_90": {"quote": "$150", "page": 5, "value": 150, "unit": "usd", "match": "exact"},
+            "crosscheck": cc, "crosscheck_sheet": "Generic - $5 Copayment", "_alt": [3]}
+
+
+def mk_dec(ruling, conf="high", corrected=None, **kw):
+    d = {"plan_code": "654", "brochure": "73-019", "option": "Standard Option", "tier": "Tier 2",
+         "sheet": "Generic - $5 Copayment", "ruling": ruling, "confidence": conf, "page": 5,
+         "quote": "decisive text", "corrected": corrected, "reason": "because"}
+    d.update(kw)
+    return d
+
+
+def test_adjudicate_brochure_correct_keeps_values_and_notes_sheet():
+    r = v.adjudicate_tier(mk_tier(), mk_dec("brochure_correct"))
+    assert r["crosscheck"] == "adjudicated_brochure"
+    assert r["sheet_discrepancy"] == "Generic - $5 Copayment"
+    assert r["retail_30"]["value"] == 60 and "_alt" not in r
+    assert r["adjudication"] == {"ruling": "brochure_correct", "confidence": "high", "page": 5, "quote": "decisive text"}
+    r = v.adjudicate_tier(mk_tier(), mk_dec("brochure_correct", sheet_note="custom note"))
+    assert r["sheet_discrepancy"] == "custom note"
+
+
+def test_adjudicate_sheet_correct_replaces_with_corrected_values():
+    corr = {"tier": "Tier 3", "retail_30": {"value": 80, "unit": "usd", "quote": "$80 copay", "page": 6},
+            "mail_90": {"value": 200, "unit": "usd", "quote": "$200", "page": 6}, "deductible_applies": True}
+    t = mk_tier()
+    r = v.adjudicate_tier(t, mk_dec("sheet_correct", "medium", corrected=corr))
+    assert r["crosscheck"] == "adjudicated" and r["tier"] == "Tier 3" and r["deductible_applies"] is True
+    assert r["retail_30"] == {"quote": "$80 copay", "page": 6, "value": 80, "unit": "usd", "match": "adjudicated"}
+    assert r["mail_90"]["value"] == 200 and r["adjudication"]["ruling"] == "sheet_correct"
+    assert "sheet_discrepancy" not in r and "crosscheck_sheet" not in r
+    assert t["retail_30"]["value"] == 60                      # input not mutated
+    only_mail = {"mail_90": {"value": 1, "unit": "usd", "quote": "q", "page": 2}}
+    r = v.adjudicate_tier(mk_tier(), mk_dec("both_wrong", corrected=only_mail))
+    assert r["crosscheck"] == "adjudicated" and r["mail_90"]["value"] == 1 and r["retail_30"]["value"] == 60
+    assert r["sheet_discrepancy"] == "Generic - $5 Copayment"
+
+
+def test_adjudicate_drop_undeterminable_and_low_confidence():
+    assert v.adjudicate_tier(mk_tier(), mk_dec("sheet_correct", corrected=None, action="drop")) is None
+    r = v.adjudicate_tier(mk_tier(), mk_dec("undeterminable", reason="columns collapsed"))
+    assert r["crosscheck"] == "unresolved" and r["flag"] == "rx_tier_unresolved"
+    assert r["flag_reason"] == "columns collapsed" and r["retail_30"]["value"] == 60
+    # low confidence, or a correction ruling without corrected values, must not be applied
+    for d in (mk_dec("brochure_correct", "low"),
+              mk_dec("sheet_correct", "low", corrected={"tier": "Tier 9"}),
+              mk_dec("both_wrong", "high", corrected=None)):
+        r = v.adjudicate_tier(mk_tier(), d)
+        assert r["crosscheck"] == "unresolved" and r["tier"] == "Tier 2"
+
+
+def test_adjudicate_plans_only_touches_mismatches():
+    plans = {"654": {"brochure": "73-019", "rx": {"tiers": [mk_tier("Tier 1", cc="match"), mk_tier("Tier 2"),
+                                                              mk_tier("Tier 3"), mk_tier("Tier 4")]}}}
+    adj = {"decisions": [mk_dec("brochure_correct"), mk_dec("sheet_correct", tier="Tier 3", action="drop"),
+                         mk_dec("undeterminable", tier="Tier 4")]}
+    counts, dropped, unresolved = v.adjudicate_plans(plans, adj)
+    assert [t["crosscheck"] for t in plans["654"]["rx"]["tiers"]] == ["match", "adjudicated_brochure", "unresolved"]
+    assert counts == {"adjudicated_brochure": 1, "dropped": 1, "unresolved": 1}
+    assert dropped[0]["tier"] == "Tier 3" and dropped[0]["value"] == 60
+    assert unresolved == [{"brochure": "73-019", "plan_code": "654", "option": "Standard Option", "tier": "Tier 4",
+                           "reason": "because"}]
+    # a mismatch without a decision stays a mismatch (so the final-file test can catch it)
+    plans = {"654": {"brochure": "73-019", "rx": {"tiers": [mk_tier("Tier 5")]}}}
+    v.adjudicate_plans(plans, adj)
+    assert plans["654"]["rx"]["tiers"][0]["crosscheck"] == "mismatch"
+
+
+def test_option_map_for_and_attachment_of_unmatched_options():
+    adj = {"unmatched_options": [
+        {"brochure": "73-937", "option": "Standard Option", "ruling": "map_to:YJ4"},
+        {"brochure": "73-937", "option": "Medicare Advantage", "ruling": "map_to:YJ1,YJ4"},
+        {"brochure": "73-937", "option": "Other", "ruling": "no_fehb_plan"},
+        {"brochure": "99-999", "option": "Standard Option", "ruling": "map_to:ZZ9"}]}
+    codes = {"YJ1": ["Basic Option"], "YJ4": ["High Option"]}
+    m = v.option_map_for(adj, "73-937", codes)
+    assert m == {"Standard Option": ["YJ4"], "Medicare Advantage": ["YJ1", "YJ4"]}
+    with pytest.raises(ValueError):
+        v.option_map_for(adj, "99-999", codes)
+    # the map makes build_brochure_entries attach facts that matching could not place
+    f = v.Fact("changes_for_2027", "changes_for_2027[0]", "Premium rises.", 1, is_quote=True, option="Standard Option")
+    f.verified, f.match = True, "exact"
+    f.payload = {"category": "premium", "summary": "s", "option": "Standard Option"}
+    data = {"options": ["Standard Option", "Basic Option"], "prescriptions": {"tiers": []}, "network": {}}
+    got, unmatched, _, _ = v.build_brochure_entries("73-937", data, [f], codes, {}, False, option_map=m)
+    assert [x["option"] for x in got["YJ4"]["changes_2027"]] == ["Standard Option"] and not got["YJ1"]["changes_2027"]
+    assert unmatched == {}
+    got, unmatched, _, _ = v.build_brochure_entries("73-937", data, [f], codes, {}, False)
+    assert "Standard Option" in unmatched
+
+
+def load_facts():
+    path = ROOT / "data" / "brochure_facts.json"
+    if not path.exists():
+        pytest.skip("facts file not built")
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def test_final_facts_have_no_unadjudicated_mismatch():
+    facts = load_facts()
+    counts, unresolved = v.crosscheck_states(facts)
+    assert counts.get("mismatch", 0) == 0, dict(counts)
+    assert set(counts) <= {"match", "n/a", "adjudicated", "adjudicated_brochure", "unresolved"}
+    for p in facts["plans"].values():
+        for t in p["rx"]["tiers"]:
+            if t["crosscheck"] == "adjudicated_brochure":
+                assert t["sheet_discrepancy"] and t["adjudication"]["quote"]
+            if t["crosscheck"] == "adjudicated":
+                assert t["adjudication"]["ruling"] in ("sheet_correct", "both_wrong")
+            if t["crosscheck"] == "unresolved":
+                assert t["flag"] == "rx_tier_unresolved" and t["flag_reason"]
+
+
+def test_unresolved_counts_listed_and_match_adjudication_file():
+    facts = load_facts()
+    adj = v.load_adjudication()
+    assert adj is not None
+    counts, unresolved = v.crosscheck_states(facts)
+    expected = [d for d in adj["decisions"] if d["ruling"] == "undeterminable" or d["confidence"] == "low"]
+    by_brochure = {}
+    for u in unresolved:
+        by_brochure[u["brochure"]] = by_brochure.get(u["brochure"], 0) + 1
+    print("unresolved rx tiers by brochure:", by_brochure or "none")
+    assert len(unresolved) == len(expected) == counts.get("unresolved", 0)
+    meta = facts["meta"]["rx_adjudication"]
+    assert len(meta["unresolved_tiers"]) == len(unresolved)
+    # every decision is accounted for in the facts file (dropped tiers are listed in meta)
+    assert len(adj["decisions"]) == sum(meta["tiers"].values())
+    assert len(meta["dropped_tiers"]) == sum(1 for d in adj["decisions"] if d.get("action") == "drop")
+
+
+def test_adjudication_file_shape_and_unmatched_options_attached():
+    adj = v.load_adjudication()
+    facts = load_facts()
+    assert adj["generated_by"] and adj["summary"]["decisions"] == len(adj["decisions"])
+    rulings = {d["ruling"] for d in adj["decisions"]}
+    assert adj["summary"]["by_ruling"] == {r: sum(1 for d in adj["decisions"] if d["ruling"] == r) for r in rulings}
+    for d in adj["decisions"]:
+        assert d["ruling"] in ("brochure_correct", "sheet_correct", "both_wrong", "undeterminable")
+        assert d["confidence"] in ("high", "medium", "low") and d["quote"] and d["page"] and d["reason"]
+    for u in adj["unmatched_options"]:
+        assert u["ruling"].startswith(("map_to:", "no_fehb_plan", "undeterminable"))
+        if u["ruling"].startswith("map_to:"):
+            assert u["option"] not in facts["meta"]["brochures"][u["brochure"]].get("unmatched_options", {})
+            for code in u["ruling"][7:].split(","):
+                assert facts["plans"][code]["brochure"] == u["brochure"]
+    assert facts["plans"]["YJ4"]["option"] == "Standard Option"
+
+
+@needs_raw
+def test_adjudication_quotes_are_in_the_brochure_text():
+    adj = v.load_adjudication()
+    cache = {}
+    for d in adj["decisions"]:
+        pages = cache.setdefault(d["brochure"], v.load_pages(TXT / f"{d['brochure']}.txt"))
+        cites = [(d["quote"], d["page"])] + [(c["quote"], c["page"]) for c in (d["corrected"] or {}).values()
+                                              if isinstance(c, dict) and "quote" in c]
+        for q, pg in cites:
+            assert v.squash(q) in v.squash(pages[pg]), (d["brochure"], d["plan_code"], d["tier"], q)
