@@ -79,19 +79,32 @@ function brochureUrl(code, facts) {
   return b ? normalizeUrl(b.url) : null;
 }
 
-/** { label: 'Brochure p.80', short: 'p.80', page, quote, href|null } for a fact of plan `code`, or null. */
+/**
+ * { label: 'Brochure p.80', short: 'p.80', page, quote, paraphrased, href|null } for a fact of plan `code`, or null.
+ * paraphrased: the fact's quote was matched to the brochure by token overlap (match 'overlap'), not verbatim, so it
+ * is labelled "Paraphrased from brochure p.N" and never shown in quotation marks (see quoted()).
+ */
 export function citation(fact, code, facts = FACTS) {
   if (!fact || typeof fact !== 'object') return null;
   const page = fact.page;
   if (!Number.isInteger(page) || page < 1 || page > 5000) return null;
   const base = brochureUrl(code, facts);
+  const paraphrased = fact.match === 'overlap';
   return {
-    label: `Brochure p.${page}`,
+    label: paraphrased ? `Paraphrased from brochure p.${page}` : `Brochure p.${page}`,
+    paraphrased,
     short: `p.${page}`,
     page,
     quote: str(fact.quote).slice(0, 400) || null,
     href: base ? `${base.split('#')[0]}#page=${page}` : null,
   };
+}
+
+/** A cited brochure text for display: “verbatim” in quotation marks, or "text (paraphrased)" for an overlap match. */
+export function quoted(cite, text = cite?.quote) {
+  const t = str(text);
+  if (!t) return '';
+  return cite?.paraphrased ? `${t} (paraphrased)` : `“${t}”`;
 }
 
 // ---------- tiers ----------
@@ -450,7 +463,7 @@ export function annualDrugCost(drug, tier, planRx, { deductibleDefault = false }
   out.cite = cell?.cite ?? null;
   if (!cell) return miss(`the brochure lists no ${ch.label} amount for ${tierName}`, `${tierName} · no ${ch.label} amount in the brochure`);
   if (cell.unit === 'text') {
-    return miss(`the brochure states ${ch.label} terms for ${tierName} in words, not an amount: “${clip(cell.quote)}”`,
+    return miss(`the brochure states ${ch.label} terms for ${tierName} in words, not an amount: ${quoted(cell.cite, clip(cell.quote))}`,
       `${tierName} · see the brochure for ${ch.label} terms`);
   }
   const ded = t.deductibleApplies ?? (deductibleDefault === true);

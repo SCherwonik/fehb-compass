@@ -2,7 +2,7 @@
 // Text goes in as text (h() never parses HTML); every href here has already passed rx-model normalizeUrl.
 import { h, svg } from './dom.js';
 import { usd } from './format.js';
-import { normalizeUrl, CHANNELS } from './rx-model.js';
+import { normalizeUrl, CHANNELS, quoted } from './rx-model.js';
 import { medsCost } from './model.js';
 
 const ICON_EXT = '<svg viewBox="0 0 16 16" aria-hidden="true" class="rx-ext"><path d="M6.5 3.5H4A1.5 1.5 0 0 0 2.5 5v7A1.5 1.5 0 0 0 4 13.5h7a1.5 1.5 0 0 0 1.5-1.5V9.5"/><path d="M9 2.5h4.5V7M13.5 2.5L7.5 8.5"/></svg>';
@@ -17,7 +17,7 @@ const ext = (attrs) => ({ ...attrs, target: '_blank', rel: 'noopener noreferrer'
 export function citeChip(cite) {
   if (!cite) return null;
   const href = cite.href ? normalizeUrl(cite.href) : null;
-  const title = cite.quote ? `${cite.label}: “${cite.quote}”` : cite.label;
+  const title = cite.quote ? `${cite.label}: ${quoted(cite)}` : cite.label;
   if (!href) return h('span', { class: 'rx-cite is-plain', title }, cite.short);
   return h('a', ext({ class: 'rx-cite', href, title, 'aria-label': `${cite.label} (opens the PDF in a new tab)` }), svg(ICON_DOC), cite.short);
 }
