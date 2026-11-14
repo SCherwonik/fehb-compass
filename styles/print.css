@@ -36,7 +36,7 @@ body { display: block; font-size: 10pt; line-height: 1.4; -webkit-print-color-ad
 .panel, .rtools, .info-toggle, .counted-note, .card-actions, .cmp-toggle, .assume-dismiss,
 .dv-tabs, .dv-controls, .mx-tools, .bd-top .bd-nav, .bd-fade, .bd-hint, .bd-more, .mx-more,
 .md, .rx-tier-select, .chg-toggle, .footer-links, .skeleton, .panel-skeleton,
-.bd-meter, .bar, .savings-glow, .card-chg { display: none !important; }
+.bd-meter, .bar, .savings-glow, .card-chg, .notice, .savings-area .field-switch { display: none !important; }
 
 .glass, .card, .board, .compare, .savings, .dv, .counted-note, .rhead-mine, .assume-chip {
   background: #fff !important;

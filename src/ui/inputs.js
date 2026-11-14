@@ -8,6 +8,7 @@ import { glp1Filter } from './meds.js';
 import { createZipField, lookupZip, zipKeepsWith } from './zip.js';
 import { createDvAddon } from './dental-board.js';
 import { fedvipHub } from '../data.js';
+import { noticeEl } from './notices.js';
 import { h, svg, ICON_CHECK, ICON_CHEVRON } from './dom.js';
 
 const VISIBLE_NETWORKS = 8;
@@ -260,6 +261,8 @@ export function renderInputs(form, { data, store, meds }) {
     name: 'status', legend: 'Employment',
     options: [['active', 'Active employee'], ['retiree', 'Retiree']],
   });
+  // retirees: the estimates assume no Medicare (shown while Retiree is picked; dismissible)
+  const medicareNote = noticeEl('medicare', { className: 'notice-field', focusAfter: () => status.el.querySelector('input:checked') });
   const enrollment = segmented({
     name: 'enrollment', legend: 'Who is covered',
     options: [['self', 'Self only'], ['self_plus_one', 'Self plus one'], ['family', 'Family']],
@@ -344,7 +347,7 @@ export function renderInputs(form, { data, store, meds }) {
     h('h3', { class: 'group-title' }, title), fields);
 
   form.replaceChildren(
-    group('Coverage', status.el, enrollment.el),
+    group('Coverage', status.el, medicareNote, enrollment.el),
     group('Location', zip.el, location.el),
     group('Plans to consider', current.el, mine.el, account.el, networks, glp1?.el),
     group('Your year', year.el, dental, dvAddon.el),
@@ -435,6 +438,7 @@ export function renderInputs(form, { data, store, meds }) {
 
   function sync(s) {
     status.sync(s.status);
+    if (medicareNote) medicareNote.hidden = s.status !== 'retiree';
     enrollment.sync(s.enrollment);
     location.sync(s.location.state);
     zip.sync(s);

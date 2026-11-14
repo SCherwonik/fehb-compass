@@ -99,6 +99,8 @@ over the wire. The app paints the input panel from the small files first and loa
 
 ## Known limitations
 
+- FEHB only: Postal Service employees and annuitants (PSHB) are not covered; the app says so in a dismissible note.
+- Retiree estimates assume Medicare is not primary (a dismissible note says so when Retiree is picked).
 - No provider networks: check that your doctors and hospitals are in network.
 - No formulary search: each plan has a drug lookup link; you record the tier you find.
 - Each scenario is one covered person's year of care. With Self Plus One or Self and Family coverage the premium is

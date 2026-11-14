@@ -190,6 +190,48 @@ h1, h2, h3, p { margin: 0; }
   text-wrap: pretty;
 }
 
+/* audience notices (src/ui/notices.js): quiet glass notes with a dismiss button */
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: var(--space-4) 0 0;
+  padding: 8px 6px 8px 12px;
+  max-width: 46rem;
+  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 60%, var(--surface-glass));
+  -webkit-backdrop-filter: blur(12px) saturate(150%);
+  backdrop-filter: blur(12px) saturate(150%);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  animation: notice-in var(--dur-slow) var(--ease-out) both;
+}
+.notice[hidden] { display: none; }
+.notice-icon { flex: none; width: 16px; height: 16px; margin-top: 1px; fill: none; stroke: var(--accent); stroke-width: 1.6; stroke-linecap: round; }
+.notice-text { flex: 1; min-width: 0; }
+.notice-dismiss {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin: -4px 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-subtle);
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.notice-dismiss:hover { background: var(--surface-hover); color: var(--text); }
+.notice-dismiss:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.notice-dismiss svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; }
+.notice-field { margin: var(--space-2) 0 0; font-size: var(--text-xs); }
+@keyframes notice-in { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .notice { animation: none; } }
+
 .layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr); /* a long chip or table never widens the page */
