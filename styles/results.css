@@ -222,7 +222,7 @@
   .card-total { justify-items: start; text-align: left; grid-auto-flow: column; align-items: baseline; gap: var(--space-2); justify-content: start; }
 }
 
-/* stacked bar: premium | expected care, deposit hatched over the end. Scaled with transforms only. */
+/* stacked bar: premium | expected care, account money hatched over the end. Premium and care scale with transforms. */
 .bar {
   --p: 0; --o: 0; --d: 0; --g: 0;
   position: relative;
@@ -241,10 +241,16 @@
 }
 .bar-prem { background: var(--p-cobalt-500); transform: scaleX(var(--p)); }
 .bar-oop { background: var(--p-violet-400); transform: translateX(calc(var(--p) * 100%)) scaleX(var(--o)); }
+/* Account money is placed with left/width, not scaleX: scaling the element also stretched its hatching, which
+   turned the 45 degree stripes into a slanted, jagged smear. The stripes are two tints of one color (soft edges,
+   no hard see-through gaps), so they stay clean on high-density screens and when zoomed. */
 .bar-dep {
-  background: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--p-mint-400) 85%, transparent) 0 3px, transparent 3px 6px),
-    color-mix(in srgb, var(--bg) 55%, transparent);
-  transform: translateX(calc((var(--g) - var(--d)) * 100%)) scaleX(var(--d));
+  inset: 0 auto 0 calc((var(--g) - var(--d)) * 100%);
+  width: calc(var(--d) * 100%);
+  background: repeating-linear-gradient(-45deg, var(--p-mint-400) 0 2px, color-mix(in srgb, var(--p-mint-400) 55%, var(--surface-sunken)) 2px 5px);
+  transform: none;
+  transition: inset var(--dur-slower) var(--ease-out), width var(--dur-slower) var(--ease-out);
+  will-change: auto;
 }
 
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: var(--space-2); vertical-align: 1px; flex: none; }
