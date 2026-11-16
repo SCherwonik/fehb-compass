@@ -16,7 +16,6 @@ import { dvPrefs } from './ui/dv-prefs.js';
 import { initShare } from './ui/share-ui.js';
 import { initAbout } from './ui/about.js';
 import { initPrint } from './ui/print.js';
-import { noticeEl } from './ui/notices.js';
 import { initCompass } from './ui/compass.js';
 
 const NEEDLE_ANGLE = { nothing: -64, healthy: -42, typical: -12, condition: 24, worst: 58 };
@@ -119,15 +118,6 @@ async function main() {
   initTheme(document.getElementById('theme-toggle'));
   initShare({ store, copyBtn: document.getElementById('share-copy'), printBtn: document.getElementById('print-page') });
   initAbout(document.getElementById('about-open'));
-  // who this tool is not for: Postal Service employees and annuitants (PSHB); dismissible
-  const pshb = noticeEl('pshb', {
-    focusAfter: () => {
-      const t = document.querySelector('.intro-title');
-      t?.setAttribute('tabindex', '-1');
-      return t;
-    },
-  });
-  if (pshb) document.querySelector('.intro')?.append(pshb);
 
   store.subscribe(writeHash);
   if (NEEDLE_MODE === 'sway') initCompass(document.querySelector('.brand-needle'));

@@ -1,5 +1,4 @@
-// Audience notices (I6): who this tool is not for (Postal Service: PSHB) and what its retiree estimates leave out
-// (Medicare). Short, unobtrusive and dismissible; a dismissal is a per-browser convenience kept in localStorage
+// Audience notices (I6): what the retiree estimates leave out (Medicare). Short, unobtrusive and dismissible; a dismissal is a per-browser convenience kept in localStorage
 // (safeStorage: a blocked or private store just shows the notes again).
 import { h, svg } from './dom.js';
 import { safeStorage } from '../state.js';
@@ -7,17 +6,13 @@ import { safeStorage } from '../state.js';
 export const NOTICES_KEY = 'fehb-compass:notices:v1';
 
 export const NOTICES = Object.freeze({
-  pshb: {
-    label: 'Postal Service note',
-    text: 'FEHB only: Postal Service employees and annuitants use PSHB (the Postal Service Health Benefits Program), which this tool does not cover.',
-  },
   medicare: {
     label: 'Medicare note',
     text: 'Estimates assume you are not relying on Medicare. With Medicare as your primary coverage, costs differ greatly: see each plan’s “With Medicare” section on the board or in Compare.',
   },
 });
 
-/** { pshb?: true, medicare?: true } from stored JSON; anything malformed counts as nothing dismissed. */
+/** { medicare?: true } from stored JSON; anything malformed counts as nothing dismissed. */
 export function parseDismissed(raw) {
   try {
     const v = JSON.parse(raw ?? '{}');
