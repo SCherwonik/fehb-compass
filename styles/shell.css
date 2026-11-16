@@ -191,6 +191,15 @@
   .pill-btn, .pill-btn .icon { transition: none; }
 }
 
+/* ---------- touch: text fields at 16px or more ----------
+   iOS Safari zooms the whole page in when a field under 16px takes focus, and it stays zoomed afterwards: the page
+   then looked cut off on the right (top bar, the situation bar, the tabs). */
+@media (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]),
+  select,
+  textarea { font-size: 16px !important; }
+}
+
 /* ---------- touch: every control at least 44px tall (Apple HIG / WCAG 2.5.5) ---------- */
 @media (pointer: coarse) {
   .chip, .seg, .tool .seg, .btn, .cmp-toggle, .cl-preset, .dvt-tab, .dvt-sub .dvt-tab, .mx-btn, .ft-toggle, .cl-input,

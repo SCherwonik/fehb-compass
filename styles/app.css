@@ -324,6 +324,10 @@ h1, h2, h3, p { margin: 0; }
   border-radius: var(--radius-lg);
   background: color-mix(in srgb, var(--surface-sunken) 55%, transparent);
 }
+.sit-editor .group { position: relative; }
+/* A group's animated entrance gives it its own stacking layer, and a later group paints over an earlier one: the
+   open drop-down list inside "Your 2026 plan" was covered by "Filters". The group with focus goes on top. */
+.sit-editor .group:focus-within { z-index: 30; }
 .sit-editor .group + .group { margin-top: 0; margin-bottom: var(--space-4); border-top: 1px solid var(--border); }
 .sit-editor .panel-skeleton { column-span: all; }
 /* a group whose fields are all switched off for this tab (e.g. the health plan pick on Dental & Vision) disappears
