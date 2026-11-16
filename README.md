@@ -116,7 +116,6 @@ Everything else is external (`src/`, `styles/`, `assets/`): the page loads nothi
 
 ## Known limitations
 
-- FEHB only: Postal Service employees and annuitants (PSHB) are not covered; "How it works" says so.
 - Retiree estimates assume Medicare is not primary (a dismissible note says so when Retiree is picked).
 - No provider networks: check that your doctors and hospitals are in network.
 - No formulary search: each plan has a drug lookup link; you record the tier you find.

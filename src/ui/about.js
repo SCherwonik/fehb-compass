@@ -70,7 +70,6 @@ function content() {
     h('section', {},
       h('h3', {}, 'Known limits'),
       h('ul', {},
-        h('li', {}, 'FEHB only: Postal Service employees and annuitants are in PSHB (the Postal Service Health Benefits Program), which is not covered here.'),
         h('li', {}, 'Retiree estimates assume you are not relying on Medicare. With Medicare as your primary coverage, plans pay differently (many waive deductibles and copays); see each plan’s “With Medicare” section.'),
         h('li', {}, 'No provider networks: check that your doctors and hospitals are in network with the plan.'),
         h('li', {}, 'No formulary search: use each plan’s drug lookup link and record the tier you find.'),
