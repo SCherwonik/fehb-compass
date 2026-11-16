@@ -420,12 +420,17 @@ export function renderInputs(form, { data, store, meds }) {
   const group = (title, ...fields) => h('section', { class: 'group' },
     h('h3', { class: 'group-title' }, title), fields);
 
+  // Three columns on a wide screen (who and where | what to compare | your year): the columns stretch to the same
+  // height and their cards share the spare room (styles/app.css .sit-col). Narrower screens ignore the wrappers.
+  const column = (...groups) => h('div', { class: 'sit-col' }, groups);
   form.replaceChildren(
-    group('Coverage', status.el, medicareNote, enrollment.el),
-    group('Location', zip.el, location.el),
-    group('Your 2026 plan', current.el, mine.el),
-    group('Filters', account.el, networks, glp1?.el, dvIn.plans),
-    group('Your year', year.el, dental, dvAddon.el, dvIn.year),
+    column(
+      group('Coverage', status.el, medicareNote, enrollment.el),
+      group('Location', zip.el, location.el),
+      group('Your 2026 plan', current.el, mine.el),
+    ),
+    column(group('Filters', account.el, networks, glp1?.el, dvIn.plans)),
+    column(group('Your year', year.el, dental, dvAddon.el, dvIn.year)),
   );
 
   // ---------- events ----------

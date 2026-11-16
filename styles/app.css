@@ -307,18 +307,25 @@ h1, h2, h3, p { margin: 0; }
   padding: var(--space-5);
 }
 @media (min-width: 640px) { .sit-editor { padding: var(--space-6); } }
-/* Columns, not a grid: the groups are very different heights (Coverage is short, "Plans to consider" is tall), so a
-   grid left big blank cells. CSS columns pack them top to bottom, and 23rem keeps even a five-way segmented
-   control (Healthy / Typical / Condition / Worst / None) wide enough to read. */
+/* The editor's groups sit in three columns on a wide screen, two on a medium one and one on a phone. The columns
+   stretch to the same height and the cards inside them share the spare room, so the cards line up top and bottom.
+   (Columns of different heights left ragged edges; plain CSS columns could not equalize them.) */
 .sit-editor .inputs {
-  display: block;
-  column-width: 23rem;
-  column-gap: var(--space-4);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start; /* two columns of cards with unrelated heights: stretching one beside a tall card left a big blank */
+}
+.sit-col { display: contents; } /* narrow: the wrappers do not exist and the cards flow in the grid */
+@media (min-width: 720px) { .sit-editor .inputs { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1180px) {
+  .sit-editor .inputs { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: stretch; }
+  .sit-col { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+  .sit-col > .group { flex: 1 1 auto; }
 }
 .sit-editor .group {
   display: block;
-  break-inside: avoid;
-  margin: 0 0 var(--space-4);
+  margin: 0;
   padding: var(--space-5);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -328,8 +335,8 @@ h1, h2, h3, p { margin: 0; }
 /* A group's animated entrance gives it its own stacking layer, and a later group paints over an earlier one: the
    open drop-down list inside "Your 2026 plan" was covered by "Filters". The group with focus goes on top. */
 .sit-editor .group:focus-within { z-index: 30; }
-.sit-editor .group + .group { margin-top: 0; margin-bottom: var(--space-4); border-top: 1px solid var(--border); }
-.sit-editor .panel-skeleton { column-span: all; }
+.sit-editor .group + .group { margin-top: 0; border-top: 1px solid var(--border); }
+.sit-editor .panel-skeleton { grid-column: 1 / -1; }
 /* a group whose fields are all switched off for this tab (e.g. the health plan pick on Dental & Vision) disappears
    with them instead of leaving an empty card */
 .sit-editor .group:not(:has(> :not(.group-title):not(.is-off):not([hidden]))) { display: none; }
@@ -405,6 +412,8 @@ h1, h2, h3, p { margin: 0; }
 /* ---------- fields ---------- */
 .field { border: 0; margin: 0; padding: 0; min-width: 0; }
 .field + .field { margin-top: var(--space-5); }
+/* a hidden note between two fields (the Medicare note under Employment) must not collapse the gap */
+.group > .field ~ .field { margin-top: var(--space-5); }
 .field-label {
   display: block;
   padding: 0;
