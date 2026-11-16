@@ -501,3 +501,46 @@ def test_brochure_facts_carry_the_corrected_sharp_link():
         f = facts["plans"][code]["rx"]["drug_lookup_url"]
         assert f["url"] == "https://www.sharphealthplan.com/search-drug-list"
         assert "sharphealtplan" in f["quote"]
+
+
+# ---- network_overrides.json (provider network names the extraction missed)
+
+NET_PATH = PIPELINE / "network_overrides.json"
+NET_OV = {"code": "311", "brochure": "71-006", "name": "UnitedHealthcare Choice Plus network", "page": 14,
+          "quote": "The Plan uses the UnitedHealthcare Choice Plus network in all states.", "reason": "test"}
+
+
+def test_apply_network_overrides_fills_the_name_in_the_fact_shape(tmp_path):
+    plans = {"311": {"brochure": "71-006", "network": {"type": "PPO"}}}
+    assert v.apply_network_overrides(plans, [NET_OV], tmp_path) == 1  # no brochure text on disk: not checked
+    name = plans["311"]["network"]["name"]
+    assert name["quote"] == "UnitedHealthcare Choice Plus network" and name["page"] == 14
+    assert name["match"] == "exact" and name["source"] == "network_overrides"
+    assert plans["311"]["network"]["type"] == "PPO"
+
+
+def test_apply_network_overrides_stops_on_a_wrong_brochure_name_or_quote(tmp_path):
+    plans = {"311": {"brochure": "71-006"}}
+    with pytest.raises(ValueError, match="not a plan of brochure"):
+        v.apply_network_overrides(plans, [{**NET_OV, "brochure": "71-007"}], tmp_path)
+    with pytest.raises(ValueError, match="not in its quote"):
+        v.apply_network_overrides(plans, [{**NET_OV, "name": "Aetna Choice POS II"}], tmp_path)
+    (tmp_path / "71-006.txt").write_text("=== PAGE 14 ===\nnothing here\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="quote not found on page 14"):
+        v.apply_network_overrides(plans, [NET_OV], tmp_path)
+    (tmp_path / "71-006.txt").write_text("=== PAGE 14 ===\nThe Plan uses the UnitedHealthcare\nChoice Plus network in all states.\n", encoding="utf-8")
+    assert v.apply_network_overrides(plans, [NET_OV], tmp_path) == 1
+
+
+def test_tracked_network_overrides_are_well_formed_and_quotes_are_in_the_brochure_text():
+    entries = json.loads(NET_PATH.read_text(encoding="utf-8"))
+    facts = json.loads((ROOT / "data" / "brochure_facts.json").read_text(encoding="utf-8"))["plans"]
+    assert entries
+    for o in entries:
+        assert o["code"] in facts and facts[o["code"]]["brochure"] == o["brochure"]
+        assert o["name"].strip() and o["reason"].strip() and isinstance(o["page"], int)
+        assert 0 < len(o["quote"]) <= v.MAX_QUOTE and v.squash(o["name"]) in v.squash(o["quote"])
+        assert facts[o["code"]]["network"]["name"]["source"] == "network_overrides"
+        txt = TXT / f"{o['brochure']}.txt"
+        if txt.exists():
+            assert v.squash(o["quote"]) in v.squash(v.load_pages(txt)[o["page"]])

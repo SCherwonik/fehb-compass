@@ -8,6 +8,7 @@ Inputs (all read-only):
   pipeline/raw/extractions/2027/<N>.json      extraction (see pipeline/brochure_schema.md)
   pipeline/raw/brochures_txt/2027/<N>.txt     brochure text, pages split by `=== PAGE n ===`
   data/brochures.json, data/plans.json, data/benefits.json
+  pipeline/link_overrides.json, pipeline/network_overrides.json
 Outputs:
   pipeline/raw/validation_report.json
   data/brochure_facts.json
@@ -31,6 +32,7 @@ YEAR = "2027"
 OVERLAP_MIN = 0.8
 ADJUDICATION = PIPELINE / "rx_adjudication.json"
 LINK_OVERRIDES = PIPELINE / "link_overrides.json"
+NETWORK_OVERRIDES = PIPELINE / "network_overrides.json"
 MAX_QUOTE = 300
 
 PAGE_RE = re.compile(r"^=== PAGE (\d+) ===[ \t]*$", re.M)
@@ -946,6 +948,32 @@ def apply_link_overrides(plans: dict, spec: dict | None) -> int:
     return n
 
 
+def apply_network_overrides(plans: dict, entries: list | None, txt_dir: Path | None = None) -> int:
+    """Fill a plan's provider network name from pipeline/network_overrides.json, for plans whose extraction found no
+    readable network name. Each entry {code, brochure, name, page, quote, reason}: `quote` is verbatim brochure text on
+    `page` (checked against the brochure text when it is on disk) and contains `name`. The fact is written in the shape
+    the extraction facts use, {quote: name, page, match: "exact"}, plus `source: "network_overrides"` and `evidence`.
+    An entry whose plan is missing, belongs to another brochure, or whose quote is not on that page stops the build.
+    Returns the number of plans filled."""
+    n = 0
+    for o in entries or []:
+        p = plans.get(o["code"])
+        if p is None or p.get("brochure") != o["brochure"]:
+            raise ValueError(f"network_overrides: {o['code']} is not a plan of brochure {o['brochure']}")
+        if not squash(o["name"]) or squash(o["name"]) not in squash(o["quote"]):
+            raise ValueError(f"network_overrides: {o['code']} name {o['name']!r} is not in its quote")
+        txt = Path(txt_dir or PIPELINE / "raw" / "brochures_txt" / YEAR) / f"{o['brochure']}.txt"
+        if txt.exists():
+            page = load_pages(txt).get(o["page"], "")
+            if squash(o["quote"]) not in squash(page):
+                raise ValueError(f"network_overrides: {o['code']} quote not found on page {o['page']} of {o['brochure']}")
+        net = p.setdefault("network", {})
+        net["name"] = {"quote": o["name"], "page": o["page"], "match": "exact", "source": "network_overrides",
+                       "evidence": o["quote"]}
+        n += 1
+    return n
+
+
 def spreadsheet_view(bench: dict) -> dict:
     """benefits.json as OPM's spreadsheet wrote it: undo build_data.py's brochure overrides (I5) in the raw
     fields, so the Rx crosscheck still compares the brochure with the spreadsheet (and its badges stay)."""
@@ -1061,6 +1089,9 @@ def run(args) -> int:
         links = None if args.no_link_overrides else read_json(Path(args.link_overrides))
         n_links = apply_link_overrides(plans_out, links)
         print(f"link overrides: {n_links} facts corrected")
+        net_spec = None if args.no_network_overrides else read_json(Path(args.network_overrides))
+        n_nets = apply_network_overrides(plans_out, net_spec, txt_dir)
+        print(f"network overrides: {n_nets} plans filled")
         out = {"meta": {"source": "OPM 2027 brochures", "generated": args.date, "dropped": meta_dropped,
                         "kept_facts": totals["verified"],
                         "notes": ["Only facts whose quote/text was verified against the brochure text are included.",
@@ -1077,6 +1108,8 @@ def run(args) -> int:
                "plans": plans_out}
         if links is not None:
             out["meta"]["link_overrides"] = {"source": "pipeline/link_overrides.json", "facts_corrected": n_links}
+        if net_spec is not None:
+            out["meta"]["network_overrides"] = {"source": "pipeline/network_overrides.json", "plans_filled": n_nets}
         if adj is not None:
             out["meta"]["rx_adjudication"] = {
                 "source": "pipeline/rx_adjudication.json", "tiers": dict(adj_counts),
@@ -1115,6 +1148,8 @@ def main(argv=None) -> int:
     ap.add_argument("--no-adjudication", action="store_true", help="do not apply pipeline/rx_adjudication.json")
     ap.add_argument("--link-overrides", default=str(LINK_OVERRIDES), help="corrections to misprinted brochure links (JSON)")
     ap.add_argument("--no-link-overrides", action="store_true", help="do not apply pipeline/link_overrides.json")
+    ap.add_argument("--network-overrides", default=str(NETWORK_OVERRIDES), help="provider network names the extraction missed (JSON)")
+    ap.add_argument("--no-network-overrides", action="store_true", help="do not apply pipeline/network_overrides.json")
     ap.add_argument("--no-facts", action="store_true", help="validate only; do not write data/brochure_facts.json")
     ap.add_argument("--trim-quotes", action="store_true", help=f"trim emitted quotes to {MAX_QUOTE} chars")
     args = ap.parse_args(argv)

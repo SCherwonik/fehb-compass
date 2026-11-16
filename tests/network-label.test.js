@@ -55,3 +55,17 @@ test('coverage: how many 2027 plans get a network line', () => {
   assert.ok(by.brochure >= 30, `brochure-named networks: ${JSON.stringify(by)}`);
   assert.ok(by.none < plans27.length / 2, `most plans show a network: ${JSON.stringify(by)}`);
 });
+
+test('plans whose brochure names the network now show it; plans whose brochure does not stay out', () => {
+  // GEHA (both options) and Compass Rose High: UnitedHealthcare Choice Plus; MHBP Standard: Aetna Choice POS II
+  for (const code of ['311', '314', '421']) {
+    const l = networkLabel(plan(code), code, facts);
+    assert.equal(l.text, 'UnitedHealthcare Choice Plus', code);
+    assert.equal(l.from, 'brochure', code);
+  }
+  const mhbp = networkLabel(plan('454'), '454', facts);
+  assert.equal(mhbp.text, 'Aetna Choice POS II');
+  assert.equal(mhbp.from, 'brochure');
+  // these brochures state only a plan type (EPO / POS / PPO) or a network for a different option: nothing is guessed
+  for (const code of ['424', '431', '8W4', 'KX1']) assert.equal(networkLabel(plan(code), code, facts), null, code);
+});

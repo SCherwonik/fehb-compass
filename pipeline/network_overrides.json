@@ -1,0 +1,34 @@
+[
+ {
+  "code": "311",
+  "brochure": "71-006",
+  "name": "UnitedHealthcare Choice Plus network",
+  "page": 14,
+  "quote": "UnitedHealthcare Choice Plus network, which encompasses the UnitedHealthcare Select Plus network in California, is solely responsible for the selection of PPO providers in your area.",
+  "reason": "The brochure covers GEHA High and Standard Option under 'General features of our High and Standard Option' and names the PPO network there; the extraction kept only the plan type."
+ },
+ {
+  "code": "314",
+  "brochure": "71-006",
+  "name": "UnitedHealthcare Choice Plus network",
+  "page": 14,
+  "quote": "UnitedHealthcare Choice Plus network, which encompasses the UnitedHealthcare Select Plus network in California, is solely responsible for the selection of PPO providers in your area.",
+  "reason": "Same sentence as the High Option: 'General features of our High and Standard Option' names the network for both."
+ },
+ {
+  "code": "421",
+  "brochure": "71-028",
+  "name": "UnitedHealthcare Choice Plus network",
+  "page": 15,
+  "quote": "The Plan uses the UnitedHealthcare Choice Plus network in all states.",
+  "reason": "Stated under 'General features of our High Option' (a PPO). The Standard Option (EPO) section does not name its network, so code 424 is not filled."
+ },
+ {
+  "code": "454",
+  "brochure": "71-007",
+  "name": "Aetna Choice POS II",
+  "page": 15,
+  "quote": "In all other states, the Network providers are those that participate in the Aetna Choice POS II product.",
+  "reason": "Stated under 'General features of our Standard Option' (all states except Utah, where the Aetna Choice POS II Standard Network is the default and an Aetna Whole Health option exists)."
+ }
+]
