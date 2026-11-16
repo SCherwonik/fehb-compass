@@ -70,9 +70,11 @@ function selectField({ id, label, hint, placeholder, groups }) {
 /**
  * Searchable single-select (ARIA 1.2 editable combobox with a listbox popup).
  * Type to filter, ArrowUp/Down to move, Enter to choose, Esc to close and restore, Tab to leave.
- * setModel({ groups: [{ id, label, options: [{ code, name, carrier, continues }] }] }); sync(code).
+ * setModel({ groups: [{ id, label, options: [{ code, name, carrier, continues, hideMeta }] }] }); sync(code).
+ * `noun` names what is listed in the messages ('plan', 'state'); a group without a label shows no heading, and an
+ * option with hideMeta shows no "plan CODE" line (a state's code is only there so typing "VA" finds Virginia).
  */
-export function combobox({ id, label, hint, placeholder, emptyLabel, onSelect }) {
+export function combobox({ id, label, hint, placeholder, emptyLabel, onSelect, noun = 'plan' }) {
   const listId = `${id}-list`;
   const hintId = hint ? nextId('hint') : null;
   const input = h('input', {
@@ -111,8 +113,8 @@ export function combobox({ id, label, hint, placeholder, emptyLabel, onSelect })
       : h('span', { class: `cb-badge ${o.continues ? 'is-continues' : 'is-ended'}` }, o.continues ? 'continues in 2027' : 'ended in 2027');
     return h('div', { class: 'cb-option', role: 'option', id: optId, 'data-code': o.code, 'aria-selected': String(o.code === selected) },
       h('span', { class: 'cb-name' }, o.name),
-      (o.code || badge) && h('span', { class: 'cb-sub' },
-        o.code && h('span', { class: 'cb-meta' }, o.carrier ? `${o.carrier} · plan ${o.code}` : `Plan ${o.code}`),
+      ((o.code && !o.hideMeta) || badge) && h('span', { class: 'cb-sub' },
+        o.code && !o.hideMeta && h('span', { class: 'cb-meta' }, o.carrier ? `${o.carrier} · plan ${o.code}` : `Plan ${o.code}`),
         badge));
   }
 
@@ -140,13 +142,13 @@ export function combobox({ id, label, hint, placeholder, emptyLabel, onSelect })
         flat.push({ code: o.code, node });
         return node;
       });
-      nodes.push(h('div', { class: 'cb-group', role: 'group', 'aria-labelledby': gid },
-        h('div', { class: 'cb-group-label', id: gid, role: 'presentation' }, g.label), body));
+      nodes.push(h('div', { class: 'cb-group', role: 'group', 'aria-labelledby': g.label ? gid : null, 'aria-label': g.label ? null : label },
+        g.label && h('div', { class: 'cb-group-label', id: gid, role: 'presentation' }, g.label), body));
     }
     const count = flat.filter((f) => f.code).length;
-    if (!count) nodes.push(h('p', { class: 'cb-empty' }, `No 2026 plan matches “${input.value.trim()}”.`));
+    if (!count) nodes.push(h('p', { class: 'cb-empty' }, `No ${noun === 'plan' ? '2026 plan' : noun} matches “${input.value.trim()}”.`));
     list.replaceChildren(...nodes);
-    live.textContent = count ? `${count} ${count === 1 ? 'plan' : 'plans'} available` : 'No matching plans';
+    live.textContent = count ? `${count} ${count === 1 ? noun : `${noun}s`} available` : `No matching ${noun}s`;
     active = tokens.length ? (count ? 0 : -1) : Math.max(0, flat.findIndex((f) => f.code === selected));
     paintActive(false);
   }
@@ -290,7 +292,9 @@ export function nativePlanSelect({ id, label, hint, emptyLabel, onSelect }) {
 
 // Which control picks the 2026 plan: 'native' (the browser's own list, like the State field) or 'combobox' (the
 // searchable list with badges). One switch, so the two can be compared.
-const PLAN_PICKER = 'native';
+const PLAN_PICKER = 'combobox';
+// The same switch for the State field.
+const STATE_PICKER = 'combobox';
 
 // ---------- panel ----------
 
@@ -316,15 +320,28 @@ export function renderInputs(form, { data, store, meds }) {
   });
 
   // -- where
-  const location = selectField({
-    id: 'in-state', label: 'State', placeholder: 'Choose your state',
-    hint: 'Plans are matched by state. Your ZIP code fills this in.',
-    groups: [{ options: states.map((c) => [c, STATE_NAMES[c] ?? c]) }],
-  });
+  // A state picked by hand (either kind of control): only a state that clearly contradicts the ZIP drops it (it would
+  // price dental for the wrong place); ZIPs on a state line or without a state in OPM's list (Puerto Rico) stay.
+  let zipField = null; // set below, once the ZIP field exists
+  const pickState = (code) => {
+    const z = store.get().location.zip;
+    const st = code || null;
+    const keep = !st || zipKeepsWith(fedvipHub.get(), z, st);
+    store.set({ location: { state: st, zip: keep ? z : null } });
+    if (!keep) zipField?.note(`ZIP ${z} is in ${stateName(lookupZip(fedvipHub.get(), z).state ?? '') || 'another state'}, so it was cleared. Enter a ZIP in ${stateName(st)} to price dental.`);
+  };
+  const stateArgs = { id: 'in-state', label: 'State', hint: 'Plans are matched by state. Your ZIP code fills this in.' };
+  const location = STATE_PICKER === 'combobox'
+    ? combobox({ ...stateArgs, placeholder: 'Choose your state', emptyLabel: 'Choose your state', noun: 'state', onSelect: pickState })
+    : selectField({ ...stateArgs, placeholder: 'Choose your state', groups: [{ options: states.map((c) => [c, STATE_NAMES[c] ?? c]) }] });
+  if (STATE_PICKER === 'combobox') {
+    location.setModel({ groups: [{ id: 'states', label: '', options: states.map((c) => ({ code: c, name: STATE_NAMES[c] ?? c, hideMeta: true })) }] });
+  }
 
   const stateName = (c) => STATE_NAMES[c] ?? c;
   const stateHint = location.el.querySelector('.field-hint');
   const zip = createZipField({ h, store, getFedvip: fedvipHub.get, onNeedData: () => fedvipHub.load(), stateName });
+  zipField = zip;
   fedvipHub.subscribe(() => { zip.refresh(); sync(store.get()); });
   // the ZIP -> county lookup arrives late (app.js): network counts then reflect plans confirmed or ruled out by ZIP
   zipCountyHub.subscribe(() => sync(store.get()));
@@ -419,15 +436,7 @@ export function renderInputs(form, { data, store, meds }) {
     else if (t.name === 'enrollment') store.set({ enrollment: t.value });
     else if (t.name === 'account') store.set({ account: t.value });
     else if (t.name === 'scenario') store.set({ scenario: t.value });
-    else if (t === location.select) {
-      // only a state that clearly contradicts the ZIP drops it (it would price dental for the wrong place);
-      // ZIPs on a state line or without a state in OPM's list (Puerto Rico) stay
-      const z = store.get().location.zip;
-      const st = t.value || null;
-      const keep = !st || zipKeepsWith(fedvipHub.get(), z, st);
-      store.set({ location: { state: st, zip: keep ? z : null } });
-      if (!keep) zip.note(`ZIP ${z} is in ${stateName(lookupZip(fedvipHub.get(), z).state ?? '') || 'another state'}, so it was cleared. Enter a ZIP in ${stateName(st)} to price dental.`);
-    }
+    else if (t === location.select) pickState(t.value);
     else if (t === dentalInput) store.set({ dental: t.checked });
     else if (t === mine.input) store.set({ includeMine: t.checked });
     else if (chipEls.some((c) => c.input === t)) {
