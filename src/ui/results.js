@@ -8,6 +8,7 @@ import { dvMathLines } from './dental-board.js';
 import { GROUP_LABELS, GROUP_MODES } from './grouping.js';
 import { createResultsBoard, mineNoteText } from './results-board.js';
 import { totalLabelOf, endedTotalLabel, ENDED_NOTE } from './board-model.js';
+import { networkLabel } from './network.js';
 import { renderCompare, revealCompare } from './compare.js';
 import { FLAG_TEXT } from '../engine/diff.js';
 import { ASSUMED_PRICES, ASSUMPTIONS_NOTE } from '../engine/assumptions.js';
@@ -222,6 +223,7 @@ export function createResults(main, { store, onRanked }) {
     r.rank = h('span', { class: 'card-rank', 'aria-hidden': 'true' });
     r.name = h('h3', { class: 'card-name' });
     r.meta = h('p', { class: 'card-meta' });
+    r.net = h('p', { class: 'card-net', hidden: true });
     r.total = h('span', { class: 'card-total-num' });
     r.totalLabel = h('span', { class: 'card-total-label' }, 'per year, estimated');
     r.bar = h('div', { class: 'bar', 'aria-hidden': 'true' },
@@ -256,7 +258,7 @@ export function createResults(main, { store, onRanked }) {
     const el = h('li', { class: 'card', 'data-code': code },
       h('div', { class: 'card-top' },
         r.rank,
-        h('div', { class: 'card-id' }, r.name, r.meta),
+        h('div', { class: 'card-id' }, r.name, r.meta, r.net),
         h('div', { class: 'card-total' }, r.total, r.totalLabel)),
       r.endedNote,
       r.bar,
@@ -297,6 +299,11 @@ export function createResults(main, { store, onRanked }) {
       setText(r.meta, bits.filter(Boolean).join(' · '));
       rec.el.setAttribute('aria-label', ended ? `${row.plan.name}, your 2026 plan, ended in 2027: 2026 numbers, not ranked` : `${row.plan.name}`);
     }
+    // the provider network (UnitedHealthcare, Aetna, Cigna ...); brochure facts can arrive after the card, so every update
+    const net = ended ? null : networkLabel(row.plan, row.code);
+    r.net.hidden = !net;
+    r.net.replaceChildren(...(net ? [h('span', { class: 'card-net-k' }, 'Network '), net.text] : []));
+    if (net) r.net.title = net.title; else r.net.removeAttribute('title');
     const anim = animateNums && visible.has(rec.el);
     // headline = the ranked total: without medications unless every shown plan has every drug priced (I3)
     tweenNumber(r.total, rankTotal(row, medsInRank), usd, { animate: anim });

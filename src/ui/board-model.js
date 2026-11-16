@@ -11,6 +11,7 @@
 // The dental/vision board (Task 7) supplies its own sections and header in this same shape.
 import { usd, signedUsd, signedPct, deltaTone, DASH } from './format.js';
 import { FLAG_TEXT } from '../engine/diff.js';
+import { networkLabel } from './network.js';
 import { baseTotal, medsCost, anyMeds, anyDv, dvCost, dvLabel, basisOf, basisNote, medsRanked, rankTotal } from './model.js';
 
 const fin = (n) => typeof n === 'number' && Number.isFinite(n);
@@ -479,6 +480,7 @@ export function medicalHeader(row, group, ctx, scope) {
     rankSub,
     title: row.plan?.name ?? row.code,
     subtitle: row.plan?.carrier || row.plan?.network_family || '',
+    network: networkLabel(row.plan, row.code),
     chips,
     total: rankTotal(row, ctx?.withMeds !== false),
     totalLabel: totalLabelOf(row, ctx?.withMeds !== false),

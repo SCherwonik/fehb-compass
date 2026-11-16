@@ -128,7 +128,7 @@
 }
 .board.is-stuck .bd-stick-in { visibility: visible; }
 /* compact copy: rank, name and total stay; the bar, the "why" line and the legend are on the real header */
-.bd-stick .bd-why, .bd-stick .bd-bar, .bd-stick .bd-legend, .bd-stick .bd-chips { display: none; }
+.bd-stick .bd-why, .bd-stick .bd-bar, .bd-stick .bd-legend, .bd-stick .bd-chips, .bd-stick .bd-net { display: none; }
 .bd-stick .bd-h { padding-block: var(--space-2); }
 .bd-stick .bd-name { min-height: 0; -webkit-line-clamp: 1; }
 .bd-stick .bd-total { margin-top: 2px; }
@@ -311,6 +311,10 @@ html.has-board-full .topbar, html.has-board-full .sit-bar, html.has-board-full .
 .bd-sub { flex: 1 1 auto; min-width: 0; font-size: var(--text-xs); color: var(--text-subtle); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bd-code { flex: none; font-size: 11px; font-weight: var(--weight-medium); font-variant-numeric: tabular-nums; letter-spacing: 0.02em; color: var(--text-muted); }
 .bd-code[hidden] { display: none; }
+.bd-net { display: flex; align-items: baseline; gap: var(--space-2); min-width: 0; margin-top: 2px; font-size: var(--text-xs); color: var(--text-muted); }
+.bd-net[hidden] { display: none; }
+.bd-net-k { flex: none; color: var(--text-subtle); }
+.bd-net-v { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* thin one-line header (rank, name, code): hidden in the flow; visible in full screen and in the page-sticky copy */
 .bd-minis { display: none; }

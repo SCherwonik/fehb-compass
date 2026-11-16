@@ -199,6 +199,7 @@ export function createBoard({ label = 'Plan comparison board', hooks = {}, onSec
         h('span', { class: 'bar-seg bar-prem' }), h('span', { class: 'bar-seg bar-oop' }), h('span', { class: 'bar-seg bar-dep' })),
       why: h('span', { class: 'bd-why' }),
       code: h('span', { class: 'bd-code' }),
+      net: h('div', { class: 'bd-net', hidden: true }),
       mRank: h('span', { class: 'bd-mini-rank' }),
       mName: h('span', { class: 'bd-mini-name' }),
       mCode: h('span', { class: 'bd-mini-code' }),
@@ -208,6 +209,7 @@ export function createBoard({ label = 'Plan comparison board', hooks = {}, onSec
       h('div', { class: 'bd-h' },
         h('div', { class: 'bd-h-top' }, p.rank, p.rankSub, p.chips),
         p.name, h('div', { class: 'bd-subline' }, p.sub, p.code),
+        p.net,
         h('div', { class: 'bd-total' }, p.num, p.numLabel),
         p.bar, p.why));
     const col = { key, th, mth, p, cells: new Map(), desc: new Map(), filled: false, base: 'bd-cell', item: null, idx: 0, chipsKey: '' };
@@ -224,6 +226,11 @@ export function createBoard({ label = 'Plan comparison board', hooks = {}, onSec
     p.rankSub.hidden = !hd.rankSub;
     if (p.name.textContent !== hd.title) { p.name.textContent = hd.title; p.name.title = hd.title; }
     p.sub.textContent = hd.subtitle ?? '';
+    // "Network: UnitedHealthcare Choice Plus", right above the total (hidden when the plan's network is not known)
+    const net = hd.network ?? null;
+    p.net.hidden = !net;
+    p.net.replaceChildren(...(net ? [h('span', { class: 'bd-net-k' }, 'Network'), h('span', { class: 'bd-net-v' }, net.text)] : []));
+    if (net) p.net.title = net.title; else p.net.removeAttribute('title');
     // the plan code (three or four characters, e.g. 401 or V31): what the brochure and OPM's files call the plan
     const code = typeof row.code === 'string' && /^[A-Za-z0-9]{2,5}$/.test(row.code) ? row.code : '';
     p.code.textContent = code ? `Code ${code}` : '';

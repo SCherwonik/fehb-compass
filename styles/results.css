@@ -208,6 +208,9 @@
   overflow-wrap: anywhere;
 }
 .card-meta { margin-top: 2px; font-size: var(--text-sm); color: var(--text-subtle); }
+.card-net { margin-top: 2px; font-size: var(--text-sm); color: var(--text-muted); }
+.card-net[hidden] { display: none; }
+.card-net-k { color: var(--text-subtle); }
 .card-total { grid-area: total; display: grid; justify-items: end; text-align: right; }
 .card-total-num {
   font-size: var(--text-2xl);

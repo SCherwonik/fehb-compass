@@ -16,6 +16,17 @@ import { usd, usdExact } from './format.js';
 
 let FACTS = null;
 /** Register the loaded facts file (null when it is missing). Functions below default to it. */
+/**
+ * The network the brochure names for a plan: { name, page } or null (name is the brochure's own words, a verified quote).
+ */
+export function networkFor(code, facts = FACTS) {
+  if (!facts || typeof facts !== 'object') return null;
+  const p = own(facts.plans, code);
+  const n = p && typeof p === 'object' && p.network && typeof p.network === 'object' ? p.network.name : null;
+  if (!n || typeof n !== 'object' || typeof n.quote !== 'string' || !n.quote.trim()) return null;
+  return { name: n.quote.trim(), page: Number.isInteger(n.page) ? n.page : null };
+}
+
 export function setBrochureFacts(facts) { FACTS = facts && typeof facts === 'object' ? facts : null; }
 export function getBrochureFacts() { return FACTS; }
 
