@@ -12,7 +12,8 @@
 import { usd, signedUsd, signedPct, deltaTone, DASH } from './format.js';
 import { FLAG_TEXT } from '../engine/diff.js';
 import { networkLabel } from './network.js';
-import { baseTotal, medsCost, anyMeds, anyDv, dvCost, dvLabel, basisOf, basisNote, medsRanked, rankTotal } from './model.js';
+import { baseTotal, medsCost, anyMeds, anyDv, dvCost, dvLabel, basisOf, basisNote, medsRanked, rankTotal, anyMaternity, maternityRanked } from './model.js';
+import { MATERNITY_UNPRICED } from '../engine/cost.js';
 
 const fin = (n) => typeof n === 'number' && Number.isFinite(n);
 const cents = (n) => Math.round(n * 100) / 100;
@@ -53,14 +54,14 @@ export function worstCase(row, enrollment) {
  */
 export const VALUE_WEIGHT = 0.75;
 
-export function valueScores(rows, enrollment, withMeds = medsRanked(rows ?? [])) {
+export function valueScores(rows, enrollment, withMeds = medsRanked(rows ?? []), withMat = maternityRanked(rows ?? [])) {
   const out = new Map();
   let best = Infinity;
   for (const r of rows ?? []) {
     const ceiling = worstCase(r, enrollment);
     // dental/vision (same amount on every plan) is left out, so the toggle never moves a score;
-    // medications only when they are in the ranking (every plan has every drug priced)
-    const t = rankTotal(r, withMeds);
+    // medications and maternity only when they are in the ranking (priced on every plan)
+    const t = rankTotal(r, withMeds, withMat);
     const total = fin(t) ? t - dvCost(r) : null;
     const weighted = ceiling == null || total == null ? null : VALUE_WEIGHT * total + (1 - VALUE_WEIGHT) * ceiling;
     const ok = weighted != null && weighted > 0;
@@ -97,16 +98,22 @@ export function bestInRow(def, cells) {
 export function boardContext(rankedRows, state, mine = null, baseline = null) {
   const rows = rankedRows ?? [];
   // ranking basis: medications count only when every plan has every drug priced (model.medsRanked)
-  const withMeds = medsRanked(mine ? [...rows, mine] : rows);
-  const totals = rows.map((r) => rankTotal(r, withMeds)).filter(fin);
+  const set = mine ? [...rows, mine] : rows;
+  const withMeds = medsRanked(set);
+  // maternity counts only when every plan is maternity-priced (model.maternityRanked)
+  const withMat = maternityRanked(set);
+  const totals = rows.map((r) => rankTotal(r, withMeds, withMat)).filter(fin);
   return {
     withMeds,
+    withMat,
+    // a "Having a baby" line is in the custom lines: the Cost section gets its Maternity row
+    matOn: anyMaternity(set),
     enrollment: state?.enrollment ?? 'self',
     scenario: state?.scenario ?? 'typical',
     stateCode: state?.location?.state ?? null, // for the "Part of VA" chip on partial-state plans
     // fine-tune overrides or custom lines change the scenario's care
     adjusted: (state?.custom?.length ?? 0) > 0 || Object.keys(state?.overrides ?? {}).length > 0,
-    values: valueScores(rows, state?.enrollment ?? 'self', withMeds),
+    values: valueScores(rows, state?.enrollment ?? 'self', withMeds, withMat),
     // medications priced on some plan: the "vs" totals compare without them (rows with `when: medsOn` say so)
     medsOn: anyMeds(mine ? [...rows, mine] : rows),
     // dental/vision added to the totals: the "vs" totals leave it out too (2026 never has it)
@@ -143,12 +150,13 @@ const ACCOUNT_TEXT = { HSA: 'Health savings account', HRA: 'Health reimbursement
 
 // "vs your plan": each column minus the user's own 2027 plan (negative = cheaper than staying put).
 // `excl`: a total compared without medications or dental/vision (when either is in the totals), and the cell says so.
-const exclNote = (ctx) => basisNote(basisOf(ctx.medsOn, ctx.dvOn));
+// Maternity is left out too unless every plan is maternity-priced (vs the ended 2026 plan: always, see vsEndedCell).
+const exclNote = (ctx, mat = ctx.matOn && ctx.withMat === false) => basisNote(basisOf(ctx.medsOn, ctx.dvOn, mat));
 function vsMineCell(get, excl = false) {
   return (row, ctx) => {
     if (!ctx.mine) return { text: DASH, value: null, tone: 'muted' };
-    const a = get(row);
-    const b = get(ctx.mine);
+    const a = get(row, ctx);
+    const b = get(ctx.mine, ctx);
     const basis = excl ? exclNote(ctx) : '';
     if (row.code === ctx.mine.code) return { text: usd(b), sub: basis ? `your baseline, ${basis}` : 'your baseline', tone: 'muted', value: null };
     if (!fin(a) || !fin(b)) return { text: DASH, value: null, tone: 'muted' };
@@ -162,12 +170,13 @@ function vsMineCell(get, excl = false) {
 // "vs your 2026 plan (ended)": each column minus what the user's ended plan cost in 2026.
 function vsEndedCell(get, key, excl = false) {
   return (row, ctx) => {
-    const a = get(row);
+    const a = get(row, ctx);
     const b = ctx.baseline?.[key];
     if (!fin(a) || !fin(b)) return { text: DASH, value: null, tone: 'muted' };
     const n = a - b;
     const tone = deltaTone(n);
-    const basis = excl ? exclNote(ctx).replace('medications', 'your medications') : '';
+    // 2026 plans are never maternity-priced: the ended comparison always leaves maternity out
+    const basis = excl ? exclNote(ctx, ctx.matOn).replace('medications', 'your medications') : '';
     if (tone === 'flat') return { text: 'Same', sub: basis || undefined, tone: 'flat', value: 0 };
     return { text: signedUsd(n), sub: `${n < 0 ? `less than ${usd(b)} in 2026` : `more than ${usd(b)} in 2026`}${basis ? `, ${basis}` : ''}`, tone, value: n };
   };
@@ -178,6 +187,33 @@ function medsTotalNote(row, ctx) {
   if (!row.meds) return '';
   if (ctx?.withMeds !== false) return row.meds.entries.length ? ', incl. meds' : '';
   return row.meds.entries.length ? `; + ${usd(medsCost(row))} meds not in total` : '; meds not looked up';
+}
+
+// Total cell: whether the pregnancy is in it, shown apart from it, or not priced on this plan.
+function matTotalNote(row, ctx) {
+  const m = row.maternity;
+  if (!m) return '';
+  if (!m.priced) return '; maternity not priced (see its row)';
+  return ctx?.withMat !== false ? ', incl. maternity' : `; ${m.cost > 0 ? '+ ' : ''}${usd(m.cost)} maternity not in total`;
+}
+
+/**
+ * Board "Maternity (one pregnancy)" cell: what one pregnancy adds on this plan, or "Not priced" with the reason
+ * (a gap in the plan's published information) in the tooltip.
+ */
+export function maternityCell(row, ctx) {
+  const m = row.maternity;
+  if (!m) return { text: DASH, value: null, tone: 'muted' };
+  if (!m.priced) {
+    const sub = m.gap?.kind ? 'the plan’s brochure doesn’t give a total' : 'priced for 2027 plans only';
+    return { text: 'Not priced', sub, tone: 'warn', value: null, title: m.gap?.text ?? MATERNITY_UNPRICED };
+  }
+  return {
+    text: `${m.cost > 0 ? '+ ' : ''}${usd(m.cost)}`,
+    sub: ctx?.withMat !== false ? 'in the total above' : 'not in the total above',
+    value: m.cost,
+    title: 'What one pregnancy adds on this plan, from its 2027 brochure’s maternity terms (deductible and out-of-pocket max applied).',
+  };
 }
 
 // Medications shown apart from the "vs" totals they are left out of.
@@ -191,7 +227,7 @@ export const MEDICAL_SECTIONS = [
   {
     key: 'vsEnded', label: 'Vs your 2026 plan (ended)', when: (ctx) => !ctx.mine && Boolean(ctx.baseline),
     rows: [
-      { key: 'vsEndedTotal', label: 'Estimated total', strong: true, best: 'min', hint: 'Your 2026 plan has no 2027 version. Each plan is compared with what yours cost in 2026 for the same year of care.', cell: vsEndedCell(baseTotal, 'total', true) },
+      { key: 'vsEndedTotal', label: 'Estimated total', strong: true, best: 'min', hint: 'Your 2026 plan has no 2027 version. Each plan is compared with what yours cost in 2026 for the same year of care.', cell: vsEndedCell((r) => baseTotal(r, false), 'total', true) },
       { key: 'vsEndedMeds', label: 'Your medications', when: (ctx) => ctx.medsOn, best: null, hint: 'Left out of the line above: 2026 plans cannot be priced with your medications.', cell: medsApartCell('on this plan, not yet priced for 2026') },
       { key: 'vsEndedPremium', label: 'Premium', best: 'min', cell: vsEndedCell((r) => r.cost?.premium, 'premium') },
       { key: 'vsEndedDeductible', label: 'Deductible', best: 'min', cell: vsEndedCell((r) => r.facts?.deductible, 'deductible') },
@@ -201,7 +237,7 @@ export const MEDICAL_SECTIONS = [
   {
     key: 'vsMine', label: 'Vs your plan in 2027', when: (ctx) => Boolean(ctx.mine),
     rows: [
-      { key: 'vsTotal', label: 'Estimated total', strong: true, best: 'min', hint: 'When any medications are priced, this compares totals without them: they are priced only on plans where you recorded tiers.', cell: vsMineCell(baseTotal, true) },
+      { key: 'vsTotal', label: 'Estimated total', strong: true, best: 'min', hint: 'When any medications are priced, this compares totals without them: they are priced only on plans where you recorded tiers.', cell: vsMineCell((r, ctx) => baseTotal(r, ctx?.withMat !== false), true) },
       { key: 'vsMeds', label: 'Your medications', when: (ctx) => ctx.medsOn, best: null, hint: 'Left out of the line above, so plans with and without recorded tiers compare fairly.', cell: medsApartCell('on this plan, not in the line above') },
       { key: 'vsPremium', label: 'Premium', best: 'min', cell: vsMineCell((r) => r.cost?.premium) },
       { key: 'vsDeductible', label: 'Deductible', best: 'min', cell: vsMineCell((r) => r.facts?.deductible) },
@@ -214,9 +250,15 @@ export const MEDICAL_SECTIONS = [
       {
         key: 'total', label: 'Estimated total', strong: true, best: 'min',
         hint: 'Premium plus expected care costs, minus HSA or HRA money, for your scenario.',
-        cell: (r, ctx) => money(rankTotal(r, ctx?.withMeds !== false), {
-          sub: `${r.cost.firmness === 'fixed' ? 'fixed copays' : 'estimated'}${dvCost(r) ? `, ${dvLabel(r)} ${usd(dvCost(r))}` : ''}${medsTotalNote(r, ctx)}`,
+        cell: (r, ctx) => money(rankTotal(r, ctx?.withMeds !== false, ctx?.withMat !== false), {
+          sub: `${r.cost.firmness === 'fixed' ? 'fixed copays' : 'estimated'}${dvCost(r) ? `, ${dvLabel(r)} ${usd(dvCost(r))}` : ''}${medsTotalNote(r, ctx)}${matTotalNote(r, ctx)}`,
         }),
+      },
+      {
+        key: 'maternity', label: 'Maternity (one pregnancy)', when: (ctx) => ctx.matOn, best: 'min',
+        hint: 'What the “Having a baby” line adds on each plan. It joins the totals only when every plan shown is priced: '
+          + 'some plans’ brochures state maternity costs in a way that cannot be totaled for one pregnancy.',
+        cell: maternityCell,
       },
       { key: 'premium', label: 'Premium', best: 'min', cell: (r) => money(r.cost.premium, { sub: 'per year' }) },
       {
@@ -339,7 +381,7 @@ function isLowest(row, group, get) {
 export function whyLine(row, group, ctx, scope = '') {
   const g = group ?? [];
   const sc = scope ? ` ${scope}` : '';
-  const tot = (r) => rankTotal(r, ctx?.withMeds !== false);
+  const tot = (r) => rankTotal(r, ctx?.withMeds !== false, ctx?.withMat !== false);
   const gap = fin(ctx?.minTotal) && fin(tot(row)) ? tot(row) - ctx.minTotal : null;
   const ceiling = (r) => ctx?.values?.get(r.code)?.ceiling ?? worstCase(r, ctx?.enrollment ?? 'self');
   let lead = null;
@@ -383,10 +425,18 @@ export function scopeText(mode, group) {
   }
 }
 
-/** 'per year, estimated' | 'per year, incl. dental/vision' | '..., excl. meds' (the ranking basis, I3). */
-export function totalLabelOf(row, withMeds = true) {
+/**
+ * 'per year, estimated' | 'per year, incl. dental/vision' | '..., excl. meds' | '..., excl. meds and maternity'
+ * (the ranking basis, I3: medications and maternity are in the total only when priced on every plan).
+ */
+export function totalLabelOf(row, withMeds = true, withMat = true) {
   const parts = [dvCost(row) ? dvLabel(row) : 'estimated'];
-  if (row?.meds?.entries?.length) parts.push(withMeds ? 'incl. meds' : 'excl. meds');
+  const incl = [];
+  const excl = [];
+  if (row?.meds?.entries?.length) (withMeds ? incl : excl).push('meds');
+  if (row?.maternity) (withMat && row.maternity.priced ? incl : excl).push('maternity');
+  if (incl.length) parts.push(`incl. ${incl.join(' and ')}`);
+  if (excl.length) parts.push(`excl. ${excl.join(' and ')}`);
   return `per year, ${parts.join(', ')}`;
 }
 
@@ -397,8 +447,9 @@ export const ENDED_NOTE = 'No 2027 version: these are its 2026 numbers';
 
 /** 'per year, 2026 rates' plus what the 2027 totals carry and this one cannot (dental/vision, medications). */
 export function endedTotalLabel(ctx) {
-  const left = [ctx?.dvOn && 'dental/vision', ctx?.medsOn && 'meds'].filter(Boolean);
-  return `per year, 2026 rates${left.length ? `, excl. ${left.join(' and ')}` : ''}`;
+  const left = [ctx?.dvOn && 'dental/vision', ctx?.medsOn && 'meds', ctx?.matOn && 'maternity'].filter(Boolean);
+  const list = left.length < 3 ? left.join(' and ') : `${left.slice(0, -1).join(', ')} and ${left.at(-1)}`;
+  return `per year, 2026 rates${left.length ? `, excl. ${list}` : ''}`;
 }
 
 /** Column header for the ended plan: "2026" in place of a rank, an "Ended in 2027" chip, 2026 totals. */
@@ -419,10 +470,10 @@ export function endedHeader(row, ctx) {
 }
 
 // Board rows the ended column fills from its 2026 figures (the same cell functions, every number marked 2026).
-const ENDED_FILLED = new Set(['total', 'premium', 'oop', 'ceiling', 'deductible', 'oopMax', 'coinsurance', 'account', 'deposit', 'family', 'ptype']);
+const ENDED_FILLED = new Set(['total', 'premium', 'oop', 'ceiling', 'deductible', 'oopMax', 'coinsurance', 'account', 'deposit', 'family', 'ptype', 'maternity']);
 const ENDED_BASELINE = { vsEndedTotal: 'total', vsEndedPremium: 'premium', vsEndedDeductible: 'deductible', vsEndedOopMax: 'oopMax' };
 const endedDash = (sub) => ({ text: DASH, sub, value: null, tone: 'muted' });
-const ENDED_PLAIN = new Set(['account', 'family', 'ptype']); // words, not 2026 numbers: shown as they are
+const ENDED_PLAIN = new Set(['account', 'family', 'ptype', 'maternity']); // words, not 2026 numbers: shown as they are
 const mark2026 = (sub) => {
   if (!sub) return '2026 rates';
   const s = String(sub);
@@ -482,8 +533,8 @@ export function medicalHeader(row, group, ctx, scope) {
     subtitle: row.plan?.carrier || row.plan?.network_family || '',
     network: networkLabel(row.plan, row.code),
     chips,
-    total: rankTotal(row, ctx?.withMeds !== false),
-    totalLabel: totalLabelOf(row, ctx?.withMeds !== false),
+    total: rankTotal(row, ctx?.withMeds !== false, ctx?.withMat !== false),
+    totalLabel: totalLabelOf(row, ctx?.withMeds !== false, ctx?.withMat !== false),
     bar: { p: row.cost?.premium ?? 0, o: row.cost?.oop ?? 0, d: row.cost?.hsaOffset ?? 0 },
     why: whyLine(row, group, ctx, scope),
   };

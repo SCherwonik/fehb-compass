@@ -149,7 +149,8 @@ export function createCustomLines({ store }) {
     else if (meta.rx) hint = `Priced with each plan’s ${TIER_TEXT[line.tier].toLowerCase()} copay or coinsurance.`;
     else if (meta.maternity) {
       hint = 'One pregnancy (prenatal care, delivery, postpartum care and the hospital stay for the birth), priced with each plan’s '
-        + 'own maternity terms from its 2027 brochure. Where those terms cannot be priced, that plan’s total leaves this out and says so. '
+        + 'own maternity terms from its 2027 brochure. Where a brochure gives no way to total it, nothing is assumed: that plan says so, '
+        + 'and plans are ranked without maternity unless every plan shown is priced. '
         + 'Newborn care is not included.';
     }
     else hint = `Priced with each plan’s ${meta.field.toLowerCase()} benefit.`;

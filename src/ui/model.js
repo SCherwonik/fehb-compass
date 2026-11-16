@@ -1,6 +1,6 @@
 // Results model: eligibility, costing, year-over-year diff, ranking and the savings banner.
 // DOM-free (pure functions over loaded data + state) so it is unit tested under node.
-import { planTotal } from '../engine/cost.js';
+import { planTotal, maternityGap } from '../engine/cost.js';
 import { SCENARIOS, applyOverrides, usageFromCustom } from '../engine/scenarios.js';
 import { diffPlan, planFacts } from '../engine/diff.js';
 import { statesFromServiceArea } from '../data.js';
@@ -64,6 +64,31 @@ export function costInputs(state) {
   };
 }
 
+/** True when the engine inputs carry a maternity line ("Having a baby") that is used this year. */
+export const hasMaternityLine = (inputs) => (inputs?.usage?.custom ?? []).some((l) => l?.kind === 'maternity' && (l.perYear ?? 0) > 0);
+
+/**
+ * The maternity part of a row when the custom lines include a maternity line, else null:
+ *   { priced, gap, cost, baseTotal, total }
+ * priced: the plan's brochure-reviewed terms price it; gap: maternityGap (why not, said as a gap in the plan's
+ * published information); cost: what the pregnancy adds to this plan's total (with vs without the maternity line,
+ * medications left out: deductible, OOP max and HRA effects included; 0 when unpriced, since the engine leaves an
+ * unpriced line out of the total); baseTotal: the total without medications, dental/vision or maternity;
+ * total: the total with medications but without dental/vision or maternity (rankTotal's no-maternity basis).
+ */
+function maternityPart(input, inputs, base, meds) {
+  if (!hasMaternityLine(inputs)) return null;
+  const priced = input.benefits?.maternity?.priced === true;
+  if (!priced) {
+    // the engine already left the line out: the totals without it are the totals
+    return { priced, gap: maternityGap(input.benefits?.maternity), cost: 0, baseTotal: base.total, total: null };
+  }
+  const without = { ...inputs, usage: { ...inputs.usage, custom: inputs.usage.custom.filter((l) => l?.kind !== 'maternity') } };
+  const baseNo = planTotal(input, without).total;
+  const withMedsNo = meds?.entries.length ? planTotal(input, { ...without, drugs: meds.entries }).total : null;
+  return { priced, gap: null, cost: cents(base.total - baseNo), baseTotal: baseNo, total: withMedsNo };
+}
+
 /**
  * One costed 2027 plan with its 2026 counterpart diff. null when the plan cannot be costed.
  * With the user's medications (data.meds, private: from ui/meds-store.js) and the brochure facts (data.brochure),
@@ -85,6 +110,8 @@ export function makeRow(data, state, code) {
   // "Add dental and vision": the same FEDVIP line items join every plan's total (data.fedvip: lazy-loaded)
   const dv = state.dental && data.fedvip ? dvAddOn(data.fedvip, state) : null;
   if (dv && dv.total > 0) cost = { ...cost, total: cents(cost.total + dv.total) };
+  let maternity = null;
+  try { maternity = maternityPart(input, inputs, base, meds); } catch { return null; }
   const facts = planFacts(input, inputs);
   const facts2026 = planFacts(planInput(data, 2026, code), inputs);
   const st = state.location?.state ?? null;
@@ -104,6 +131,8 @@ export function makeRow(data, state, code) {
     dv,
     // total without the user's medications or dental/vision: the like-for-like basis for comparisons (see baseTotal)
     baseTotal: base.total,
+    // a "Having a baby" line is in the custom lines: what it adds here, and the totals without it (maternityPart)
+    maternity,
     // service area for the user's state/ZIP (areaStatus, with the ZIP -> county lookup data.zipCounty once
     // loaded): 'partial' = availability not confirmed
     area,
@@ -120,7 +149,8 @@ export function makeRow(data, state, code) {
  * baseTotal(row): the total without medications or dental/vision; medsCost(row): what the medications add on
  * this plan (engine figure: deductible, OOP max and HRA effects included); dvCost(row): the dental/vision amount.
  */
-export function baseTotal(row) {
+export function baseTotal(row, withMat = true) {
+  if (!withMat && Number.isFinite(row?.maternity?.baseTotal)) return row.maternity.baseTotal;
   return Number.isFinite(row?.baseTotal) ? row.baseTotal : row?.cost?.total ?? null;
 }
 export function dvCost(row) {
@@ -144,8 +174,32 @@ export const medsComplete = (rows) => {
  * otherwise plans are ranked without them (pricing them on the looked-up plans only would push exactly those down).
  */
 export const medsRanked = (rows) => !anyMeds(rows) || medsComplete(rows);
-/** The total a row is ranked and headlined by: with medications, or without them (dental/vision kept: same on all). */
-export function rankTotal(row, withMeds = true) {
+
+/**
+ * Maternity ("Having a baby"), the same way: it is priced only on plans whose brochure gives a total for one
+ * pregnancy, and an unpriced plan's total simply leaves it out. So ranking includes it only when every plan in the
+ * set is maternity-priced; otherwise every plan is ranked without it (an unpriced plan never looks cheaper because
+ * it is unpriced) and the pregnancy is shown apart (matAdded).
+ */
+export const anyMaternity = (rows) => (rows ?? []).some((r) => r?.maternity != null);
+export const maternityComplete = (rows) => {
+  const list = (rows ?? []).filter(Boolean);
+  return list.length > 0 && list.every((r) => r.maternity?.priced === true);
+};
+export const maternityRanked = (rows) => !anyMaternity(rows) || maternityComplete(rows);
+/** What the pregnancy adds on this plan; null when it is not priced here (say "not priced", never $0). */
+export const matAdded = (row) => (row?.maternity ? (row.maternity.priced ? row.maternity.cost : null) : null);
+
+/**
+ * The total a row is ranked and headlined by: with or without medications, with or without maternity
+ * (dental/vision kept: the same on every plan).
+ */
+export function rankTotal(row, withMeds = true, withMat = true) {
+  const m = row?.maternity;
+  if (!withMat && m?.priced) {
+    const meds = withMeds && row?.meds?.entries?.length && Number.isFinite(m.total);
+    return cents((meds ? m.total : m.baseTotal) + dvCost(row));
+  }
   if (withMeds || !row?.meds?.entries?.length) return row?.cost?.total ?? null;
   return cents(baseTotal(row) + dvCost(row));
 }
@@ -158,11 +212,22 @@ export function dvLabel(row) {
 /** True when dental/vision is part of these rows' totals. */
 export const anyDv = (rows) => (rows ?? []).some((r) => dvCost(r) > 0);
 
-/** 'total' | 'excl-meds' | 'excl-dv' | 'excl-meds-dv' from the two flags. */
-export const basisOf = (meds, dv) => (meds ? (dv ? 'excl-meds-dv' : 'excl-meds') : dv ? 'excl-dv' : 'total');
-const BASIS_NOTE = { 'excl-meds': 'excl. medications', 'excl-dv': 'excl. dental/vision', 'excl-meds-dv': 'excl. medications and dental/vision' };
-/** Short label for a comparison basis ('' for plain totals). */
-export const basisNote = (basis) => BASIS_NOTE[basis] ?? '';
+/**
+ * 'total' | 'excl-meds' | 'excl-dv' | 'excl-meds-dv' from the two flags, with '-mat' added when maternity is left
+ * out ('excl-mat', 'excl-meds-mat', 'excl-dv-mat', 'excl-meds-dv-mat').
+ */
+export const basisOf = (meds, dv, mat = false) => {
+  const parts = [meds && 'meds', dv && 'dv', mat && 'mat'].filter(Boolean);
+  return parts.length ? `excl-${parts.join('-')}` : 'total';
+};
+const BASIS_WORD = { meds: 'medications', dv: 'dental/vision', mat: 'maternity' };
+export const basisParts = (basis) => (String(basis ?? '').startsWith('excl-') ? basis.slice(5).split('-') : []);
+const andList = (xs) => (xs.length < 3 ? xs.join(' and ') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`);
+/** Short label for a comparison basis ('' for plain totals), e.g. 'excl. medications and maternity'. */
+export const basisNote = (basis) => {
+  const words = basisParts(basis).map((p) => BASIS_WORD[p]).filter(Boolean);
+  return words.length ? `excl. ${andList(words)}` : '';
+};
 
 const usd0 = (n) => (Number.isFinite(n) ? `$${Math.round(n).toLocaleString('en-US')}` : 'not listed');
 
@@ -376,8 +441,8 @@ export function computeRows(data, state, { type = 'all' } = {}) {
 }
 
 export const SORTS = {
-  // withMeds: the set's ranking basis (medsRanked)
-  total: { label: 'Total cost', get: (r, withMeds) => rankTotal(r, withMeds) },
+  // withMeds / withMat: the set's ranking basis (medsRanked, maternityRanked)
+  total: { label: 'Total cost', get: (r, withMeds, withMat) => rankTotal(r, withMeds, withMat) },
   premium: { label: 'Premium', get: (r) => r.cost.premium },
   deductible: { label: 'Deductible', get: (r) => r.facts.deductible },
   oopMax: { label: 'Out-of-pocket max', get: (r) => r.facts.oopMax },
@@ -385,16 +450,18 @@ export const SORTS = {
 
 /**
  * New array sorted ascending by key; unknown values (null) last; ties by total then code.
- * Totals follow the set's ranking basis (medsRanked): without medications unless every plan has every drug priced.
+ * Totals follow the set's ranking basis (medsRanked): without medications unless every plan has every drug priced,
+ * and without maternity unless every plan is maternity-priced (maternityRanked).
  */
 export function sortRows(rows, key = 'total') {
   const get = (SORTS[key] ?? SORTS.total).get;
   const withMeds = medsRanked(rows);
+  const withMat = maternityRanked(rows);
   const v = (r) => {
-    const x = get(r, withMeds);
+    const x = get(r, withMeds, withMat);
     return x == null ? Infinity : x;
   };
-  const t = (r) => rankTotal(r, withMeds) ?? Infinity;
+  const t = (r) => rankTotal(r, withMeds, withMat) ?? Infinity;
   return rows.slice().sort((a, b) => v(a) - v(b) || t(a) - t(b) || a.code.localeCompare(b.code));
 }
 
@@ -432,7 +499,10 @@ export function rankWithMine(data, state, rows, sortKey = 'total', { type = 'all
   const rank = (list) => sortRows(list, sortKey).map((r, i) => ({ ...r, rank: i + 1 }));
   const plain = (mineStatus, ended = null) => {
     const ranked = rank(rows);
-    return { ranked, others: ranked, mine: null, ended, mineStatus, notInState: false, filtersOn, medsInRank: medsRanked(ranked) };
+    return {
+      ranked, others: ranked, mine: null, ended, mineStatus, notInState: false, filtersOn,
+      medsInRank: medsRanked(ranked), matInRank: maternityRanked(ranked),
+    };
   };
   if (!code) return plain('none');
   if (state.includeMine === false) return plain('off');
@@ -460,6 +530,7 @@ export function rankWithMine(data, state, rows, sortKey = 'total', { type = 'all
     others,
     mineStatus: 'included',
     medsInRank: medsRanked([...others, mine]),
+    matInRank: maternityRanked([...others, mine]),
     notInState: !servesState(data.serviceArea, code, state.location?.state ?? null, state.location?.state ? state.location?.zip ?? null : null, data.zipCounty ?? null),
     filtersOn,
   };
@@ -492,8 +563,11 @@ export function endedBaseline(data, state) {
 export function endedRow(data, state) {
   const code = state.currentPlan2026;
   if (!code || planMeta(data, 2027, code)) return null;
-  const input = planInput(data, 2026, code);
-  if (!input || !input.rate[state.enrollment]) return null;
+  const raw = planInput(data, 2026, code);
+  if (!raw || !raw.rate[state.enrollment]) return null;
+  // maternity is never priced for 2026 plans (no 2026 brochures were reviewed): say so plainly, without the
+  // unreviewed OPM-based reason
+  const input = { ...raw, benefits: { ...raw.benefits, maternity: { priced: false, reason: '' } } };
   const inputs = costInputs(state);
   let cost;
   let facts;
@@ -519,6 +593,9 @@ export function endedRow(data, state) {
     meds: null,
     dv: null,
     baseTotal: cost.total,
+    maternity: hasMaternityLine(inputs)
+      ? { priced: false, gap: maternityGap(input.benefits.maternity), cost: 0, baseTotal: cost.total, total: null }
+      : null,
     area: null,
     areaSplit: null,
   };
@@ -545,27 +622,40 @@ export function boardGroups(data, state, rows, n = 3) {
  * plans without recorded tiers cannot carry them);
  * bestTotal / currentTotal are those totals, bestMeds / currentMeds (2027 only) what the medications add
  * (null when none of the drugs is priced on that plan: "not looked up").
+ * Maternity: withMat says whether these figures include it (every plan here maternity-priced, never with an ended
+ * 2026 plan); when they do not, basis gains '-mat' and bestMat / currentMat say what it adds (null: not priced).
  */
 export function savingsVsCurrent(data, state, rows) {
   const code = state.currentPlan2026;
   if (!code) return { kind: 'none' };
   const current = rows.find((r) => r.code === code) ?? (planMeta(data, 2027, code) ? makeRow(data, state, code) : null);
-  const basis = basisOf(anyMeds(rows) || anyMeds([current]), anyDv(rows) || anyDv([current]));
+  // maternity counts only when every plan here (the user's own included) is maternity-priced; the ended 2026 plan
+  // never is (maternityRanked), so an ended plan's comparison always leaves it out
+  const matOn = anyMaternity(rows) || anyMaternity([current]);
+  const withMat = current ? maternityRanked([...rows, current]) : !matOn;
+  const basis = basisOf(anyMeds(rows) || anyMeds([current]), anyDv(rows) || anyDv([current]), !withMat);
+  const bt = (r) => baseTotal(r, withMat);
   // Plans whose service area is not confirmed for the user's county/ZIP are never named "best" unless the user
   // opts in (state.includeUnconfirmed); `skipped` = how many of them would have been cheaper than `best`.
   const open = (r) => state.includeUnconfirmed === true || r.area == null || areaConfirmed(r.area);
   let best = null;
-  for (const r of rows) if (open(r) && (!best || baseTotal(r) < baseTotal(best))) best = r;
-  const skippedRows = rows.filter((r) => !open(r) && (!best || baseTotal(r) < baseTotal(best)));
+  for (const r of rows) if (open(r) && (!best || bt(r) < bt(best))) best = r;
+  const skippedRows = rows.filter((r) => !open(r) && (!best || bt(r) < bt(best)));
   const skipped = skippedRows.length;
   // how many of them are a ZIP that spans a served and an unserved county (their chip says "your ZIP", not the state)
   const skippedSplit = skippedRows.filter((r) => r.areaSplit).length;
-  const bestInfo = { basis, bestTotal: best ? baseTotal(best) : null, bestMeds: best ? medsAdded(best) : null, skipped, skippedSplit };
+  const bestInfo = {
+    basis, withMat, bestTotal: best ? bt(best) : null, bestMeds: best ? medsAdded(best) : null,
+    // what the pregnancy adds (null: not priced on that plan), when maternity is left out of these figures
+    bestMat: best && !withMat ? matAdded(best) : null,
+    skipped, skippedSplit,
+  };
 
   if (current) {
     return {
-      kind: 'continuing', current, best, amount: best ? cents(baseTotal(current) - baseTotal(best)) : null,
-      ...bestInfo, currentTotal: baseTotal(current), currentMeds: medsAdded(current),
+      kind: 'continuing', current, best, amount: best ? cents(bt(current) - bt(best)) : null,
+      ...bestInfo, currentTotal: bt(current), currentMeds: medsAdded(current),
+      currentMat: !withMat ? matAdded(current) : null,
     };
   }
   const currentPlan = planMeta(data, 2026, code);
@@ -579,7 +669,7 @@ export function savingsVsCurrent(data, state, rows) {
     currentPlan,
     current2026Total,
     best,
-    amount: best && current2026Total !== null ? cents(current2026Total - baseTotal(best)) : null,
+    amount: best && current2026Total !== null ? cents(current2026Total - bt(best)) : null,
     ...bestInfo,
   };
 }

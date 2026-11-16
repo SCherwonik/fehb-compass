@@ -1,6 +1,7 @@
 // Side-by-side compare for up to MAX_COMPARE pinned 2027 plans, each showing 2026 -> 2027.
 import { h, svg } from './dom.js';
-import { makeRow, planInput, costInputs, baseTotal, anyDv, anyMeds, basisOf, basisNote } from './model.js';
+import { makeRow, planInput, costInputs, baseTotal, anyDv, anyMeds, anyMaternity, basisOf, basisNote } from './model.js';
+import { MATERNITY_UNPRICED } from '../engine/cost.js';
 import { planTotal } from '../engine/cost.js';
 import { FLAG_TEXT } from '../engine/diff.js';
 import { usd, signedUsd, deltaTone, DASH } from './format.js';
@@ -60,9 +61,12 @@ export function renderCompare(section, { data, state, onRemove, onClose }) {
   // With medications listed, the year-over-year total compares WITHOUT them (2026 cannot be priced with them);
   // what they add on each 2027 plan is its own row below.
   // Dental/vision (when added to the totals) is left out the same way: 2026 totals never carry it.
-  const basis = basisOf(anyMeds(rows), anyDv(rows));
+  // So is maternity ("Having a baby"): 2026 plans are never maternity-priced, and some 2027 plans' brochures give no
+  // total for it; what it adds on each plan is its own row below.
+  const matOn = anyMaternity(rows);
+  const basis = basisOf(anyMeds(rows), anyDv(rows), matOn);
   const metrics = basis !== 'total'
-    ? METRICS.map((m) => (m.key === 'total' ? { ...m, label: `Estimated yearly total, ${basisNote(basis)}`, get: (r, side) => (side === '2027' ? baseTotal(r) : r.total2026) } : m))
+    ? METRICS.map((m) => (m.key === 'total' ? { ...m, label: `Estimated yearly total, ${basisNote(basis)}`, get: (r, side) => (side === '2027' ? baseTotal(r, false) : r.total2026) } : m))
     : METRICS;
   for (const m of metrics) {
     const vals = rows.map((r) => m.get(r, '2027')).filter((v) => v != null);
@@ -97,6 +101,15 @@ export function renderCompare(section, { data, state, onRemove, onClose }) {
             ? h('span', { class: 'cg-was' }, `2026 ${usd(was)} `, h('span', { class: `delta delta-${tone}` }, tone === 'flat' ? 'no change' : signedUsd(d)))
             : m.key !== 'oop' && m.key !== 'deposit' && h('span', { class: 'cg-was' }, r.diff.status === 'new' ? 'New in 2027' : `2026 ${DASH}`));
       })));
+  }
+
+  if (matOn) {
+    grid.append(h('div', { class: 'cg-row', role: 'row' },
+      h('div', { class: 'cg-label', role: 'rowheader' }, 'Maternity (one pregnancy)', h('span', { class: 'cg-label-sub' }, 'not in the total above')),
+      rows.map((r) => h('div', { class: 'cg-cell', role: 'cell' }, r.maternity?.priced
+        ? [h('span', { class: 'cg-now' }, `+ ${usd(r.maternity.cost)}`), h('span', { class: 'cg-was' }, 'from its 2027 brochure')]
+        : [h('span', { class: 'cg-now cg-text is-warn', title: r.maternity?.gap?.text ?? MATERNITY_UNPRICED }, 'Not priced'),
+          h('span', { class: 'cg-was', title: r.maternity?.gap?.text ?? MATERNITY_UNPRICED }, 'the plan’s brochure doesn’t give a total')]))));
   }
 
   // Primary care, specialist and every other cost share live in the full benefits matrix below.

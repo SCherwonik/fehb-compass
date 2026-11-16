@@ -3,7 +3,7 @@
 import test from 'node:test';
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
-import { planTotal, expectedOop, resolveBenefits, MATERNITY_UNPRICED } from '../../src/engine/cost.js';
+import { planTotal, expectedOop, resolveBenefits, MATERNITY_UNPRICED, maternityGap } from '../../src/engine/cost.js';
 import { CUSTOM_KINDS, CUSTOM_PRESETS, MATERNITY_SOURCE, usageFromCustom, sanitizeLine, sanitizeLines } from '../../src/engine/scenarios.js';
 
 const DATA = new URL('../../data/', import.meta.url);
@@ -86,11 +86,43 @@ test('a plan whose maternity terms are not priced is flagged and its total leave
   assert.equal(L.cost, 0);
   assert.deepEqual(r.breakdown.unpriced, ['maternity']);
   assert.equal(r.total, without('224').total);
-  assert.deepEqual(L.warnings, [`${MATERNITY_UNPRICED}.`]);
-  assert.ok(L.notes.includes(m.reason));
+  assert.deepEqual(L.warnings, [maternityGap(m).text]);
+  assert.match(L.warnings[0], /^Not priced: this plan’s brochure states its maternity cost by percentage of the hospital bill and the doctors’ bill separately/);
+  assert.ok(L.notes.includes(`Detail: ${m.reason}`));
   assert.equal(r.firmness, 'estimated');
   // a brochure-reviewed unpriced plan carries the brochure's reason (AJ1: OPM says nothing, brochure 20%)
   assert.match(run('AJ1').breakdown.custom[0].notes.join(' '), /20% after the deductible/);
+});
+
+test('every unpriced 2027 plan says why as a gap in the plan’s own brochure; no priced plan carries that wording', { skip }, () => {
+  const GAP = /brochure states its maternity cost (by percentage of the hospital bill and the doctors’ bill separately|per hospital day|per visit) and gives no way to total it for one pregnancy, so no estimate is added\. This is a gap in the plan’s published information, not in this app: see its brochure\.$/;
+  const kinds = { split: 0, day: 0, visit: 0 };
+  let unpriced = 0;
+  for (const [code, b] of Object.entries(real.benefits['2027'])) {
+    const L = run(code).breakdown.custom[0];
+    const text = [...L.warnings, ...L.notes].join(' ');
+    if (b.maternity?.priced === true) {
+      assert.equal(maternityGap(b.maternity), null, code);
+      assert.ok(!L.unpriced, code);
+      assert.doesNotMatch(text, /not priced|gap in the plan|no estimate is added/i, code);
+      continue;
+    }
+    unpriced += 1;
+    const g = maternityGap(b.maternity);
+    assert.ok(g.kind in kinds, `${code}: ${b.maternity?.reason}`);
+    kinds[g.kind] += 1;
+    assert.match(g.text, GAP, code);
+    assert.match(g.text, /plan/);
+    assert.deepEqual(L.warnings, [g.text], code);
+  }
+  assert.equal(unpriced, 76);
+  // the three kinds the maternity review found (each kind present; 76 in all)
+  assert.ok(kinds.split > 0 && kinds.day > 0 && kinds.visit > 0, JSON.stringify(kinds));
+  // the one-line card tag
+  assert.equal(MATERNITY_UNPRICED, 'Maternity not priced: the plan’s brochure doesn’t give a total');
+  // 2026 plans (never reviewed) get a plain "priced only for 2027 plans" line, not the brochure wording
+  assert.equal(maternityGap({ priced: false, reason: '' }).kind, null);
+  assert.match(maternityGap({ priced: false, reason: '' }).text, /only for 2027 plans/);
 });
 
 test('benefits without maternity terms (fixtures, other years) leave the line unpriced, never NaN', () => {

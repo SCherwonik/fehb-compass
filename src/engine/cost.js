@@ -121,8 +121,37 @@ export const KIND_SERVICES = {
   maternity: 'maternity', // priced from benefits.maternity (see maternityShare), never from the OPM copays cell
 };
 
-/** Shown on a maternity line (and the plan card) when the plan's maternity terms could not be priced. */
-export const MATERNITY_UNPRICED = 'Maternity not priced for this plan: see its brochure';
+/** The one-line card tag for a plan whose maternity terms cannot be priced (maternityGap has the full sentence). */
+export const MATERNITY_UNPRICED = 'Maternity not priced: the plan’s brochure doesn’t give a total';
+
+// How each kind of unpriced brochure term is stated (maternityGap): the gap is in the plan's published information.
+const GAP_HOW = {
+  split: 'by percentage of the hospital bill and the doctors’ bill separately',
+  day: 'per hospital day',
+  visit: 'per visit',
+};
+
+/**
+ * Why a plan's maternity is not priced, from its benefits.maternity ({priced: false, reason}):
+ * { kind: 'split'|'day'|'visit'|null, text } or null when it is priced. `kind` follows the reviewed reason
+ * (pipeline/maternity_terms.json): coinsurance on only the hospital or only the doctors' part, a per-day hospital
+ * copay, or per-visit copays. Any other reason (2026 plans: never reviewed) gets kind null.
+ */
+export function maternityGap(m) {
+  if (m?.priced === true) return null;
+  const r = String(m?.reason ?? '');
+  const kind = /per[- ]day|\$[\d,]+ per day/i.test(r) ? 'day'
+    : /visits? is not known|per[- ]visit|per office visit/i.test(r) ? 'visit'
+      : /splits/i.test(r) ? 'split' : null;
+  if (!kind) {
+    return { kind, text: 'Not priced: maternity is priced only for 2027 plans, from their 2027 brochures, so no estimate is added for this plan.' };
+  }
+  return {
+    kind,
+    text: `Not priced: this plan’s brochure states its maternity cost ${GAP_HOW[kind]} and gives no way to total it for one pregnancy, `
+      + 'so no estimate is added. This is a gap in the plan’s published information, not in this app: see its brochure.',
+  };
+}
 
 const usdTerm = (n) => `$${Number(n).toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
 
@@ -311,8 +340,8 @@ export function expectedOop(benefits, usage, assumptions = {}, drugs = []) {
       // Not priced (no brochure-checked terms): left out of this plan's total, and said so on the line.
       flat = false;
       lines[e.line].unpriced = true;
-      lineWarn(e, `${MATERNITY_UNPRICED}.`);
-      if (benefits.maternity?.reason) lineNote(e, benefits.maternity.reason);
+      lineWarn(e, maternityGap(benefits.maternity).text);
+      if (benefits.maternity?.reason) lineNote(e, `Detail: ${benefits.maternity.reason}`);
       continue;
     }
     if (maternity) lineNote(e, `Priced with this plan’s maternity terms from its 2027 brochure: you pay ${maternityShare(benefits.maternity).text}.`);
