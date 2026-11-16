@@ -24,7 +24,13 @@ export function networkFor(code, facts = FACTS) {
   const p = own(facts.plans, code);
   const n = p && typeof p === 'object' && p.network && typeof p.network === 'object' ? p.network.name : null;
   if (!n || typeof n !== 'object' || typeof n.quote !== 'string' || !n.quote.trim()) return null;
-  return { name: n.quote.trim(), page: Number.isInteger(n.page) ? n.page : null };
+  const site = n.source === 'carrier_site' && typeof n.url === 'string' && /^https:\/\//.test(n.url);
+  return {
+    name: n.quote.trim(),
+    page: Number.isInteger(n.page) ? n.page : null,
+    // a network the brochure did not name but the plan's own website does: its page and the day it was read
+    site: site ? { url: n.url, retrieved: typeof n.retrieved === 'string' ? n.retrieved : null, evidence: typeof n.evidence === 'string' ? n.evidence : null } : null,
+  };
 }
 
 export function setBrochureFacts(facts) { FACTS = facts && typeof facts === 'object' ? facts : null; }

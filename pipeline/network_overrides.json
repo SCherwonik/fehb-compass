@@ -30,5 +30,15 @@
   "page": 15,
   "quote": "In all other states, the Network providers are those that participate in the Aetna Choice POS II product.",
   "reason": "Stated under 'General features of our Standard Option' (all states except Utah, where the Aetna Choice POS II Standard Network is the default and an Aetna Whole Health option exists)."
+ },
+ {
+  "code": "424",
+  "brochure": "71-028",
+  "source": "carrier_site",
+  "name": "UnitedHealthcare Choice Plus",
+  "url": "https://www.compassrosebenefits.com/standard-health-plan",
+  "retrieved": "2026-11-16",
+  "quote": "The Compass Rose Health Plan uses the UnitedHealthcare Choice Plus national provider network.",
+  "reason": "The 2027 brochure's Standard Option (EPO) section does not name its network. The plan's own 2027 Standard Option page does."
  }
 ]

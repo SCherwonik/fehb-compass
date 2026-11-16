@@ -43,15 +43,15 @@ test('a generic type description is not a network; an HMO falls back to its own'
 });
 
 test('a plan whose network cannot be read is left out, never guessed', () => {
-  const unknown = plans27.find((p) => p.type !== 'HMO' && !['Aetna', 'UnitedHealthcare', 'Cigna', 'Blue Cross'].includes(p.network_family) && !(networkLabel(p, p.code, facts)?.from === 'brochure'));
+  const unknown = plans27.find((p) => networkLabel(p, p.code, facts) === null);
   assert.ok(unknown, 'such a plan exists in the data');
   assert.equal(networkLabel(unknown, unknown.code, facts), null);
 });
 
 test('coverage: how many 2027 plans get a network line', () => {
-  const by = { brochure: 0, carrier: 0, family: 0, none: 0 };
+  const by = { brochure: 0, website: 0, carrier: 0, family: 0, none: 0 };
   for (const p of plans27) by[networkLabel(p, p.code, facts)?.from ?? 'none']++;
-  assert.equal(by.brochure + by.carrier + by.family + by.none, plans27.length);
+  assert.equal(by.brochure + by.website + by.carrier + by.family + by.none, plans27.length);
   assert.ok(by.brochure >= 30, `brochure-named networks: ${JSON.stringify(by)}`);
   assert.ok(by.none < plans27.length / 2, `most plans show a network: ${JSON.stringify(by)}`);
 });
@@ -67,5 +67,14 @@ test('plans whose brochure names the network now show it; plans whose brochure d
   assert.equal(mhbp.text, 'Aetna Choice POS II');
   assert.equal(mhbp.from, 'brochure');
   // these brochures state only a plan type (EPO / POS / PPO) or a network for a different option: nothing is guessed
-  for (const code of ['424', '431', '8W4', 'KX1']) assert.equal(networkLabel(plan(code), code, facts), null, code);
+  for (const code of ['431', '8W4', 'KX1']) assert.equal(networkLabel(plan(code), code, facts), null, code);
+});
+
+test('Compass Rose Standard: not in the brochure, but the plan\u2019s own website names it, and the tooltip says so', () => {
+  const l = networkLabel(plan('424'), '424', facts);
+  assert.equal(l.text, 'UnitedHealthcare Choice Plus');
+  assert.equal(l.from, 'website');
+  assert.match(l.title, /^Not named in the plan’s brochure\. From the plan’s own website \(compassrosebenefits\.com\), read 2026-11-16: “The Compass Rose Health Plan uses the UnitedHealthcare Choice Plus national provider network\.”$/);
+  // a website source never reads as a brochure quote elsewhere
+  assert.equal(networkLabel(plan('421'), '421', facts).from, 'brochure');
 });

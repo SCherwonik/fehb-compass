@@ -1,4 +1,5 @@
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -271,7 +272,8 @@ def test_facts_file_every_fact_has_provenance():
     def walk(o):
         if isinstance(o, dict):
             if "quote" in o:
-                assert isinstance(o["page"], int) and o["quote"]
+                # a network read from the plan's own website (carrier_site) has a url and no brochure page
+                assert (isinstance(o["page"], int) or o.get("source") == "carrier_site") and o["quote"]
                 if "ruling" not in o:  # adjudication blocks carry ruling/page/quote, not a match kind
                     assert o["match"] in ("exact", "overlap", "partial", "adjudicated")
             for x in o.values():
@@ -538,9 +540,40 @@ def test_tracked_network_overrides_are_well_formed_and_quotes_are_in_the_brochur
     assert entries
     for o in entries:
         assert o["code"] in facts and facts[o["code"]]["brochure"] == o["brochure"]
-        assert o["name"].strip() and o["reason"].strip() and isinstance(o["page"], int)
+        assert o["name"].strip() and o["reason"].strip()
         assert 0 < len(o["quote"]) <= v.MAX_QUOTE and v.squash(o["name"]) in v.squash(o["quote"])
+        if o.get("source") == "carrier_site":
+            # the plan's own website for a network its brochure does not name: url and the day it was read
+            assert o["url"].startswith("https://") and re.fullmatch(r"\d{4}-\d{2}-\d{2}", o["retrieved"])
+            fact = facts[o["code"]]["network"]["name"]
+            assert fact["source"] == "carrier_site" and fact["url"] == o["url"] and fact["page"] is None
+            continue
+        assert isinstance(o["page"], int)
         assert facts[o["code"]]["network"]["name"]["source"] == "network_overrides"
         txt = TXT / f"{o['brochure']}.txt"
         if txt.exists():
             assert v.squash(o["quote"]) in v.squash(v.load_pages(txt)[o["page"]])
+
+
+SITE_OV = {"code": "424", "brochure": "71-028", "source": "carrier_site", "name": "UnitedHealthcare Choice Plus",
+           "url": "https://www.example.com/standard", "retrieved": "2026-11-16",
+           "quote": "The plan uses the UnitedHealthcare Choice Plus national provider network.", "reason": "test"}
+
+
+def test_carrier_site_override_keeps_its_url_and_date_and_skips_the_brochure_check(tmp_path):
+    plans = {"424": {"brochure": "71-028", "network": {"type": "EPO"}}}
+    (tmp_path / "71-028.txt").write_text("=== PAGE 15 ===\nnot the sentence\n", encoding="utf-8")
+    assert v.apply_network_overrides(plans, [SITE_OV], tmp_path) == 1
+    name = plans["424"]["network"]["name"]
+    assert name["source"] == "carrier_site" and name["page"] is None and name["url"] == SITE_OV["url"]
+    assert name["retrieved"] == "2026-11-16" and name["evidence"] == SITE_OV["quote"]
+
+
+def test_carrier_site_override_needs_https_a_date_and_the_name_in_the_quote(tmp_path):
+    plans = {"424": {"brochure": "71-028"}}
+    with pytest.raises(ValueError, match="https url"):
+        v.apply_network_overrides(plans, [{**SITE_OV, "url": "http://www.example.com/x"}], tmp_path)
+    with pytest.raises(ValueError, match="retrieved date"):
+        v.apply_network_overrides(plans, [{**SITE_OV, "retrieved": "yesterday"}], tmp_path)
+    with pytest.raises(ValueError, match="not in its quote"):
+        v.apply_network_overrides(plans, [{**SITE_OV, "name": "Cigna Open Access Plus"}], tmp_path)

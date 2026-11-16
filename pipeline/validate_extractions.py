@@ -962,6 +962,17 @@ def apply_network_overrides(plans: dict, entries: list | None, txt_dir: Path | N
             raise ValueError(f"network_overrides: {o['code']} is not a plan of brochure {o['brochure']}")
         if not squash(o["name"]) or squash(o["name"]) not in squash(o["quote"]):
             raise ValueError(f"network_overrides: {o['code']} name {o['name']!r} is not in its quote")
+        if o.get("source") == "carrier_site":
+            # the plan's own website, for a network its brochure does not name: provenance is the page and the day it was read
+            if not str(o.get("url", "")).startswith("https://"):
+                raise ValueError(f"network_overrides: {o['code']} carrier_site needs an https url")
+            if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(o.get("retrieved", ""))):
+                raise ValueError(f"network_overrides: {o['code']} carrier_site needs a retrieved date (YYYY-MM-DD)")
+            net = p.setdefault("network", {})
+            net["name"] = {"quote": o["name"], "page": None, "match": "exact", "source": "carrier_site",
+                           "url": o["url"], "retrieved": o["retrieved"], "evidence": o["quote"]}
+            n += 1
+            continue
         txt = Path(txt_dir or PIPELINE / "raw" / "brochures_txt" / YEAR) / f"{o['brochure']}.txt"
         if txt.exists():
             page = load_pages(txt).get(o["page"], "")

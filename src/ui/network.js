@@ -29,6 +29,15 @@ export function networkLabel(plan, code, facts) {
   if (fact?.name) {
     const text = cleanNetworkName(fact.name);
     if (text && !GENERIC.test(text)) {
+      if (fact.site) {
+        let host = '';
+        try { host = new URL(fact.site.url).hostname.replace(/^www\./, ''); } catch { host = ''; }
+        return {
+          text,
+          from: 'website',
+          title: `Not named in the plan’s brochure. From the plan’s own website${host ? ` (${host})` : ''}${fact.site.retrieved ? `, read ${fact.site.retrieved}` : ''}: “${fact.site.evidence ?? fact.name}”`,
+        };
+      }
       return {
         text,
         from: 'brochure',
