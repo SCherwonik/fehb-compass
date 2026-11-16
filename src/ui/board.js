@@ -44,9 +44,11 @@ const idSafe = (k) => String(k).replace(/[^A-Za-z0-9_-]+/g, '_');
  *          summary, animate = true, enter = false, sectionMotion = false })
  * sectionMotion: sections opened by this update (Expand all) unfold with the same stagger as a single toggle.
  * Header descriptor: { title, subtitle, chips: [{text, tone}], total, totalLabel, bar: {p,o,d}, why }.
- * Rows need `code` and `rank`; `isMine` pins the column (sticky on wide screens).
+ * Rows need `code` and `rank`; `isMine` pins the column (sticky on wide screens), and so does `isEnded` (the user's
+ * 2026 plan with no 2027 version: a quieter, unranked reference column, styled is-ended).
  */
 const LEGEND = [['prem', 'Premium'], ['oop', 'Expected care'], ['dep', 'Account money']];
+const pinnedRow = (row) => row?.isMine === true || row?.isEnded === true;
 
 export function createBoard({ label = 'Plan comparison board', hooks = {}, onSectionToggle, legend = LEGEND } = {}) {
   const id = `bd${++uid}`;
@@ -216,7 +218,7 @@ export function createBoard({ label = 'Plan comparison board', hooks = {}, onSec
   function fillHeader(col, hd, scale, animateNum) {
     const { p } = col;
     const row = col.item.row;
-    p.rank.replaceChildren(h('span', { class: 'sr-only' }, 'Rank '), hd.rankText ?? `#${row.rank}`);
+    p.rank.replaceChildren(h('span', { class: 'sr-only' }, hd.rankPrefix ?? 'Rank '), hd.rankText ?? `#${row.rank}`);
     p.rank.classList.toggle('is-wide', Boolean(hd.rankText && hd.rankText.length > 4));
     p.rankSub.textContent = hd.rankSub ?? '';
     p.rankSub.hidden = !hd.rankSub;
@@ -315,7 +317,7 @@ export function createBoard({ label = 'Plan comparison board', hooks = {}, onSec
       h('td', { class: 'bd-band-corner' }),
       ...groups.map((g) => h('th', {
         scope: 'col', colspan: String(g.rows.length),
-        class: `bd-band${g.key === 'mine' ? ' is-mine' : ''}`,
+        class: `bd-band${g.key === 'mine' ? ' is-mine' : ''}${g.rows[0]?.isEnded ? ' is-ended' : ''}`,
       }, h('span', { class: 'bd-band-label' },
         h('span', { class: 'bd-band-name' }, g.label),
         h('span', { class: 'bd-band-count' }, g.note ?? (g.total > g.rows.length ? `best ${g.rows.length} of ${g.total}` : `${g.rows.length} ${g.rows.length === 1 ? 'plan' : 'plans'}`))))));
@@ -615,16 +617,17 @@ export function createBoard({ label = 'Plan comparison board', hooks = {}, onSec
       const col = byKey.get(key) ?? makeCol(key);
       col.item = it;
       col.idx = idx;
-      const mine = it.row.isMine === true;
-      col.base = `bd-cell${it.firstInGroup && idx > 0 ? ' is-gs' : ''}${mine ? ' is-mine' : ''}${it.row.rank === 1 ? ' is-top' : ''}`;
-      col.th.className = `bd-head${it.firstInGroup && idx > 0 ? ' is-gs' : ''}${mine ? ' is-mine' : ''}${it.row.rank === 1 ? ' is-top' : ''}`;
-      col.mth.className = `bd-mini${it.firstInGroup && idx > 0 ? ' is-gs' : ''}${mine ? ' is-mine' : ''}`;
+      const mine = pinnedRow(it.row);
+      const ended = mine && it.row.isEnded === true ? ' is-ended' : '';
+      col.base = `bd-cell${it.firstInGroup && idx > 0 ? ' is-gs' : ''}${mine ? ' is-mine' : ''}${ended}${it.row.rank === 1 ? ' is-top' : ''}`;
+      col.th.className = `bd-head${it.firstInGroup && idx > 0 ? ' is-gs' : ''}${mine ? ' is-mine' : ''}${ended}${it.row.rank === 1 ? ' is-top' : ''}`;
+      col.mth.className = `bd-mini${it.firstInGroup && idx > 0 ? ' is-gs' : ''}${mine ? ' is-mine' : ''}${ended}`;
       return col;
     });
     const keep = new Set(nextCols.map((c) => c.key));
     for (const [k] of byKey) if (!keep.has(k)) byKey.delete(k);
     cols = nextCols;
-    const mineNow = Boolean(cols[0]?.item.row.isMine);
+    const mineNow = Boolean(cols[0] && pinnedRow(cols[0].item.row));
     if (mineNow !== hasMine) { hasMine = mineNow; metrics = null; }
     el.classList.toggle('has-mine', hasMine);
 

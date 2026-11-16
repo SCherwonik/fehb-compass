@@ -477,7 +477,30 @@ export function sanitizeMatrixPrefs(v) {
  * filterMatrix().sections) output built over the board's plans; `open` maps section id -> boolean overrides.
  * Board row keys are 'mx:<section>:<field>' so they never collide with the board's own rows.
  */
-export function matrixBoardSections(sections, { open = {} } = {}) {
+/**
+ * The matrix cells of one plan that is not among the board's plans (the user's 2026 plan with no 2027 version),
+ * keyed by matrix row key, built with the same row definitions (buildMatrix) from that plan's own benefits.
+ * matrixBoardSections({ pinned }) looks its cells up by the board's row keys; rows it lacks show a plain dash.
+ */
+export function pinnedMatrixCells(benefits, { enrollment = 'self', status = 'active' } = {}) {
+  const out = new Map();
+  if (!benefits) return out;
+  for (const s of buildMatrix([{ code: '__pinned', benefits }], { enrollment, status })) {
+    for (const r of s.rows) if (!out.has(r.key) && r.cells[0]?.kind !== 'missing') out.set(r.key, r.cells[0]);
+  }
+  return out;
+}
+
+const PINNED_DASH = { text: '—', tone: 'muted', kind: 'missing', value: null, mx: { kind: 'missing' } };
+
+/** A pinned (2026) matrix cell on the board: the usual cell, marked 2026; a plain dash when the plan lacks the row. */
+export function pinnedBoardCell(c) {
+  if (!c) return { ...PINNED_DASH };
+  const b = boardCell(c);
+  return { ...b, sub: b.sub ? `${b.sub} · 2026` : '2026' };
+}
+
+export function matrixBoardSections(sections, { open = {}, pinned = null } = {}) {
   return (sections ?? []).map((s) => ({
     key: `mx-${s.id}`,
     matrixId: s.id,
@@ -498,7 +521,8 @@ export function matrixBoardSections(sections, { open = {} } = {}) {
         best: r.dir ?? null,
         // best-in-row over the board group's own cells, with the matrix's unit-aware rule
         bestOf: (cells) => new Set(rowBest(cells.map((c) => c.mx ?? { kind: 'missing' }), r.dir)),
-        cell: (row) => boardCell(byCode.get(row.code)),
+        // the pinned ended plan (row.isEnded) reads its own 2026 cells, never another plan's
+        cell: (row) => (row?.isEnded ? pinnedBoardCell(pinned?.get(r.key)) : boardCell(byCode.get(row.code))),
       };
     }),
   }));

@@ -389,8 +389,76 @@ export function totalLabelOf(row, withMeds = true) {
   return `per year, ${parts.join(', ')}`;
 }
 
+// ---------- the user's 2026 plan when it has no 2027 version (model.endedRow: isEnded, never ranked) ----------
+
+/** Said once in the ended column's header (and on its card). */
+export const ENDED_NOTE = 'No 2027 version: these are its 2026 numbers';
+
+/** 'per year, 2026 rates' plus what the 2027 totals carry and this one cannot (dental/vision, medications). */
+export function endedTotalLabel(ctx) {
+  const left = [ctx?.dvOn && 'dental/vision', ctx?.medsOn && 'meds'].filter(Boolean);
+  return `per year, 2026 rates${left.length ? `, excl. ${left.join(' and ')}` : ''}`;
+}
+
+/** Column header for the ended plan: "2026" in place of a rank, an "Ended in 2027" chip, 2026 totals. */
+export function endedHeader(row, ctx) {
+  const chips = [{ text: 'Ended in 2027', tone: 'ended' }, { text: TYPE_TEXT[row.plan?.type] ?? row.plan?.type ?? 'Plan', tone: 'type' }];
+  if (row.account) chips.push({ text: row.account, tone: 'acct' });
+  return {
+    rankText: '2026',
+    rankPrefix: 'Plan year ', // read as "Plan year 2026", not "Rank 2026"; the band above says "Not ranked"
+    title: row.plan?.name ?? row.code,
+    subtitle: row.plan?.carrier || row.plan?.network_family || '',
+    chips,
+    total: row.cost?.total ?? null,
+    totalLabel: endedTotalLabel(ctx),
+    bar: { p: row.cost?.premium ?? 0, o: row.cost?.oop ?? 0, d: row.cost?.hsaOffset ?? 0 },
+    why: `${ENDED_NOTE}.`,
+  };
+}
+
+// Board rows the ended column fills from its 2026 figures (the same cell functions, every number marked 2026).
+const ENDED_FILLED = new Set(['total', 'premium', 'oop', 'ceiling', 'deductible', 'oopMax', 'coinsurance', 'account', 'deposit', 'family', 'ptype']);
+const ENDED_BASELINE = { vsEndedTotal: 'total', vsEndedPremium: 'premium', vsEndedDeductible: 'deductible', vsEndedOopMax: 'oopMax' };
+const endedDash = (sub) => ({ text: DASH, sub, value: null, tone: 'muted' });
+const ENDED_PLAIN = new Set(['account', 'family', 'ptype']); // words, not 2026 numbers: shown as they are
+const mark2026 = (sub) => {
+  if (!sub) return '2026 rates';
+  const s = String(sub);
+  return /2027/.test(s) ? s.replace(/2027/g, '2026') : `${s} · 2026`;
+};
+
+/**
+ * The ended plan's cell for a board row definition: 2026 figures where the row can be filled from them, its own
+ * baseline in the "vs your 2026 plan" rows, the matrix's own 2026 cells (row keys 'mx:...', see
+ * matrixBoardSections' `pinned`), and a plain dash for everything that needs a 2027 plan (value score, changes
+ * since 2026, medications).
+ */
+export function endedCell(def, row, ctx) {
+  if (String(def.key).startsWith('mx:')) return def.cell(row, ctx);
+  if (ENDED_FILLED.has(def.key)) {
+    const c = def.cell(row, ctx);
+    if (ENDED_PLAIN.has(def.key) || c.text === DASH) return c;
+    return { ...c, sub: mark2026(c.sub) };
+  }
+  const k = ENDED_BASELINE[def.key];
+  if (k) return { text: usd(ctx?.baseline?.[k]), sub: 'your 2026 baseline', tone: 'muted', value: null };
+  if (def.key === 'value') return endedDash('not ranked: no 2027 version');
+  if (['chgPremium', 'chgDeductible', 'chgOopMax', 'flags'].includes(def.key)) return endedDash('no 2027 version');
+  return endedDash();
+}
+
+/** Sections whose cells hand the ended plan's column to endedCell (other columns are untouched). */
+export function withEndedColumn(sections) {
+  return (sections ?? []).map((s) => ({
+    ...s,
+    rows: s.rows.map((def) => ({ ...def, cell: (row, ctx) => (row?.isEnded ? endedCell(def, row, ctx) : def.cell(row, ctx)) })),
+  }));
+}
+
 /** Generic column header descriptor for a medical plan row. */
 export function medicalHeader(row, group, ctx, scope) {
+  if (row.isEnded) return endedHeader(row, ctx);
   const chips = row.isMine ? [{ text: 'Your plan · 2027', tone: 'mine' }] : [];
   if (row.area === 'partial') {
     chips.push({ text: row.areaSplit ? 'Part of your ZIP' : ctx?.stateCode ? `Part of ${ctx.stateCode}` : 'Part of state', tone: 'area' });

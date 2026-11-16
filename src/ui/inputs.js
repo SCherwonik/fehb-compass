@@ -1,7 +1,7 @@
 // Input panel: builds controls once, then syncs them from state in place (no re-render churn).
 import { SCENARIOS } from '../engine/scenarios.js';
 import { STATE_NAMES, statesFromServiceArea, plansForYear, networkFamilies } from '../data.js';
-import { countsByFamily, groupCurrentPlanOptions } from './model.js';
+import { countsByFamily, groupCurrentPlanOptions, planMeta } from './model.js';
 import { describeUsage } from './assumptions.js';
 import { createScenarioSection } from './scenario.js';
 import { glp1Filter } from './meds.js';
@@ -521,7 +521,7 @@ export function renderInputs(form, { data, store, meds }) {
       : z ? `ZIP ${z} prices dental; health plans follow the state you pick here.` : 'Plans are matched by state. Your ZIP code fills this in.';
     syncCurrentModel(s.location.state);
     current.sync(s.currentPlan2026);
-    mine.sync(s);
+    mine.sync(s, { ended: Boolean(s.currentPlan2026) && !planMeta(data, 2027, s.currentPlan2026) });
     if (!isMedical) mine.el.hidden = true; // "include my plan" is a health plan option
     account.sync(s.account);
     syncChips(s, true);
@@ -535,6 +535,9 @@ export function renderInputs(form, { data, store, meds }) {
   return store.subscribe(sync);
 }
 
+const MINE_HINT = 'Always compare against what staying put costs in 2027, whatever the filters.';
+const MINE_HINT_ENDED = 'Your plan has no 2027 version: this shows its 2026 numbers pinned first, for comparison.';
+
 /**
  * "Include my plan (2027 version)" switch, bound by the caller to state.includeMine.
  * Shown only when a 2026 plan is chosen. sync(state) sets checked/hidden.
@@ -545,15 +548,20 @@ export function mineSwitch(id, { compact = false } = {}) {
     h('label', { class: 'switch', for: id },
       h('span', { class: 'switch-copy' },
         h('span', { class: 'switch-title' }, 'Include my plan (2027 version)'),
-        !compact && h('span', { class: 'switch-hint' }, 'Always compare against what staying put costs in 2027, whatever the filters.')),
+        !compact && h('span', { class: 'switch-hint' }, MINE_HINT)),
       input,
       h('span', { class: 'switch-track', 'aria-hidden': 'true' }, h('span', { class: 'switch-knob' }))));
+  const hint = el.querySelector('.switch-hint');
   return {
     el,
     input,
-    sync(s) {
+    // ended: the user's plan has no 2027 version, so the switch shows its 2026 numbers pinned for comparison
+    sync(s, { ended = false } = {}) {
       el.hidden = !s.currentPlan2026;
       input.checked = s.includeMine !== false;
+      const text = ended ? MINE_HINT_ENDED : MINE_HINT;
+      if (hint && hint.textContent !== text) hint.textContent = text;
+      el.title = compact && ended ? MINE_HINT_ENDED : '';
     },
   };
 }

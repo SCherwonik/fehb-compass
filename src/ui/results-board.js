@@ -3,9 +3,9 @@
 // full benefits matrix (matrix-model.js: prescriptions first), so care costs have one source of truth.
 import { createBoard } from './board.js';
 import { groupPlans } from './grouping.js';
-import { MEDICAL_SECTIONS, boardContext, sectionsFor, medicalHeader, scopeText } from './board-model.js';
+import { MEDICAL_SECTIONS, boardContext, sectionsFor, medicalHeader, scopeText, withEndedColumn } from './board-model.js';
 import { endedBaseline } from './model.js';
-import { buildMatrix, filterMatrix, matrixBoardSections } from './matrix-model.js';
+import { buildMatrix, filterMatrix, matrixBoardSections, pinnedMatrixCells } from './matrix-model.js';
 import { createMatrixToolbar, matrixPrefs, setMatrixPrefs, onMatrixPrefs } from './matrix.js';
 import { rxSummaryRows } from './rx-model.js';
 import { rxBoardSections, rxBoardHooks } from './rx-board.js';
@@ -13,7 +13,8 @@ import { rxBoardSections, rxBoardHooks } from './rx-board.js';
 /** Text for the note under the results header about the user's own plan ('' when there is nothing to say). */
 export function mineNoteText(data, state, res, where) {
   const name = data.plans.find((p) => p.year === 2026 && p.code === state.currentPlan2026)?.name ?? 'Your plan';
-  if (res.mineStatus === 'ended') return `${name} has no 2027 version, so it cannot be pinned. Savings are measured against what it cost in 2026.`;
+  if (res.mineStatus === 'ended' && res.ended) return `${name} ended after 2026, so its 2026 numbers are pinned first for comparison. They are not ranked.`;
+  if (res.mineStatus === 'ended') return `${name} has no 2027 version and no 2026 rate for this coverage, so it cannot be pinned. Savings are measured against what it cost in 2026.`;
   if (res.mineStatus === 'uncostable') return `${name} has no 2027 rate for this coverage, so it cannot be pinned.`;
   if (res.mineStatus === 'included' && res.notInState) return `${name} (2027) is not listed for ${where ?? 'nationwide enrollment'}. It is pinned so you can compare.`;
   if (res.mineStatus === 'included' && res.mine) {
@@ -61,6 +62,9 @@ export function createResultsBoard() {
     const groups = groupPlans(res.others, state.group);
     if (res.mine) {
       groups.unshift({ key: 'mine', label: 'Your plan', rows: [res.mine], total: 1, note: opts.mineWhere ? `2027 version, not listed for ${opts.mineWhere}` : '2027 version' });
+    } else if (res.ended) {
+      // no 2027 version: its 2026 numbers as a reference column, pinned like "your plan" but never ranked
+      groups.unshift({ key: 'mine', label: 'Your 2026 plan (ended)', rows: [res.ended], total: 1, note: 'Not ranked' });
     }
     const ctx = boardContext(res.ranked, state, res.mine, res.mine ? null : endedBaseline(data, state));
     ctx.filtersOn = res.filtersOn;
@@ -68,7 +72,7 @@ export function createResultsBoard() {
     // the full benefits matrix over every plan on the board
     const onBoard = [];
     const seen = new Set();
-    for (const g of groups) for (const r of g.rows) if (!seen.has(r.code)) { seen.add(r.code); onBoard.push({ code: r.code, benefits: r.benefits }); }
+    for (const g of groups) for (const r of g.rows) if (!r.isEnded && !seen.has(r.code)) { seen.add(r.code); onBoard.push({ code: r.code, benefits: r.benefits }); }
     const rxReady = opts.rx?.factsStatus === 'ready';
     const matrix = buildMatrix(onBoard, {
       year: 2027, enrollment: state.enrollment, status: state.status,
@@ -77,7 +81,9 @@ export function createResultsBoard() {
     const p = matrixPrefs();
     const f = filterMatrix(matrix, { diffOnly: p.diffOnly, query });
     tools.sync({ hiddenRows: f.hiddenRows, matched: f.matched, query });
-    const mx = matrixBoardSections(f.sections, { open: p.open });
+    // the ended plan's own 2026 cells for the same matrix rows (rows it lacks show a dash)
+    const pinned = res.ended ? pinnedMatrixCells(res.ended.benefits, { enrollment: state.enrollment, status: state.status }) : null;
+    const mx = matrixBoardSections(f.sections, { open: p.open, pinned });
 
     const base = sectionsFor(MEDICAL_SECTIONS, ctx);
     const tail = base.filter((s) => s.key === 'drugs' || s.key === 'network');
@@ -86,7 +92,8 @@ export function createResultsBoard() {
     const head = base.filter((s) => !tail.includes(s));
     const ci = head.findIndex((s) => s.key === 'changes');
     if (rxChanges) head.splice(ci + 1, 0, rxChanges);
-    const sections = [...head, rxDrugs, ...mx, ...tail.filter((s) => s.key === 'network')];
+    const all = [...head, rxDrugs, ...mx, ...tail.filter((s) => s.key === 'network')];
+    const sections = res.ended ? withEndedColumn(all) : all;
 
     const shown = groups.reduce((n, g) => n + (g.key === 'mine' ? 0 : g.rows.length), 0);
     const segs = groups.filter((g) => g.key !== 'mine').length;
@@ -96,7 +103,7 @@ export function createResultsBoard() {
     if (state.group === 'all') text = `Showing all ${plans(n)}`;
     else if (state.group === 'top3') text = `Showing ${plans(shown)}: the top ${shown} of ${n} available`;
     else text = `Showing ${plans(shown)}: top 3 in ${segs} ${segs === 1 ? 'group' : 'groups'} of ${n} available`;
-    text += res.mine ? ', plus your plan.' : '.';
+    text += res.mine ? ', plus your plan.' : res.ended ? ', plus your 2026 plan for reference (not ranked).' : '.';
     board.update({
       groups,
       sections,

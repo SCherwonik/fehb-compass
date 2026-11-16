@@ -3,11 +3,11 @@
 import { h, svg, ICON_CHECK, ICON_CHEVRON } from './dom.js';
 import { segmented, mineSwitch } from './inputs.js';
 import { assumptionChips, describeUsage, effectiveUsage, overrideChanges, inNetworkAtMax } from './assumptions.js';
-import { computeRows, savingsVsCurrent, availablePlans, servesState, SORTS, rankWithMine, baseTotal, dvCost, dvLabel, basisOf, basisNote, anyMeds, personLimitsNote, areaChip, rankTotal } from './model.js';
+import { computeRows, savingsVsCurrent, availablePlans, servesState, SORTS, rankWithMine, baseTotal, dvCost, dvLabel, basisOf, basisNote, anyMeds, anyDv, personLimitsNote, areaChip, rankTotal, planMeta } from './model.js';
 import { dvMathLines } from './dental-board.js';
 import { GROUP_LABELS, GROUP_MODES } from './grouping.js';
 import { createResultsBoard, mineNoteText } from './results-board.js';
-import { totalLabelOf } from './board-model.js';
+import { totalLabelOf, endedTotalLabel, ENDED_NOTE } from './board-model.js';
 import { renderCompare, revealCompare } from './compare.js';
 import { FLAG_TEXT } from '../engine/diff.js';
 import { ASSUMED_PRICES, ASSUMPTIONS_NOTE } from '../engine/assumptions.js';
@@ -242,6 +242,8 @@ export function createResults(main, { store, onRanked }) {
       fact('deductible', 'Deductible'),
       fact('oopMax', 'Out-of-pocket max'));
     r.share = h('p', { class: 'card-share' });
+    // the user's 2026 plan with no 2027 version (row.isEnded): one line saying these are 2026 numbers
+    r.endedNote = h('p', { class: 'card-ended-note', hidden: true }, `${ENDED_NOTE}. Shown for comparison, not ranked.`);
     r.chips = h('ul', { class: 'card-chips', 'aria-label': 'Notes' });
     const mathId = `math-${code}`;
     r.mathBtn = h('button', { type: 'button', class: 'btn btn-quiet math-toggle', 'aria-expanded': 'false', 'aria-controls': mathId },
@@ -256,6 +258,7 @@ export function createResults(main, { store, onRanked }) {
         r.rank,
         h('div', { class: 'card-id' }, r.name, r.meta),
         h('div', { class: 'card-total' }, r.total, r.totalLabel)),
+      r.endedNote,
       r.bar,
       r.facts,
       r.share,
@@ -282,18 +285,22 @@ export function createResults(main, { store, onRanked }) {
     const { r } = rec;
     const prev = rec.row;
     rec.row = row;
-    setText(r.rank, String(rank));
-    rec.el.classList.toggle('is-top', rank === 1);
+    // the ended plan (no 2027 version) is a reference card: "2026" in place of a rank, never the top pick
+    const ended = row.isEnded === true;
+    setText(r.rank, ended ? '2026' : String(rank));
+    rec.el.classList.toggle('is-top', rank === 1 && !ended);
+    rec.el.classList.toggle('is-ended', ended);
+    r.endedNote.hidden = !ended;
     if (!prev) {
       setText(r.name, row.plan.name);
       const bits = [row.plan.type, row.plan.network_family, `code ${row.code}`];
       setText(r.meta, bits.filter(Boolean).join(' · '));
-      rec.el.setAttribute('aria-label', `${row.plan.name}`);
+      rec.el.setAttribute('aria-label', ended ? `${row.plan.name}, your 2026 plan, ended in 2027: 2026 numbers, not ranked` : `${row.plan.name}`);
     }
     const anim = animateNums && visible.has(rec.el);
     // headline = the ranked total: without medications unless every shown plan has every drug priced (I3)
     tweenNumber(r.total, rankTotal(row, medsInRank), usd, { animate: anim });
-    setText(r.totalLabel, totalLabelOf(row, medsInRank));
+    setText(r.totalLabel, ended ? endedTotalLabel({ medsOn, dvOn }) : totalLabelOf(row, medsInRank));
 
     // bar: premium | expected care, with the deposit shown as a hatched portion at the end
     const gross = row.cost.premium + row.cost.oop;
@@ -302,10 +309,11 @@ export function createResults(main, { store, onRanked }) {
     if (barKey !== rec.barKey) { rec.barKey = barKey; r.bar.style.cssText = barKey; } // scoped to the bar's subtree
 
     tweenNumber(r.premium.v, row.cost.premium, usd, { animate: anim });
-    if (row.diff.status === 'new') { setClass(r.premium.d, 'fact-d delta delta-new'); setText(r.premium.d, 'New for 2027'); }
+    if (ended) { setClass(r.premium.d, 'fact-d'); setText(r.premium.d, '2026 rate'); }
+    else if (row.diff.status === 'new') { setClass(r.premium.d, 'fact-d delta delta-new'); setText(r.premium.d, 'New for 2027'); }
     else setDelta(r.premium.d, row.diff.premiumChange, row.diff.premiumPct ? ` (${signedPct(row.diff.premiumPct)})` : '');
     tweenNumber(r.care.v, row.cost.oop, usd, { animate: anim });
-    setText(r.care.d, yearText(state));
+    setText(r.care.d, ended ? `${yearText(state)} · 2026` : yearText(state));
     setClass(r.care.d, 'fact-d');
 
     const raw = row.account ? row.benefits.account_contribution?.[state.enrollment] ?? 0 : 0;
@@ -315,13 +323,14 @@ export function createResults(main, { store, onRanked }) {
       tweenNumber(r.deposit.v, row.cost.hsaOffset > 0 ? -row.cost.hsaOffset : 0, usd, { animate: anim });
       setClass(r.deposit.d, 'fact-d');
       setText(r.deposit.d, !raw
-        ? 'none listed for 2027'
+        ? `none listed for ${ended ? 2026 : 2027}`
         : row.account === 'HRA' && raw > row.cost.hsaOffset
           ? `of ${usd(raw)} available`
-          : row.account === 'HRA' ? 'toward care costs' : 'yours to keep');
+          : row.account === 'HRA' ? 'toward care costs' : `yours to keep${ended ? ' · 2026' : ''}`);
     }
     setText(r.deductible.v, usd(row.facts.deductible));
-    setDelta(r.deductible.d, row.diff.deductibleChange);
+    if (ended) { setClass(r.deductible.d, 'fact-d'); setText(r.deductible.d, '2026'); }
+    else setDelta(r.deductible.d, row.diff.deductibleChange);
     // a deductible taken from the plan brochure instead of OPM's spreadsheet (pipeline/benefit_overrides.json)
     const dedBadge = overrideBadge(row.benefits, /^Annual deductible/);
     if (Boolean(dedBadge) !== Boolean(r.deductible.badge)) {
@@ -330,7 +339,8 @@ export function createResults(main, { store, onRanked }) {
       if (r.deductible.badge) r.deductible.box.querySelector('dd').append(r.deductible.badge);
     }
     setText(r.oopMax.v, usd(row.facts.oopMax));
-    setDelta(r.oopMax.d, row.diff.oopMaxChange);
+    if (ended) { setClass(r.oopMax.d, 'fact-d'); setText(r.oopMax.d, '2026'); }
+    else setDelta(r.oopMax.d, row.diff.oopMaxChange);
     setText(r.share, costShareSummary(row.benefits, row.facts.coinsurance) || 'Cost sharing varies; see the plan brochure.');
 
     // chips: your plan / vs your plan, firmness, status, warnings (rebuilt only when their content changes)
@@ -346,10 +356,19 @@ export function createResults(main, { store, onRanked }) {
     const oon = row.cost.breakdown.oonEstimate === true;
     const st = state.location.state;
     const area = areaChip(row, st ? STATE_NAMES[st] ?? st : null, st ? state.location.zip : null, data.zipCounty ?? null);
-    const key = `${row.isMine ? `mine:${mineWhere}:${rankTag}` : ''}|${vsMine}:${vsExcl}|${row.cost.firmness}|${row.diff.status}|${row.diff.flags.join(',')}|${oon}|${area?.title ?? ''}`;
+    const key = `${ended ? 'ended' : ''}${row.isMine ? `mine:${mineWhere}:${rankTag}` : ''}|${vsMine}:${vsExcl}|${row.cost.firmness}|${row.diff.status}|${row.diff.flags.join(',')}|${oon}|${area?.title ?? ''}`;
     if (key !== rec.chipsKey) {
       rec.chipsKey = key;
-      const items = [
+      const items = ended ? [
+        h('li', { class: 'tag tag-ended' }, 'Your 2026 plan'),
+        h('li', { class: 'tag tag-ended' }, 'Ended in 2027'),
+        h('li', { class: 'tag', title: 'Premium and benefits from OPM’s 2026 files: this plan has no 2027 version.' }, '2026 rates'),
+        row.cost.firmness === 'fixed'
+          ? h('li', { class: 'tag tag-fixed', title: 'Every service in this scenario is a flat copay, so this total does not depend on assumed prices.' }, 'Fixed cost')
+          : h('li', { class: 'tag tag-est', title: 'Part of this total depends on assumed prices for care. See the math.' }, 'Estimated'),
+        oon && h('li', { class: 'tag tag-warn', title: 'Out-of-network lines are counted at full cost: OPM publishes no out-of-network cost sharing. See the math.' },
+          svg(ICON_WARN), 'Out-of-network estimate'),
+      ] : [
         row.isMine && h('li', { class: 'tag tag-mine' }, 'Your plan · 2027'),
         rankTag && h('li', { class: 'tag' }, rankTag),
         area && h('li', { class: 'tag tag-warn tag-area', title: area.title }, svg(ICON_WARN), area.text,
@@ -368,6 +387,14 @@ export function createResults(main, { store, onRanked }) {
       r.chips.replaceChildren(...items.filter(Boolean));
     }
 
+    // compare and the brochure parts are about 2027 plans: the ended reference card has neither
+    r.cmpBtn.hidden = ended;
+    if (ended) {
+      r.rx.button.hidden = true;
+      r.rx.medsBox.hidden = true;
+      if (rec.open) fillMath(rec);
+      return;
+    }
     const selected = state.selectedPlans.includes(row.code);
     rec.el.classList.toggle('is-selected', selected);
     r.cmpBtn.setAttribute('aria-pressed', String(selected));
@@ -387,7 +414,8 @@ export function createResults(main, { store, onRanked }) {
     if (!row) return;
     const { cost } = row;
     const b = cost.breakdown;
-    const rate = data.rates[2027][row.code][state.enrollment];
+    const year = row.isEnded ? 2026 : 2027; // the ended reference card is costed from 2026 rates and benefits
+    const rate = data.rates[year][row.code][state.enrollment];
     const premiumHow = state.status === 'retiree'
       ? `${usdExact(rate.monthly_retiree)} a month × 12`
       : `${usdExact(rate.biweekly_active)} per paycheck × 26`;
@@ -470,7 +498,7 @@ export function createResults(main, { store, onRanked }) {
         medsBlock,
         h('p', { class: 'math-h' }, 'Assumed price of each service'),
         h('ul', { class: 'math-prices' }, prices),
-        h('p', { class: 'math-p math-fine' }, `${ASSUMPTIONS_NOTE.replace('ASSUMED_PRICES', 'these prices')} Your plan's copays and coinsurance come from OPM's 2027 benefits file.`),
+        h('p', { class: 'math-p math-fine' }, `${ASSUMPTIONS_NOTE.replace('ASSUMED_PRICES', 'these prices')} Your plan's copays and coinsurance come from OPM's ${year} benefits file.`),
         otherWarnings.length > 0 && h('p', { class: 'math-h' }, 'Could not price'),
         otherWarnings.length > 0 && h('ul', { class: 'math-warn' }, otherWarnings.map((w) => h('li', {}, w)))));
   }
@@ -600,6 +628,7 @@ export function createResults(main, { store, onRanked }) {
 
   let first = true;
   let medsOn = false; // any shown plan has priced medications (cards and board agree on this)
+  let dvOn = false; // dental/vision is in the shown totals (the ended 2026 card says it is left out of its own)
   let medsInRank = true; // the ranked totals include them (every shown plan has every drug priced: model.medsRanked)
   function render(state = store.get()) {
     if (!data) return;
@@ -611,14 +640,16 @@ export function createResults(main, { store, onRanked }) {
     mine = res.mine;
     mineFiltersOn = res.filtersOn;
     // the user's plan pinned first, every other plan in its true rank order
-    const rows = res.mine ? [res.mine, ...res.others] : res.ranked;
+    // a plan with no 2027 version: its 2026 reference card pinned first (never ranked or counted)
+    const rows = res.mine ? [res.mine, ...res.others] : res.ended ? [res.ended, ...res.others] : res.ranked;
     medsOn = anyMeds(rows);
+    dvOn = anyDv(rows);
     medsInRank = res.medsInRank !== false;
     sortCtl.sync(ui.sort);
     typeCtl.sync(ui.type);
     viewCtl.sync(state.view);
     groupSel.value = state.group;
-    mineCtl.sync(state);
+    mineCtl.sync(state, { ended: Boolean(state.currentPlan2026) && !planMeta(data, 2027, state.currentPlan2026) });
     sortCtl.el.hidden = isBoard; // the board always ranks by estimated total
     groupCtl.hidden = !isBoard;
 

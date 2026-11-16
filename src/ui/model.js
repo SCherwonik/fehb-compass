@@ -416,7 +416,9 @@ export function filtersActive(state, type = 'all', { glp1Applies = true } = {}) 
  *   viewRank:   its rank inside the filtered view, or null when the filters exclude it
  *   rank:       = globalRank (what the pinned header shows, as "#21 overall")
  * opts.type: the UI-local plan type filter that produced `rows` ('all' when none).
- * -> { ranked, others, mine, mineStatus, notInState, filtersOn }
+ * -> { ranked, others, mine, ended, mineStatus, notInState, filtersOn }
+ *   ended:   when mineStatus is 'ended' (no 2027 version), the plan's 2026 row (endedRow) pinned as a reference,
+ *            or null when it cannot be costed; it is never in ranked/others and has no rank
  *   ranked:  others plus mine, in sort order (value scores and the #1 total are computed over this)
  *   mine:    the user's 2027 row (flagged isMine) or null; others: ranked minus mine
  *   mineStatus: 'none' (no current plan) | 'off' (toggle off: behave as before) | 'ended' (no 2027 version)
@@ -428,13 +430,14 @@ export function rankWithMine(data, state, rows, sortKey = 'total', { type = 'all
   // the GLP-1 filter only narrows anything once the brochure facts are loaded
   const filtersOn = filtersActive(state, type, { glp1Applies: Boolean(data.brochure) });
   const rank = (list) => sortRows(list, sortKey).map((r, i) => ({ ...r, rank: i + 1 }));
-  const plain = (mineStatus) => {
+  const plain = (mineStatus, ended = null) => {
     const ranked = rank(rows);
-    return { ranked, others: ranked, mine: null, mineStatus, notInState: false, filtersOn, medsInRank: medsRanked(ranked) };
+    return { ranked, others: ranked, mine: null, ended, mineStatus, notInState: false, filtersOn, medsInRank: medsRanked(ranked) };
   };
   if (!code) return plain('none');
   if (state.includeMine === false) return plain('off');
-  if (!planMeta(data, 2027, code)) return plain('ended');
+  // no 2027 version: its 2026 numbers ride along as a reference column/card (endedRow), never ranked
+  if (!planMeta(data, 2027, code)) return plain('ended', endedRow(data, state));
 
   const viewRanked = rank(rows); // the filtered view's own ranking (identical to the toggle-off ranking)
   const inView = viewRanked.find((r) => r.code === code) ?? null;
@@ -453,6 +456,7 @@ export function rankWithMine(data, state, rows, sortKey = 'total', { type = 'all
   return {
     ranked: order.map((c) => byCode.get(c)),
     mine,
+    ended: null,
     others,
     mineStatus: 'included',
     medsInRank: medsRanked([...others, mine]),
@@ -466,33 +470,70 @@ export function rankWithMine(data, state, rows, sortKey = 'total', { type = 'all
  * { code, name, total, premium, deductible, oopMax } from the 2026 rates and benefits, or null.
  */
 export function endedBaseline(data, state) {
+  const row = endedRow(data, state);
+  if (!row) return null;
+  return {
+    code: row.code,
+    name: row.plan.name,
+    total: row.cost.total,
+    premium: row.cost.premium,
+    deductible: row.facts?.deductible ?? null,
+    oopMax: row.facts?.oopMax ?? null,
+  };
+}
+
+/**
+ * The user's 2026 plan when it has no 2027 version, as a row shaped like makeRow's (cards and the board render it)
+ * but costed from the 2026 rates and benefits with the same engine inputs (scenario, overrides, custom lines).
+ * A reference only: isEnded true, rank null, never ranked or counted. Medications and dental/vision are not in it
+ * (2026 plans cannot be priced with them), so its total is the like-for-like basis (baseTotal) the "vs" rows use.
+ * null when there is no such plan or it has no 2026 rate for this coverage.
+ */
+export function endedRow(data, state) {
   const code = state.currentPlan2026;
   if (!code || planMeta(data, 2027, code)) return null;
   const input = planInput(data, 2026, code);
   if (!input || !input.rate[state.enrollment]) return null;
+  const inputs = costInputs(state);
+  let cost;
+  let facts;
   try {
-    const inputs = costInputs(state);
-    const cost = planTotal(input, inputs);
-    const facts = planFacts(input, inputs);
-    if (!Number.isFinite(cost.total)) return null;
-    return {
-      code,
-      name: planMeta(data, 2026, code)?.name ?? `Plan ${code}`,
-      total: cost.total,
-      premium: cost.premium,
-      deductible: facts?.deductible ?? null,
-      oopMax: facts?.oopMax ?? null,
-    };
-  } catch {
-    return null;
-  }
+    cost = planTotal(input, inputs);
+    facts = planFacts(input, inputs);
+  } catch { return null; }
+  if (!Number.isFinite(cost.total)) return null;
+  const meta = planMeta(data, 2026, code) ?? { code, year: 2026, name: `Plan ${code}` };
+  return {
+    code,
+    year: 2026,
+    isEnded: true,
+    rank: null,
+    plan: meta,
+    plan2026: meta,
+    benefits: input.benefits,
+    cost,
+    facts,
+    facts2026: facts,
+    diff: { status: 'ended', flags: [] },
+    account: input.accountType ?? null,
+    meds: null,
+    dv: null,
+    baseTotal: cost.total,
+    area: null,
+    areaSplit: null,
+  };
 }
 
-/** Board segments: the user's plan pinned as its own first group (true rank kept), then state.group over the rest. */
+/**
+ * Board segments: the user's plan pinned as its own first group (true rank kept), then state.group over the rest.
+ * A plan with no 2027 version is pinned the same way as its 2026 reference row (never ranked).
+ */
 export function boardGroups(data, state, rows, n = 3) {
   const res = rankWithMine(data, state, rows, 'total');
   const groups = groupPlans(res.others, state.group, n);
-  return res.mine ? [{ key: 'mine', label: 'Your plan', rows: [res.mine], total: 1 }, ...groups] : groups;
+  if (res.mine) return [{ key: 'mine', label: 'Your plan', rows: [res.mine], total: 1 }, ...groups];
+  if (res.ended) return [{ key: 'mine', label: 'Your 2026 plan (ended)', rows: [res.ended], total: 1 }, ...groups];
+  return groups;
 }
 
 /**
