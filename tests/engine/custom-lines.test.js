@@ -219,7 +219,7 @@ test('sanitizeLine: caps, coercion, label cleaning, tier only on rx kinds, hosti
 
 test('every custom kind is known to the engine and the UI metadata', () => {
   const kinds = ['pcp', 'specialist', 'urgent', 'er', 'hospital_stay', 'surgery_outpatient', 'lab', 'imaging', 'therapy',
-    'rx_generic', 'rx_brand', 'rx_specialty', 'other'];
+    'rx_generic', 'rx_brand', 'rx_specialty', 'other', 'maternity'];
   assert.deepEqual(Object.keys(CUSTOM_KINDS).sort(), kinds.sort());
   for (const [k, m] of Object.entries(CUSTOM_KINDS)) {
     assert.ok(m.label && m.price > 0, k);
@@ -231,7 +231,7 @@ test('every custom kind is known to the engine and the UI metadata', () => {
 
 test('presets are data-driven, valid and documented', () => {
   const ids = CUSTOM_PRESETS.map((p) => p.id);
-  assert.deepEqual(ids, ['surgery', 'er_admission', 'chronic']);
+  assert.deepEqual(ids, ['surgery', 'er_admission', 'chronic', 'baby']);
   for (const p of CUSTOM_PRESETS) {
     assert.ok(p.label && p.description, p.id);
     assert.deepEqual(sanitizeLines(p.lines), p.lines, `${p.id} lines are already clean`);

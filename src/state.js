@@ -103,7 +103,7 @@ const SCENARIO = { healthy: 'h', typical: 't', condition: 'c', worst: 'w', nothi
 const OVERRIDE = { hospitalStays: 'h', erVisits: 'e', specialistVisits: 's', pcpVisits: 'p', rxMonthly: 'r' };
 const KIND = {
   pcp: 'p', specialist: 's', urgent: 'u', er: 'e', hospital_stay: 'h', surgery_outpatient: 'o', lab: 'l',
-  imaging: 'i', therapy: 't', rx_generic: 'g', rx_brand: 'b', rx_specialty: 'x', other: 'z',
+  imaging: 'i', therapy: 't', rx_generic: 'g', rx_brand: 'b', rx_specialty: 'x', other: 'z', maternity: 'm',
 };
 const VIEW = { cards: 'c', board: 'b' };
 const GROUP = { top3: 't', carrier: 'c', type: 'p', account: 'a', all: 'x' };

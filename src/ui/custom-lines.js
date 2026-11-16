@@ -147,6 +147,11 @@ export function createCustomLines({ store }) {
     if (line.outOfNetwork) hint = 'Out-of-network estimate: counted at full cost, up to the plan’s out-of-network limit when it lists one.';
     else if (meta.rx && !Number.isInteger(line.tier)) hint = 'Without a tier this counts at the full price you enter. Pick the tier from the plan’s formulary to apply its copay.';
     else if (meta.rx) hint = `Priced with each plan’s ${TIER_TEXT[line.tier].toLowerCase()} copay or coinsurance.`;
+    else if (meta.maternity) {
+      hint = 'One pregnancy (prenatal care, delivery, postpartum care and the hospital stay for the birth), priced with each plan’s '
+        + 'own maternity terms from its 2027 brochure. Where those terms cannot be priced, that plan’s total leaves this out and says so. '
+        + 'Newborn care is not included.';
+    }
     else hint = `Priced with each plan’s ${meta.field.toLowerCase()} benefit.`;
     f.hint.textContent = hint;
     row.el.classList.toggle('is-oon', line.outOfNetwork === true);
@@ -275,7 +280,7 @@ export function createCustomLines({ store }) {
     if (!p) return;
     const added = appendRows(p.lines);
     presetMsg.textContent = added === p.lines.length
-      ? `Added ${p.label.toLowerCase()}: ${p.lines.length} lines.`
+      ? `Added ${p.label.toLowerCase()}: ${p.lines.length} ${p.lines.length === 1 ? 'line' : 'lines'}.`
       : added === 0 ? `No room: the list holds ${MAX_CUSTOM_LINES} lines.` : `Added ${added} of ${p.lines.length} lines: the list holds ${MAX_CUSTOM_LINES}.`;
   });
 

@@ -77,6 +77,22 @@ export const CUSTOM_KINDS = {
   rx_brand: { label: 'Brand prescription fill', price: 400, field: 'Drug tier you choose', rx: true, tier: 2 },
   rx_specialty: { label: 'Specialty drug fill', price: 3000, field: 'Drug tier you choose', rx: true, tier: 4 },
   other: { label: 'Other care', price: 500, field: 'Plan coinsurance after the deductible' },
+  // One pregnancy: prenatal care, delivery, postpartum care and the hospital stay for the birth, priced with each
+  // plan's brochure-reviewed maternity terms (benefits[code].maternity, from pipeline/maternity_terms.json).
+  // The price is the KFF average for women with employer insurance (MATERNITY_SOURCE).
+  maternity: { label: 'Pregnancy, delivery and postpartum care', price: 20416, field: 'Maternity care and hospital stay for the birth', maternity: true },
+};
+
+/** Where the maternity price comes from (shown in the About dialog). */
+export const MATERNITY_SOURCE = {
+  price: 20416,
+  oop: 2743,
+  newbornPrice: 5820,
+  newbornOop: 475,
+  publisher: 'KFF / Peterson-KFF Health System Tracker',
+  date: 'September 9, 2025',
+  basis: 'Merative MarketScan claims, 2021-2023, women with employer-sponsored insurance',
+  url: 'https://www.kff.org/health-costs/issue-brief/health-costs-associated-with-pregnancy-childbirth-and-postpartum-care/',
 };
 
 const has = (o, k) => typeof k === 'string' && own(o, k);
@@ -137,7 +153,6 @@ export function lineSpend(l) {
 
 // ---------- worst-case presets ----------
 // Each preset appends these lines (prices are the same assumptions as ASSUMED_PRICES where one exists).
-// Maternity is deliberately absent: the engine does not price maternity benefits yet.
 export const CUSTOM_PRESETS = [
   {
     id: 'surgery',
@@ -168,6 +183,14 @@ export const CUSTOM_PRESETS = [
       { label: 'Monthly specialist visit', kind: 'specialist', price: 250, perYear: 12 },
       { label: 'Monthly brand prescription', kind: 'rx_brand', price: 400, perYear: 12, tier: 2 },
       { label: 'Lab work', kind: 'lab', price: 100, perYear: 4 },
+    ],
+  },
+  {
+    id: 'baby',
+    label: 'Having a baby',
+    description: 'Prenatal care, delivery and postpartum care for one pregnancy, priced at the average $20,416 of charges for women with employer insurance (KFF, 2025) and shared according to each plan’s own maternity terms. Newborn care is not included: switch to Self plus one or Family for the baby’s premium.',
+    lines: [
+      { label: 'Pregnancy, delivery and postpartum care', kind: 'maternity', price: 20416, perYear: 1 },
     ],
   },
 ];

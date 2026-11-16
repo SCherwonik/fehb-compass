@@ -12,6 +12,7 @@ import { networkLabel } from './network.js';
 import { renderCompare, revealCompare } from './compare.js';
 import { FLAG_TEXT } from '../engine/diff.js';
 import { ASSUMED_PRICES, ASSUMPTIONS_NOTE } from '../engine/assumptions.js';
+import { MATERNITY_UNPRICED } from '../engine/cost.js';
 import { STATE_NAMES } from '../data.js';
 import { MAX_COMPARE, safeStorage } from '../state.js';
 import { usd, usdExact, signedUsd, signedPct, costShareSummary, deltaTone } from './format.js';
@@ -361,9 +362,13 @@ export function createResults(main, { store, onRanked }) {
       ? `#${row.globalRank} overall${mineFiltersOn ? (row.viewRank ? ` · #${row.viewRank} in this view` : ' · outside your filters') : ''}`
       : '';
     const oon = row.cost.breakdown.oonEstimate === true;
+    // a maternity line this plan's terms cannot price: its total leaves it out (engine breakdown.unpriced)
+    const unpriced = (row.cost.breakdown.unpriced ?? []).length > 0;
+    const unpricedTag = unpriced && h('li', { class: 'tag tag-warn', title: `${MATERNITY_UNPRICED}. This total leaves the pregnancy out. See the math.` },
+      svg(ICON_WARN), 'Maternity not priced');
     const st = state.location.state;
     const area = areaChip(row, st ? STATE_NAMES[st] ?? st : null, st ? state.location.zip : null, data.zipCounty ?? null);
-    const key = `${ended ? 'ended' : ''}${row.isMine ? `mine:${mineWhere}:${rankTag}` : ''}|${vsMine}:${vsExcl}|${row.cost.firmness}|${row.diff.status}|${row.diff.flags.join(',')}|${oon}|${area?.title ?? ''}`;
+    const key = `${ended ? 'ended' : ''}${row.isMine ? `mine:${mineWhere}:${rankTag}` : ''}|${vsMine}:${vsExcl}|${row.cost.firmness}|${row.diff.status}|${row.diff.flags.join(',')}|${oon}:${unpriced}|${area?.title ?? ''}`;
     if (key !== rec.chipsKey) {
       rec.chipsKey = key;
       const items = ended ? [
@@ -375,6 +380,7 @@ export function createResults(main, { store, onRanked }) {
           : h('li', { class: 'tag tag-est', title: 'Part of this total depends on assumed prices for care. See the math.' }, 'Estimated'),
         oon && h('li', { class: 'tag tag-warn', title: 'Out-of-network lines are counted at full cost: OPM publishes no out-of-network cost sharing. See the math.' },
           svg(ICON_WARN), 'Out-of-network estimate'),
+        unpricedTag,
       ] : [
         row.isMine && h('li', { class: 'tag tag-mine' }, 'Your plan · 2027'),
         rankTag && h('li', { class: 'tag' }, rankTag),
@@ -388,6 +394,7 @@ export function createResults(main, { store, onRanked }) {
           : h('li', { class: 'tag tag-est', title: 'Part of this total depends on assumed prices for care. See the math.' }, 'Estimated'),
         oon && h('li', { class: 'tag tag-warn', title: 'Out-of-network lines are counted at full cost: OPM publishes no out-of-network cost sharing. See the math.' },
           svg(ICON_WARN), 'Out-of-network estimate'),
+        unpricedTag,
         row.diff.status === 'new' && h('li', { class: 'tag tag-new' }, 'New for 2027'),
         ...row.diff.flags.map((f) => h('li', { class: 'tag tag-warn' }, svg(ICON_WARN), FLAG_TEXT[f] ?? f)),
       ];
@@ -468,7 +475,7 @@ export function createResults(main, { store, onRanked }) {
         h('div', { class: 'mc-row' },
           h('span', { class: 'mc-name' }, c.label,
             h('span', { class: 'math-how' }, `${c.perYear} × ${usdExact(c.price)}${c.outOfNetwork ? ', out of network' : ''}`)),
-          h('span', { class: 'num mc-cost' }, `+ ${usd(c.cost)}`)),
+          h('span', { class: 'num mc-cost' }, c.unpriced ? 'not counted' : `+ ${usd(c.cost)}`)),
         [...c.warnings.map((w) => h('p', { class: 'mc-warn' }, svg(ICON_WARN), w)),
           ...c.notes.map((n) => h('p', { class: 'mc-note' }, n))]))),
     ];

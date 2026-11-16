@@ -745,6 +745,130 @@ def apply_benefit_overrides(benefits: dict, path: Path = OVERRIDES_PATH) -> int:
     return n
 
 
+# --------------------------------------------------------------------------- maternity
+
+MATERNITY_TERMS_PATH = Path(__file__).resolve().parent / "maternity_terms.json"
+MATERNITY_ROW = "Prenatal Care, Screening for Gestational Diabetes, Delivery, and Postpartum Care (Maternity Care)"
+BIRTH_STAY_ROW = "Hospital Stay--Vaginal Birth, Cesarean Birth (Maternity Care)"
+
+# Deductible wording that settles the question (the same phrase classes as src/engine/cost.js).
+_MAT_NO_DED = re.compile(r"no deductible|deductibles? (?:does|do) not apply", re.I)
+_MAT_DED = re.compile(r"after\b[^.;]{0,40}?deductible|calendar year deductible", re.I)
+# A cell that is plainly "you pay nothing", with at most a deductible or plan-allowance remark.
+_MAT_ZERO = re.compile(
+    r"(?:member pays nothing|\$0 copayment)"
+    r"(?: - (?:no deductible|deductible does not apply|\(?after (?:the )?deductible(?: is met)?\)?|of our plan allowance))?\.?",
+    re.I)
+# One flat hospital copay for the whole admission (never per day), with at most a deductible remark.
+_MAT_FLAT = re.compile(
+    r"\$([0-9][0-9,]*(?:\.[0-9]+)?)(?: copayment)?"
+    r"(?: - (?:per (?:admission|admit)(?:;? after (?:the )?deductible)?|after (?:the )?deductible\.?))?",
+    re.I)
+# A plain coinsurance, with at most a deductible remark.
+_MAT_PCT = re.compile(r"([0-9]+(?:\.[0-9]+)?)% coinsurance(?: - (?:after (?:the )?deductible|\$[0-9,]+ calendar year deductible))?", re.I)
+
+
+def _ded_flag(*texts: str):
+    """True / False when a text says so (False wins, as in the engine), None when every text is silent."""
+    if any(_MAT_NO_DED.search(t) for t in texts):
+        return False
+    if any(_MAT_DED.search(t) for t in texts):
+        return True
+    return None
+
+
+def maternity_term(e: dict) -> dict:
+    """What one pregnancy (prenatal care, delivery, postpartum care and the hospital stay for the birth) costs the
+    member under this plan, read from OPM's two maternity rows when they are plain enough to be certain.
+
+    -> {"priced": True, "kind": "zero"|"usd"|"pct", "value", "deductible": True|False|None (None: the plan default),
+        "per": "pregnancy"|"admission", "source": "opm", "maternity": raw, "stay": raw}
+    or {"priced": False, "reason", "source": "opm", "maternity", "stay"}. Only these are priced:
+      both rows "nothing"                                  -> zero
+      maternity care "nothing", birth stay one flat copay  -> usd (per admission; never a per-day copay)
+      both rows the same plain coinsurance                 -> pct
+    Anything else needs the plan's brochure (pipeline/maternity_terms.json) or stays unpriced; and even a plain
+    term is only a suggestion until a reviewed entry confirms it (see apply_maternity_terms).
+    """
+    m = clean(e.get("raw", {}).get(MATERNITY_ROW))
+    s = clean(e.get("raw", {}).get(BIRTH_STAY_ROW))
+    base = {"source": "opm", "maternity": m, "stay": s}
+    full = lambda rx, t: rx.fullmatch(t.strip()) if t else None  # noqa: E731
+    if full(_MAT_ZERO, m) and full(_MAT_ZERO, s):
+        return {"priced": True, "kind": "zero", "value": 0.0, "deductible": _ded_flag(s, m), "per": "pregnancy", **base}
+    f = full(_MAT_FLAT, s)
+    if full(_MAT_ZERO, m) and f:
+        return {"priced": True, "kind": "usd", "value": float(f.group(1).replace(",", "")),
+                "deductible": _ded_flag(s, m), "per": "admission", **base}
+    p = full(_MAT_PCT, m)
+    if p and m == s:
+        return {"priced": True, "kind": "pct", "value": float(p.group(1)), "deductible": _ded_flag(s, m), "per": "pregnancy", **base}
+    return {"priced": False, "reason": _maternity_gap(m, s), **base}
+
+
+def _maternity_gap(m: str, s: str) -> str:
+    if not m or not s:
+        return "OPM lists no maternity terms for this plan."
+    if re.search(r"per day|/day|days?\b", s, re.I):
+        return "The hospital stay for the birth has a per-day copay, and the number of days is not known."
+    if "%" in s or "%" in m:
+        return ("Coinsurance applies to only part of the care (the hospital stay for the birth or the maternity care), "
+                "and how the bill splits between the hospital and the doctors is not known.")
+    if re.search(r"visit", m + " " + s, re.I):
+        return "Maternity care has per-visit copays, and the number of visits is not known."
+    return "OPM's maternity terms are not plain enough to price without the plan brochure."
+
+
+def apply_maternity_terms(benefits: dict, path: Path = MATERNITY_TERMS_PATH) -> tuple[int, int]:
+    """Give every plan benefits[year][code]["maternity"] (see maternity_term), then apply the brochure-reviewed
+    entries of pipeline/maternity_terms.json (2027 only). Each entry names the plan, the two OPM cells it was
+    reviewed against ("sheet": a changed cell stops the build: re-check the brochure), and either a term
+    {kind: zero|usd|pct, value, deductible, per} or term null (left unpriced, with the reason), plus the
+    brochure number, page, verbatim quote and reason. Returns (reviewed entries applied, plans priced in 2027).
+    """
+    for year in benefits.values():
+        for e in year.values():
+            e["maternity"] = maternity_term(e)
+    n = 0
+    if Path(path).exists():
+        spec = json.loads(Path(path).read_text(encoding="utf-8"))
+        for o in spec.get("terms", []):
+            code, year = o["plan_code"], str(o["year"])
+            e = benefits.get(year, {}).get(code)
+            if e is None:
+                raise ValueError(f"{Path(path).name}: plan {code!r} is not in the {year} benefits")
+            cur = e["maternity"]
+            want = o["sheet"]
+            if cur["maternity"] != want["maternity"] or cur["stay"] != want["stay"]:
+                raise ValueError(f"{Path(path).name}: {code} maternity cells changed "
+                                 f"({cur['maternity']!r} / {cur['stay']!r}): re-check the brochure")
+            meta = {k: o[k] for k in ("brochure", "page", "quote", "reason") if k in o}
+            t = o["term"]
+            if t is None:
+                e["maternity"] = {"priced": False, "source": "brochure", "maternity": cur["maternity"], "stay": cur["stay"],
+                                  **meta, "reason": o["unpriced"]}
+            else:
+                if t["kind"] not in ("zero", "usd", "pct") or t["per"] not in ("pregnancy", "delivery", "admission"):
+                    raise ValueError(f"{Path(path).name}: {code}: bad term {t!r}")
+                if t["deductible"] not in (True, False, None):
+                    raise ValueError(f"{Path(path).name}: {code}: deductible must be true, false or null")
+                e["maternity"] = {"priced": True, "kind": t["kind"], "value": float(t["value"]),
+                                  "deductible": t["deductible"], "per": t["per"], "source": "brochure",
+                                  "maternity": cur["maternity"], "stay": cur["stay"], **meta}
+            n += 1
+    # OPM's two rows were wrong for about a quarter of the 2027 plans checked by hand: a plan is priced only from a
+    # brochure-reviewed entry. A plain OPM term without one stays unpriced (it is kept as "suggested").
+    for year in benefits.values():
+        for e in year.values():
+            t = e["maternity"]
+            if t["priced"] and t["source"] == "opm":
+                suggested = {k: t[k] for k in ("kind", "value", "deductible", "per")}
+                e["maternity"] = {"priced": False, "reason": "OPM's maternity terms were not checked against the plan brochure.",
+                                  "source": "opm", "maternity": t["maternity"], "stay": t["stay"], "suggested": suggested}
+    priced = sum(1 for e in benefits.get("2027", {}).values() if e["maternity"]["priced"])
+    return n, priced
+
+
 def write_json(name: str, obj) -> Path:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     p = DATA_DIR / name
@@ -758,6 +882,8 @@ def main() -> None:
     plans, rates, benefits, service, warnings = build_fehb(paths)
     apply_text_fixes(plans, benefits)
     print(f"  {apply_benefit_overrides(benefits)} brochure overrides applied ({OVERRIDES_PATH.name})")
+    reviewed, priced = apply_maternity_terms(benefits)
+    print(f"  maternity: {priced} plans priced in 2027, {reviewed} brochure-reviewed ({MATERNITY_TERMS_PATH.name})")
     write_json("plans.json", plans)
     write_json("rates.json", rates)
     write_json("benefits.json", benefits)

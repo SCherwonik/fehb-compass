@@ -185,6 +185,21 @@ test('compact line encoding: one short key, kind+price and count+flags fused, ol
   }
 });
 
+test('the maternity kind ("Having a baby") round-trips as m; an unknown kind letter is still rejected', () => {
+  const baby = { label: 'Pregnancy, delivery and postpartum care', kind: 'maternity', price: 20416, perYear: 1 };
+  const s = { ...defaultState(), custom: [baby, L('pcp', 150, 2)] };
+  const hash = encodeState(s);
+  assert.match(hash, /(^|&)l=m20416_1_Pregnancy/);
+  assert.deepEqual(decodeState(hash).custom, s.custom);
+  assert.deepEqual(decodeState(`#${encodeHash(s).hash}`).custom, s.custom);
+  // the older cl= format and the JSON cu= format accept it too; an unknown letter is dropped as before
+  assert.deepEqual(decodeState('#cl=m_20416_1__Baby').custom, [{ label: 'Baby', kind: 'maternity', price: 20416, perYear: 1 }]);
+  const cu = encodeURIComponent(JSON.stringify([baby]));
+  assert.deepEqual(decodeState(`#cu=${cu}`).custom, [baby]);
+  assert.deepEqual(decodeState('#l=y20416_1_Baby').custom, []);
+  assert.deepEqual(sanitizeState({ ...defaultState(), custom: [{ ...baby, kind: 'maternityX' }] }).custom, []);
+});
+
 test('overrides equal to the active scenario are pruned, so they cannot resurface on a scenario change', () => {
   const s = sanitizeState({ scenario: 'condition', overrides: { erVisits: 1, hospitalStays: 3 } });
   assert.deepEqual(s.overrides, { hospitalStays: 3 }); // condition already has 1 ER visit

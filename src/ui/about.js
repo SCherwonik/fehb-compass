@@ -3,7 +3,7 @@
 // Every number in the tables comes from the engine's own constants, so the dialog cannot drift from the math.
 import { h } from './dom.js';
 import { ASSUMED_PRICES } from '../engine/assumptions.js';
-import { SCENARIOS } from '../engine/scenarios.js';
+import { SCENARIOS, MATERNITY_SOURCE } from '../engine/scenarios.js';
 import { DENTAL_SERVICES, DENTAL_PRESETS } from '../engine/dental.js';
 import { usd } from './format.js';
 import { reduceMotion, EASE_OUT } from './motion.js';
@@ -56,6 +56,14 @@ function content() {
       h('p', {}, 'OPM publishes cost sharing, not prices. These amounts stand in for what a plan allows for each service; each hospital stay includes one surgery.'),
       table('Assumed price of each service', ['Service', 'Assumed price'],
         PRICE_ROWS.map(([k, l]) => [l, usd(ASSUMED_PRICES[k])]))),
+    h('section', {},
+      h('h3', {}, 'Having a baby'),
+      h('p', {}, `The “Having a baby” cost in “Fine-tune your year” stands for one pregnancy: prenatal care, delivery, postpartum care and the hospital stay for the birth. It is priced at ${usd(MATERNITY_SOURCE.price)}, the average health spending associated with pregnancy, childbirth and postpartum care for women with employer insurance (${MATERNITY_SOURCE.publisher}, ${MATERNITY_SOURCE.date}, from ${MATERNITY_SOURCE.basis}; they paid ${usd(MATERNITY_SOURCE.oop)} of it out of pocket on average). No primary source splitting vaginal and cesarean births was found, so the two are not priced apart.`),
+      h('ul', {},
+        h('li', {}, 'Each plan’s share comes from its own 2027 brochure, read by hand, because OPM’s spreadsheet was wrong about the hospital stay for the birth for about a quarter of the plans checked. The plan’s deductible and out-of-pocket maximum apply as for any other care.'),
+        h('li', {}, 'Where the brochure’s terms cannot be priced with certainty (coinsurance on only the hospital part or only the doctors’ part, a per-day hospital copay, or per-visit postpartum copays), the plan says “Maternity not priced for this plan: see its brochure”, and its total leaves the pregnancy out. Compare those plans with care: their totals are lower than what you would pay.'),
+        h('li', {}, `The baby’s own care is not included: it is billed under the baby’s coverage (newborn care averages ${usd(MATERNITY_SOURCE.newbornPrice)}, ${usd(MATERNITY_SOURCE.newbornOop)} out of pocket, in the same study). Switch to Self Plus One or Self and Family to see the baby’s premium.`),
+        h('li', {}, h('a', { href: MATERNITY_SOURCE.url, target: '_blank', rel: 'noopener noreferrer' }, 'KFF: Health costs associated with pregnancy, childbirth, and postpartum care')))),
     h('section', {},
       h('h3', {}, 'Dental and vision'),
       h('ul', {},

@@ -1,0 +1,1041 @@
+{
+ "about": "Maternity terms (one pregnancy: prenatal care, delivery, postpartum care and the hospital stay for the birth) read by hand from each plan's 2027 brochure. pipeline/build_data.py (apply_maternity_terms) applies each entry to data/benefits.json as benefits[code].maternity. A plan is priced only when it has an entry here with a term: OPM's two maternity rows (\"Prenatal Care, Screening for Gestational Diabetes, Delivery, and Postpartum Care\" and \"Hospital Stay--Vaginal Birth, Cesarean Birth\") were wrong for about a quarter of the plans checked, so they are never priced unchecked. term: {kind: zero|usd|pct, value, deductible: true|false|null (null = the plan default), per: pregnancy|delivery|admission}; term null = reviewed and left unpriced, with the reason in \"unpriced\". \"sheet\" holds the two OPM cells the entry was reviewed against: if either changes, the build stops. Pages are the PDF pages of pipeline/raw/brochures_txt/2027/<brochure>.txt; quotes are verbatim (whitespace collapsed).",
+ "terms": [
+  {
+   "year": 2027,
+   "plan_code": "104",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "Member Pays Nothing"
+   },
+   "term": {
+    "kind": "zero",
+    "value": 0,
+    "deductible": false,
+    "per": "pregnancy"
+   },
+   "brochure": "71-005",
+   "page": 48,
+   "quote": "we waive the per admission copayment and pay for covered services in full when you use Preferred providers",
+   "reason": "Standard Option: Preferred maternity care costs nothing (no deductible) and the per-admission hospital copayment is waived for facility care related to maternity."
+  },
+  {
+   "year": 2027,
+   "plan_code": "111",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "$500 Copayment - Per admission. Waived when you deliver in a Blue Distinction Center for Maternity."
+   },
+   "term": {
+    "kind": "usd",
+    "value": 500,
+    "deductible": false,
+    "per": "admission"
+   },
+   "brochure": "71-005",
+   "page": 48,
+   "quote": "your responsibility for covered inpatient services is limited to $500 per admission",
+   "reason": "Basic Option: maternity care costs nothing; Preferred facility care for the delivery is limited to $500 per admission. The brochure adds that this copayment is waived when you deliver in a Blue Distinction Center for maternity: priced at $500, the most you pay."
+  },
+  {
+   "year": 2027,
+   "plan_code": "131",
+   "sheet": {
+    "maternity": "Member Pays Nothing - Facility care subject to a $3000 per pregnancy copayment.",
+    "stay": "$3,000 Copayment - Limited to $3,000 per pregnancy for facility care."
+   },
+   "term": {
+    "kind": "usd",
+    "value": 3000,
+    "deductible": false,
+    "per": "pregnancy"
+   },
+   "brochure": "71-017",
+   "page": 65,
+   "quote": "Preferred facilities: $3,000 copayment per pregnancy (no deductible)",
+   "also": [
+    {
+     "page": 43,
+     "quote": "Preferred: Nothing (no deductible)"
+    }
+   ],
+   "reason": "FEP Blue Focus: maternity care costs nothing; Preferred facility care related to maternity is a $3,000 copayment per pregnancy, no deductible."
+  },
+  {
+   "year": 2027,
+   "plan_code": "341",
+   "sheet": {
+    "maternity": "Member Pays Nothing - (After deductible)",
+    "stay": "Member Pays Nothing - (After deductible)"
+   },
+   "term": {
+    "kind": "zero",
+    "value": 0,
+    "deductible": true,
+    "per": "pregnancy"
+   },
+   "brochure": "71-014",
+   "page": 79,
+   "quote": "In-network: Nothing (deductible applies)",
+   "reason": "GEHA HDHP: in-network maternity inpatient hospital care costs nothing once the deductible is met (Maternity care - Inpatient hospital); maternity care beyond preventive services also sits behind the deductible."
+  },
+  {
+   "year": 2027,
+   "plan_code": "401",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "Member Pays Nothing"
+   },
+   "term": {
+    "kind": "usd",
+    "value": 250,
+    "deductible": true,
+    "per": "admission"
+   },
+   "brochure": "72-001",
+   "page": 72,
+   "quote": "In-network (includes Guam): $250 copayment per hospital admission.",
+   "also": [
+    {
+     "page": 46,
+     "quote": "For facility care related to maternity, including care at birthing centers, see Section 5(c), Inpatient hospital"
+    },
+    {
+     "page": 72,
+     "quote": "The calendar year deductible applies to almost all benefits in this section."
+    }
+   ],
+   "reason": "OPM's spreadsheet says the hospital stay for the birth costs nothing, but the brochure sends maternity facility care to the inpatient hospital benefit: a $250 copayment per admission, under the section's calendar year deductible (no \"(No deductible)\" mark). Maternity care itself costs nothing in network."
+  },
+  {
+   "year": 2027,
+   "plan_code": "421",
+   "sheet": {
+    "maternity": "Member Pays Nothing - No Deductible",
+    "stay": "Member Pays Nothing - No Deductible"
+   },
+   "term": {
+    "kind": "zero",
+    "value": 0,
+    "deductible": false,
+    "per": "pregnancy"
+   },
+   "brochure": "71-028",
+   "page": 75,
+   "quote": "PPO inpatient hospital services related to maternity care are covered at 100%",
+   "also": [
+    {
+     "page": 45,
+     "quote": "PPO: Nothing (No Deductible)"
+    }
+   ],
+   "reason": "High Option: PPO maternity care costs nothing (no deductible) and PPO inpatient hospital services related to maternity are covered at 100%."
+  },
+  {
+   "year": 2027,
+   "plan_code": "424",
+   "sheet": {
+    "maternity": "30% Coinsurance - $500 Calendar Year Deductible",
+    "stay": "30% Coinsurance - $500 Calendar Year Deductible"
+   },
+   "term": {
+    "kind": "pct",
+    "value": 30,
+    "deductible": true,
+    "per": "pregnancy"
+   },
+   "brochure": "71-028",
+   "page": 45,
+   "quote": "In-network: 30% of the Plan allowance",
+   "also": [
+    {
+     "page": 75,
+     "quote": "In-network: 30% of the Plan allowance"
+    },
+    {
+     "page": 37,
+     "quote": "Under the Standard Option, the calendar year deductible is: $500 for Self enrollment"
+    }
+   ],
+   "reason": "Standard Option: in-network maternity care and the inpatient hospital stay are both 30% of the Plan allowance; neither is marked \"(No Deductible)\", so the $500 calendar year deductible applies first."
+  },
+  {
+   "year": 2027,
+   "plan_code": "431",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "Member Pays Nothing"
+   },
+   "term": {
+    "kind": "usd",
+    "value": 100,
+    "deductible": true,
+    "per": "admission"
+   },
+   "brochure": "72-004",
+   "page": 56,
+   "quote": "POS: Nothing after the $100 per admission copayment",
+   "also": [
+    {
+     "page": 56,
+     "quote": "The calendar year deductible applies to almost all benefits in this Section."
+    }
+   ],
+   "reason": "POS: maternity care costs nothing; the hospital stay is nothing after a $100 copayment per admission, and the inpatient benefit is not marked \"(No deductible)\", so the calendar year deductible applies."
+  },
+  {
+   "year": 2027,
+   "plan_code": "444",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "Member Pays Nothing"
+   },
+   "term": {
+    "kind": "zero",
+    "value": 0,
+    "deductible": false,
+    "per": "pregnancy"
+   },
+   "brochure": "71-015",
+   "page": 66,
+   "quote": "we waive the per confinement copayment when you use a PPO facility",
+   "also": [
+    {
+     "page": 66,
+     "quote": "we waive the coinsurance and pay covered services in full when you use a PPO facility"
+    },
+    {
+     "page": 40,
+     "quote": "PPO: Nothing (No deductible)"
+    }
+   ],
+   "reason": "Standard Option: PPO maternity care costs nothing (no deductible); for facility care related to maternity the per-confinement copayment and the coinsurance are waived at a PPO facility."
+  },
+  {
+   "year": 2027,
+   "plan_code": "471",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "Member Pays Nothing"
+   },
+   "term": {
+    "kind": "zero",
+    "value": 0,
+    "deductible": false,
+    "per": "pregnancy"
+   },
+   "brochure": "71-004",
+   "page": 42,
+   "quote": "For inpatient hospital care related to maternity, we pay for covered services in full when you use preferred providers.",
+   "also": [
+    {
+     "page": 42,
+     "quote": "PPO: Nothing (No deductible)"
+    }
+   ],
+   "reason": "High Option: PPO maternity care costs nothing (no deductible) and inpatient hospital care related to maternity is paid in full with preferred providers."
+  },
+  {
+   "year": 2027,
+   "plan_code": "474",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "Member Pays Nothing"
+   },
+   "term": {
+    "kind": "zero",
+    "value": 0,
+    "deductible": true,
+    "per": "pregnancy"
+   },
+   "brochure": "71-004",
+   "page": 96,
+   "quote": "For inpatient hospital care related to maternity, we pay for covered services in full when you use preferred providers.",
+   "also": [
+    {
+     "page": 94,
+     "quote": "Your Deductible applies to all benefits in this section."
+    }
+   ],
+   "reason": "Consumer Driven Option: in-network maternity care costs nothing and maternity inpatient care is paid in full, but under Traditional Health Coverage, where the deductible applies to all benefits."
+  },
+  {
+   "year": 2027,
+   "plan_code": "541",
+   "sheet": {
+    "maternity": "Member Pays Nothing - Nothing for routine prenatal and postpartum care",
+    "stay": "Member Pays Nothing"
+   },
+   "term": {
+    "kind": "usd",
+    "value": 350,
+    "deductible": false,
+    "per": "admission"
+   },
+   "brochure": "73-012",
+   "page": 63,
+   "quote": "$350 per admission",
+   "also": [
+    {
+     "page": 42,
+     "quote": "We pay hospitalization and surgeon services (delivery) and non-maternity care the same as for illness and injury."
+    },
+    {
+     "page": 41,
+     "quote": "Nothing for inpatient professional delivery services"
+    }
+   ],
+   "reason": "OPM's spreadsheet says the hospital stay for the birth costs nothing, but the brochure pays the delivery hospitalization like any illness: High Option inpatient hospital is $350 per admission (no deductible). Routine prenatal and postpartum care and inpatient professional delivery services cost nothing."
+  },
+  {
+   "year": 2027,
+   "plan_code": "544",
+   "sheet": {
+    "maternity": "Member Pays Nothing - Nothing for routine prenatal and postpartum care",
+    "stay": "Member Pays Nothing"
+   },
+   "term": {
+    "kind": "usd",
+    "value": 750,
+    "deductible": false,
+    "per": "admission"
+   },
+   "brochure": "73-012",
+   "page": 63,
+   "quote": "$750 per admission",
+   "also": [
+    {
+     "page": 42,
+     "quote": "We pay hospitalization and surgeon services (delivery) and non-maternity care the same as for illness and injury."
+    },
+    {
+     "page": 41,
+     "quote": "Nothing for inpatient professional delivery services"
+    }
+   ],
+   "reason": "OPM's spreadsheet says the hospital stay for the birth costs nothing, but the brochure pays the delivery hospitalization like any illness: Standard Option inpatient hospital is $750 per admission (no deductible). Routine prenatal and postpartum care and inpatient professional delivery services cost nothing."
+  },
+  {
+   "year": 2027,
+   "plan_code": "PT4",
+   "sheet": {
+    "maternity": "Member Pays Nothing - Nothing for routine prenatal and postpartum care",
+    "stay": "Member Pays Nothing"
+   },
+   "term": {
+    "kind": "usd",
+    "value": 500,
+    "deductible": true,
+    "per": "admission"
+   },
+   "brochure": "73-012",
+   "page": 63,
+   "quote": "($500 per admission for delivery after the deductible)",
+   "also": [
+    {
+     "page": 41,
+     "quote": "Nothing for inpatient professional delivery services"
+    }
+   ],
+   "reason": "OPM's spreadsheet says the hospital stay for the birth costs nothing, but the brochure's Prosper inpatient hospital benefit is $500 per admission for delivery after the deductible. Routine prenatal and postpartum care and inpatient professional delivery services cost nothing."
+  },
+  {
+   "year": 2027,
+   "plan_code": "571",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "$250 Copayment"
+   },
+   "term": {
+    "kind": "usd",
+    "value": 250,
+    "deductible": false,
+    "per": "admission"
+   },
+   "brochure": "73-004",
+   "page": 74,
+   "quote": "$250 for maternity care",
+   "reason": "High Option: The brochure prints a maternity-specific inpatient (facility) cost in Section 5(c); maternity care in Section 5(a) (routine prenatal and postpartum care, inpatient professional delivery services) costs nothing. (The brochure adds a 10% charge for drugs administered during maternity visits; not priced.)"
+  },
+  {
+   "year": 2027,
+   "plan_code": "574",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "Member Pays Nothing"
+   },
+   "term": {
+    "kind": "zero",
+    "value": 0,
+    "deductible": false,
+    "per": "pregnancy"
+   },
+   "brochure": "73-004",
+   "page": 74,
+   "quote": "Nothing for maternity care (no deductible)",
+   "reason": "Standard Option: The brochure prints a maternity-specific inpatient (facility) cost in Section 5(c); maternity care in Section 5(a) (routine prenatal and postpartum care, inpatient professional delivery services) costs nothing. (The brochure adds a 20% charge after the deductible for drugs administered during maternity visits; not priced.)"
+  },
+  {
+   "year": 2027,
+   "plan_code": "AM1",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "$250 - after the deductible."
+   },
+   "term": {
+    "kind": "usd",
+    "value": 250,
+    "deductible": true,
+    "per": "admission"
+   },
+   "brochure": "73-004",
+   "page": 74,
+   "quote": "$250 after the deductible for maternity care",
+   "reason": "Prosper: The brochure prints a maternity-specific inpatient (facility) cost in Section 5(c); maternity care in Section 5(a) (routine prenatal and postpartum care, inpatient professional delivery services) costs nothing. (The brochure adds a 20% charge after the deductible for drugs administered during maternity visits; not priced.)"
+  },
+  {
+   "year": 2027,
+   "plan_code": "591",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "$350 Copayment - per admit"
+   },
+   "term": {
+    "kind": "usd",
+    "value": 350,
+    "deductible": false,
+    "per": "admission"
+   },
+   "brochure": "73-003",
+   "page": 71,
+   "quote": "$350 per admission for delivery",
+   "reason": "High Option: The brochure prints a maternity-specific inpatient (facility) cost in Section 5(c); maternity care in Section 5(a) (routine prenatal and postpartum care, inpatient professional delivery services) costs nothing."
+  },
+  {
+   "year": 2027,
+   "plan_code": "594",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "Member Pays Nothing"
+   },
+   "term": {
+    "kind": "zero",
+    "value": 0,
+    "deductible": true,
+    "per": "pregnancy"
+   },
+   "brochure": "73-003",
+   "page": 71,
+   "quote": "Nothing per admission for delivery",
+   "also": [
+    {
+     "page": 44,
+     "quote": "Nothing for inpatient professional delivery services after the deductible"
+    }
+   ],
+   "reason": "Standard Option: nothing per admission for the delivery stay, and inpatient professional delivery services cost nothing after the $100 deductible."
+  },
+  {
+   "year": 2027,
+   "plan_code": "621",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "$250 Copayment - per admit"
+   },
+   "term": {
+    "kind": "usd",
+    "value": 250,
+    "deductible": false,
+    "per": "admission"
+   },
+   "brochure": "73-822",
+   "page": 72,
+   "quote": "$250 per admission for maternity care",
+   "reason": "High Option: The brochure prints a maternity-specific inpatient (facility) cost in Section 5(c); maternity care in Section 5(a) (routine prenatal and postpartum care, inpatient professional delivery services) costs nothing."
+  },
+  {
+   "year": 2027,
+   "plan_code": "624",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "Member Pays Nothing"
+   },
+   "term": {
+    "kind": "zero",
+    "value": 0,
+    "deductible": false,
+    "per": "pregnancy"
+   },
+   "brochure": "73-822",
+   "page": 72,
+   "quote": "Nothing for maternity care",
+   "reason": "Standard Option: The brochure prints a maternity-specific inpatient (facility) cost in Section 5(c); maternity care in Section 5(a) (routine prenatal and postpartum care, inpatient professional delivery services) costs nothing."
+  },
+  {
+   "year": 2027,
+   "plan_code": "FL1",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "$900 Copayment - After deductible"
+   },
+   "term": {
+    "kind": "usd",
+    "value": 900,
+    "deductible": true,
+    "per": "admission"
+   },
+   "brochure": "73-822",
+   "page": 72,
+   "quote": "$900 per admission for maternity care",
+   "also": [
+    {
+     "page": 43,
+     "quote": "Nothing for inpatient professional delivery services after the deductible"
+    }
+   ],
+   "reason": "Prosper: $900 per admission for maternity care, and inpatient professional delivery services cost nothing after the deductible."
+  },
+  {
+   "year": 2027,
+   "plan_code": "631",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "$150 Copayment"
+   },
+   "term": {
+    "kind": "usd",
+    "value": 150,
+    "deductible": false,
+    "per": "admission"
+   },
+   "brochure": "73-005",
+   "page": 59,
+   "quote": "$150 for maternity care delivery",
+   "reason": "High Option: The brochure prints a maternity-specific inpatient (facility) cost in Section 5(c); maternity care in Section 5(a) (routine prenatal and postpartum care, inpatient professional delivery services) costs nothing."
+  },
+  {
+   "year": 2027,
+   "plan_code": "634",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "Member Pays Nothing"
+   },
+   "term": {
+    "kind": "zero",
+    "value": 0,
+    "deductible": true,
+    "per": "pregnancy"
+   },
+   "brochure": "73-005",
+   "page": 59,
+   "quote": "Nothing for maternity care delivery, after the deductible",
+   "also": [
+    {
+     "page": 38,
+     "quote": "Nothing, after the deductible, for professional delivery services"
+    }
+   ],
+   "reason": "Standard Option: the delivery stay and professional delivery services cost nothing after the $150 deductible."
+  },
+  {
+   "year": 2027,
+   "plan_code": "651",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "Member Pays Nothing"
+   },
+   "term": {
+    "kind": "zero",
+    "value": 0,
+    "deductible": false,
+    "per": "pregnancy"
+   },
+   "brochure": "73-019",
+   "page": 76,
+   "quote": "Nothing for maternity care delivery",
+   "also": [
+    {
+     "page": 45,
+     "quote": "You pay nothing for inpatient professional delivery services."
+    }
+   ],
+   "reason": "High Option: The brochure prints a maternity-specific inpatient (facility) cost in Section 5(c); maternity care in Section 5(a) (routine prenatal and postpartum care, inpatient professional delivery services) costs nothing. (The brochure adds up to $200 for drugs administered during maternity visits; not priced.)"
+  },
+  {
+   "year": 2027,
+   "plan_code": "654",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "Member Pays Nothing"
+   },
+   "term": {
+    "kind": "zero",
+    "value": 0,
+    "deductible": false,
+    "per": "pregnancy"
+   },
+   "brochure": "73-019",
+   "page": 76,
+   "quote": "Nothing for maternity care delivery",
+   "also": [
+    {
+     "page": 45,
+     "quote": "You pay nothing for inpatient professional delivery services."
+    }
+   ],
+   "reason": "Standard Option: The brochure prints a maternity-specific inpatient (facility) cost in Section 5(c); maternity care in Section 5(a) (routine prenatal and postpartum care, inpatient professional delivery services) costs nothing. The delivery line is not marked \"after the deductible\". (The brochure adds up to $250 after the deductible for drugs administered during maternity visits; not priced.)"
+  },
+  {
+   "year": 2027,
+   "plan_code": "871",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "$200 - Per admission"
+   },
+   "term": {
+    "kind": "usd",
+    "value": 200,
+    "deductible": false,
+    "per": "admission"
+   },
+   "brochure": "73-010",
+   "page": 67,
+   "quote": "$200 per admission (based on semiprivate room rate)",
+   "reason": "High Option: maternity care from Plan providers costs nothing; the hospital stay is $200 per admission."
+  },
+  {
+   "year": 2027,
+   "plan_code": "8W4",
+   "sheet": {
+    "maternity": "15% Coinsurance - after deductible",
+    "stay": "15% Coinsurance - after deductible"
+   },
+   "term": {
+    "kind": "pct",
+    "value": 15,
+    "deductible": true,
+    "per": "pregnancy"
+   },
+   "brochure": "73-797",
+   "page": 107,
+   "quote": "In-Network: 15%",
+   "also": [
+    {
+     "page": 129,
+     "quote": "In-Network: 15%"
+    },
+    {
+     "page": 106,
+     "quote": "The deductible applies to all benefits in this section unless we indicate differently."
+    }
+   ],
+   "reason": "HDHP: in-network maternity care and the inpatient hospital stay are both 15%, after the deductible."
+  },
+  {
+   "year": 2027,
+   "plan_code": "B41",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "$200 Copayment"
+   },
+   "term": {
+    "kind": "usd",
+    "value": 200,
+    "deductible": false,
+    "per": "admission"
+   },
+   "brochure": "73-874",
+   "page": 41,
+   "quote": "$200 copayment for hospital",
+   "reason": "High Option: maternity care costs nothing in network; the delivery is a $200 copayment in a hospital ($100 in a birthing center): priced for a hospital birth."
+  },
+  {
+   "year": 2027,
+   "plan_code": "E31",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "$200 Copayment - per admission"
+   },
+   "term": {
+    "kind": "usd",
+    "value": 200,
+    "deductible": false,
+    "per": "admission"
+   },
+   "brochure": "73-047",
+   "page": 73,
+   "quote": "$200 for maternity care",
+   "reason": "High Option: The brochure prints a maternity-specific inpatient (facility) cost in Section 5(c); maternity care in Section 5(a) (routine prenatal and postpartum care, inpatient professional delivery services) costs nothing. (The brochure adds $50 per encounter for clinically administered drugs; not priced.)"
+  },
+  {
+   "year": 2027,
+   "plan_code": "E34",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "Member Pays Nothing"
+   },
+   "term": {
+    "kind": "zero",
+    "value": 0,
+    "deductible": false,
+    "per": "pregnancy"
+   },
+   "brochure": "73-047",
+   "page": 73,
+   "quote": "Nothing for maternity care",
+   "reason": "Standard Option: The brochure prints a maternity-specific inpatient (facility) cost in Section 5(c); maternity care in Section 5(a) (routine prenatal and postpartum care, inpatient professional delivery services) costs nothing. (The brochure adds $75 per encounter for clinically administered drugs; not priced.)"
+  },
+  {
+   "year": 2027,
+   "plan_code": "T71",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "$750 Copayment - per admission after the deductible"
+   },
+   "term": {
+    "kind": "usd",
+    "value": 750,
+    "deductible": true,
+    "per": "admission"
+   },
+   "brochure": "73-047",
+   "page": 73,
+   "quote": "$750 per inpatient admission after the deductible",
+   "reason": "Prosper: maternity care costs nothing; the brochure lists no separate maternity amount for Prosper, so the inpatient stay is $750 per admission after the deductible."
+  },
+  {
+   "year": 2027,
+   "plan_code": "F81",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "Member Pays Nothing"
+   },
+   "term": {
+    "kind": "usd",
+    "value": 250,
+    "deductible": false,
+    "per": "admission"
+   },
+   "brochure": "73-321",
+   "page": 66,
+   "quote": "$250 per admission maternity care",
+   "reason": "OPM's spreadsheet says the hospital stay for the birth costs nothing, but the brochure's High Option inpatient benefit is $250 per admission for maternity care. The brochure prints a maternity-specific inpatient (facility) cost in Section 5(c); maternity care in Section 5(a) (routine prenatal and postpartum care, inpatient professional delivery services) costs nothing."
+  },
+  {
+   "year": 2027,
+   "plan_code": "F84",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "Member Pays Nothing"
+   },
+   "term": {
+    "kind": "zero",
+    "value": 0,
+    "deductible": false,
+    "per": "pregnancy"
+   },
+   "brochure": "73-321",
+   "page": 66,
+   "quote": "Nothing per admission for maternity care",
+   "reason": "Standard Option: The brochure prints a maternity-specific inpatient (facility) cost in Section 5(c); maternity care in Section 5(a) (routine prenatal and postpartum care, inpatient professional delivery services) costs nothing."
+  },
+  {
+   "year": 2027,
+   "plan_code": "NZ1",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "$400 Copayment - per admit"
+   },
+   "term": {
+    "kind": "usd",
+    "value": 350,
+    "deductible": false,
+    "per": "admission"
+   },
+   "brochure": "73-889",
+   "page": 70,
+   "quote": "$350 per admission for delivery",
+   "reason": "OPM's spreadsheet says $400 per admission, but the brochure's High Option inpatient benefit is $400 per admission and $350 per admission for delivery. The brochure prints a maternity-specific inpatient (facility) cost in Section 5(c); maternity care in Section 5(a) (routine prenatal and postpartum care, inpatient professional delivery services) costs nothing."
+  },
+  {
+   "year": 2027,
+   "plan_code": "NZ4",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "Member Pays Nothing"
+   },
+   "term": {
+    "kind": "zero",
+    "value": 0,
+    "deductible": false,
+    "per": "pregnancy"
+   },
+   "brochure": "73-889",
+   "page": 70,
+   "quote": "Nothing per admission for delivery",
+   "reason": "Standard Option: The brochure prints a maternity-specific inpatient (facility) cost in Section 5(c); maternity care in Section 5(a) (routine prenatal and postpartum care, inpatient professional delivery services) costs nothing."
+  },
+  {
+   "year": 2027,
+   "plan_code": "YV1",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "$900 Copayment - per admit after the deductible"
+   },
+   "term": {
+    "kind": "usd",
+    "value": 900,
+    "deductible": true,
+    "per": "admission"
+   },
+   "brochure": "73-889",
+   "page": 70,
+   "quote": "$900 per admission after the deductible",
+   "reason": "Prosper: maternity care costs nothing; the brochure lists no separate delivery amount for Prosper, so the inpatient stay is $900 per admission after the deductible."
+  },
+  {
+   "year": 2027,
+   "plan_code": "SF4",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "$500 Copayment - per admission"
+   },
+   "term": {
+    "kind": "usd",
+    "value": 515,
+    "deductible": false,
+    "per": "pregnancy"
+   },
+   "brochure": "73-865",
+   "page": 38,
+   "quote": "A single office visit copay of $15 when pregnancy is confirmed.",
+   "also": [
+    {
+     "page": 55,
+     "quote": "$500 per admission (no deductible)"
+    }
+   ],
+   "reason": "Standard: one $15 office visit copay when pregnancy is confirmed plus $500 per admission for the delivery (no deductible): $515 per pregnancy."
+  },
+  {
+   "year": 2027,
+   "plan_code": "WX1",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "$250 Copayment - per admission; after deductible"
+   },
+   "term": {
+    "kind": "usd",
+    "value": 260,
+    "deductible": true,
+    "per": "pregnancy"
+   },
+   "brochure": "73-865",
+   "page": 93,
+   "quote": "A single office visit copay of $10 when pregnancy is confirmed.",
+   "also": [
+    {
+     "page": 110,
+     "quote": "$250 per admission"
+    }
+   ],
+   "reason": "HDHP: one $10 office visit copay when pregnancy is confirmed plus $250 per admission for the delivery, after the calendar year deductible: $260 per pregnancy plus the deductible."
+  },
+  {
+   "year": 2027,
+   "plan_code": "YJ4",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "$500 Copayment"
+   },
+   "term": {
+    "kind": "usd",
+    "value": 500,
+    "deductible": false,
+    "per": "admission"
+   },
+   "brochure": "73-937",
+   "page": 56,
+   "quote": "$500 per admission",
+   "also": [
+    {
+     "page": 37,
+     "quote": "Nothing for inpatient professional delivery services"
+    }
+   ],
+   "reason": "Standard: routine prenatal care, postpartum care visits and inpatient professional delivery services cost nothing; the hospital stay is $500 per admission."
+  },
+  {
+   "year": 2027,
+   "plan_code": "644",
+   "sheet": {
+    "maternity": "Member Pays All Charges - N/A",
+    "stay": "Member Pays Nothing - $650 per admission hospital copayment applies for any inpatient hospitalization"
+   },
+   "term": {
+    "kind": "usd",
+    "value": 650,
+    "deductible": false,
+    "per": "admission"
+   },
+   "brochure": "73-017",
+   "page": 56,
+   "quote": "$650 per admission",
+   "also": [
+    {
+     "page": 35,
+     "quote": "Complete maternity (obstetrical) care, such as:"
+    }
+   ],
+   "reason": "Standard Option: OPM's maternity cell reads \"Member Pays All Charges - N/A\", but the brochure's maternity care (prenatal, postpartum, delivery) costs nothing and the hospital stay is $650 per admission (the Standard Option has no deductible)."
+  },
+  {
+   "year": 2027,
+   "plan_code": "V34",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "$1,500 Copayment - $1,500 copay for inpatient hospital services, then nothing for inpatient hospital charges"
+   },
+   "term": {
+    "kind": "usd",
+    "value": 1500,
+    "deductible": false,
+    "per": "admission"
+   },
+   "brochure": "73-009",
+   "page": 40,
+   "quote": "$1,500 copayment for inpatient hospital maternity services, then Nothing for inpatient hospital charges",
+   "also": [
+    {
+     "page": 39,
+     "quote": "Nothing for routine prenatal care, the first postpartum care visit"
+    }
+   ],
+   "reason": "Standard Option: routine prenatal care and the delivery cost nothing in network, and inpatient hospital maternity services are a $1,500 copayment (no deductible mentioned). The $45 postpartum visit copay is in the High Option column only."
+  },
+  {
+   "year": 2027,
+   "plan_code": "AJ1",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "Member Pays Nothing"
+   },
+   "term": null,
+   "unpriced": "OPM's spreadsheet says the hospital stay for the birth costs nothing, but the brochure's inpatient hospital benefit (which lists maternity rooms) is 20% after the deductible while maternity care costs nothing; how the bill splits between the hospital and the doctors is not known.",
+   "brochure": "73-849",
+   "page": 58,
+   "quote": "20% after deductible",
+   "also": [
+    {
+     "page": 33,
+     "quote": "Complete maternity (obstetrical) care, such as:"
+    }
+   ],
+   "reason": "OPM's spreadsheet says the hospital stay for the birth costs nothing, but the brochure's inpatient hospital benefit (which lists maternity rooms) is 20% after the deductible while maternity care costs nothing; how the bill splits between the hospital and the doctors is not known."
+  },
+  {
+   "year": 2027,
+   "plan_code": "GG4",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "Member Pays Nothing"
+   },
+   "term": null,
+   "unpriced": "OPM's spreadsheet says the hospital stay for the birth costs nothing, but the brochure's inpatient hospital benefit (which lists maternity rooms) is 30% after the deductible while maternity care costs nothing; how the bill splits between the hospital and the doctors is not known.",
+   "brochure": "73-849",
+   "page": 58,
+   "quote": "30% after deductible",
+   "reason": "OPM's spreadsheet says the hospital stay for the birth costs nothing, but the brochure's inpatient hospital benefit (which lists maternity rooms) is 30% after the deductible while maternity care costs nothing; how the bill splits between the hospital and the doctors is not known."
+  },
+  {
+   "year": 2027,
+   "plan_code": "L11",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "Member Pays Nothing"
+   },
+   "term": null,
+   "unpriced": "OPM's spreadsheet says the hospital stay for the birth costs nothing, but the brochure sends hospital costs to Section 5(c), where the inpatient hospital benefit is 20% of the Plan allowance, while maternity care costs nothing; how the bill splits between the hospital and the doctors is not known.",
+   "brochure": "73-051",
+   "page": 62,
+   "quote": "In-network: 20% of Plan allowance",
+   "also": [
+    {
+     "page": 41,
+     "quote": "Hospital costs, see Section 5(c)"
+    }
+   ],
+   "reason": "OPM's spreadsheet says the hospital stay for the birth costs nothing, but the brochure sends hospital costs to Section 5(c), where the inpatient hospital benefit is 20% of the Plan allowance, while maternity care costs nothing; how the bill splits between the hospital and the doctors is not known."
+  },
+  {
+   "year": 2027,
+   "plan_code": "UX1",
+   "sheet": {
+    "maternity": "Member Pays Nothing - N/A",
+    "stay": "Member Pays Nothing - N/A"
+   },
+   "term": null,
+   "unpriced": "OPM's spreadsheet says the hospital stay for the birth costs nothing, but the brochure's Basic Option inpatient hospital benefit (which lists maternity rooms) is 20% after the deductible while maternity care costs nothing; how the bill splits is not known.",
+   "brochure": "73-017",
+   "page": 56,
+   "quote": "20% of the Plan allowance (deductible applies)",
+   "reason": "OPM's spreadsheet says the hospital stay for the birth costs nothing, but the brochure's Basic Option inpatient hospital benefit (which lists maternity rooms) is 20% after the deductible while maternity care costs nothing; how the bill splits is not known."
+  },
+  {
+   "year": 2027,
+   "plan_code": "YF1",
+   "sheet": {
+    "maternity": "Member Pays Nothing - N/A",
+    "stay": "Member Pays Nothing - N/A"
+   },
+   "term": null,
+   "unpriced": "OPM's spreadsheet says the hospital stay for the birth costs nothing, but the brochure's inpatient hospital benefit (which lists maternity rooms) is 20% after the deductible while maternity care costs nothing; how the bill splits is not known.",
+   "brochure": "73-899",
+   "page": 56,
+   "quote": "20% of the Plan allowance (deductible applies)",
+   "reason": "OPM's spreadsheet says the hospital stay for the birth costs nothing, but the brochure's inpatient hospital benefit (which lists maternity rooms) is 20% after the deductible while maternity care costs nothing; how the bill splits is not known."
+  },
+  {
+   "year": 2027,
+   "plan_code": "521",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "$100 Copayment - Maximum Copay: $500 per admission."
+   },
+   "term": null,
+   "unpriced": "The brochure's High Option inpatient hospital benefit is $100 per day up to a maximum of $500 per admission; the number of days in the hospital is not known.",
+   "brochure": "73-015",
+   "page": 53,
+   "quote": "$100 per day up to a maximum of $500 per admission copay.",
+   "reason": "The brochure's High Option inpatient hospital benefit is $100 per day up to a maximum of $500 per admission; the number of days in the hospital is not known."
+  },
+  {
+   "year": 2027,
+   "plan_code": "WJ1",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "Member Pays Nothing"
+   },
+   "term": null,
+   "unpriced": "OPM's spreadsheet says maternity care costs nothing, but the brochure charges $10 per office visit for every postpartum care visit after the first; the number of visits is not known.",
+   "brochure": "73-061",
+   "page": 33,
+   "quote": "visit for all postpartum care visits thereafter.",
+   "reason": "OPM's spreadsheet says maternity care costs nothing, but the brochure charges $10 per office visit for every postpartum care visit after the first; the number of visits is not known."
+  },
+  {
+   "year": 2027,
+   "plan_code": "V31",
+   "sheet": {
+    "maternity": "Member Pays Nothing - $45 per office visit for postpartum care visits thereafter",
+    "stay": "20% Coinsurance - $500 annual hospital deductible, then 20% of inpatient charges"
+   },
+   "term": null,
+   "unpriced": "High Option: a $500 hospital deductible (inpatient and outpatient combined) applies to the delivery stay, and postpartum visits after the first cost $45 each; the number of visits is not known.",
+   "brochure": "73-009",
+   "page": 39,
+   "quote": "$45 per office visit for postpartum care visits thereafter.",
+   "reason": "High Option: a $500 hospital deductible (inpatient and outpatient combined) applies to the delivery stay, and postpartum visits after the first cost $45 each; the number of visits is not known."
+  }
+ ]
+}

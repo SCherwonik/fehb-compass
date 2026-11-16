@@ -24,6 +24,8 @@ export function resolveBenefits(benefits, enrollment) {
     // Out-of-network: OPM lists only a deductible and an OOP max (no cost-sharing rates).
     oon: { deductible: pick(benefits.out_of_network?.deductible), oopMax: pick(benefits.out_of_network?.oop_max) },
     tier0: benefits.raw?.['Tier 0'] ?? null, // "$0 preventive drugs and vaccines - $0 Copayment"
+    // One pregnancy's terms, brochure-reviewed (pipeline/maternity_terms.json); {priced: false, reason} otherwise.
+    maternity: benefits.maternity ?? null,
   };
 }
 
@@ -116,7 +118,28 @@ export const KIND_SERVICES = {
   lab: 'lab_xray',
   imaging: 'imaging',
   therapy: 'physical_therapy',
+  maternity: 'maternity', // priced from benefits.maternity (see maternityShare), never from the OPM copays cell
 };
+
+/** Shown on a maternity line (and the plan card) when the plan's maternity terms could not be priced. */
+export const MATERNITY_UNPRICED = 'Maternity not priced for this plan: see its brochure';
+
+const usdTerm = (n) => `$${Number(n).toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
+
+/**
+ * A priced maternity term ({kind: zero|usd|pct, value, deductible, per}) as a copay entry the engine already prices,
+ * with an explicit `deductible` (true / false; null = the plan default) and a plain description.
+ */
+export function maternityShare(t) {
+  const after = t.deductible === true ? ', after the deductible' : '';
+  if (t.kind === 'pct') {
+    return { kind: 'pct', value: t.value, raw: '', deductible: t.deductible, text: `${t.value}% coinsurance${after}` };
+  }
+  if (t.kind === 'usd') {
+    return { kind: 'usd', value: t.value, raw: '', deductible: t.deductible, text: `${usdTerm(t.value)} per ${t.per}${after}` };
+  }
+  return { kind: 'text', value: null, raw: 'Member Pays Nothing', deductible: t.deductible, text: `nothing${after}` };
+}
 
 /** Parse an OPM drug tier string ("$0 preventive drugs - $0 Copayment", "25% Coinsurance") into a copay entry. */
 function parseTierRaw(raw) {
@@ -180,6 +203,8 @@ const usd0 = (n) => `$${Math.round(n).toLocaleString('en-US')}`;
  * not count toward the OOP max (`notCoveredPaid`). Their copays/coinsurance are NOT in `copays`/`coinsurancePaid`.
  * `flat` is true when every used service was a fixed copay / $0 (no price sensitivity).
  * `custom`: one entry per usage.custom line with its cost contribution, warnings and notes.
+ * A maternity line is priced only from the plan's brochure-reviewed `maternity` term; without one it costs $0 here,
+ * is marked `unpriced: true` with a warning, and `unpriced` lists 'maternity' (the total leaves it out).
  * Out-of-network lines are paid in full (OPM lists no out-of-network cost sharing), counted against the plan's
  * out-of-network OOP max when it lists one, and kept apart from the in-network deductible and OOP max.
  */
@@ -281,6 +306,16 @@ export function expectedOop(benefits, usage, assumptions = {}, drugs = []) {
         : `Out-of-network estimate: ${e.label} counted at full cost; this plan lists no out-of-network benefits.`);
       continue;
     }
+    const maternity = custom && e.kind === 'maternity';
+    if (maternity && benefits.maternity?.priced !== true) {
+      // Not priced (no brochure-checked terms): left out of this plan's total, and said so on the line.
+      flat = false;
+      lines[e.line].unpriced = true;
+      lineWarn(e, `${MATERNITY_UNPRICED}.`);
+      if (benefits.maternity?.reason) lineNote(e, benefits.maternity.reason);
+      continue;
+    }
+    if (maternity) lineNote(e, `Priced with this plan’s maternity terms from its 2027 brochure: you pay ${maternityShare(benefits.maternity).text}.`);
     if (total >= oopMax) continue; // same as the old early break: nothing in-network costs more after the max
 
     const isRx = custom && CUSTOM_KINDS[e.kind]?.rx === true;
@@ -289,9 +324,12 @@ export function expectedOop(benefits, usage, assumptions = {}, drugs = []) {
       // Tier 0 = preventive drugs: never behind the deductible (preventive care is exempt for HDHPs too).
       c = benefits.tier0 ? { ...parseTierRaw(benefits.tier0), raw: `${benefits.tier0} - no deductible` } : null;
     }
+    if (maternity) c = maternityShare(benefits.maternity);
 
     let dedPiece = 0, coinsPiece = 0, copayPiece = 0;
-    const useDed = (defaultYes) => (appliesDeductible(c.raw, defaultYes) ? Math.min(dedLeft, price) : 0);
+    // a term that states its deductible (true / false) wins over the wording rules
+    const useDed = (defaultYes) => ((typeof c.deductible === 'boolean' ? c.deductible : appliesDeductible(c.raw, defaultYes))
+      ? Math.min(dedLeft, price) : 0);
     // Custom-line fallback: plan coinsurance (or the documented assumption) after the deductible.
     const fallback = (why) => {
       flat = false;
@@ -368,6 +406,8 @@ export function expectedOop(benefits, usage, assumptions = {}, drugs = []) {
     flat,
     custom: lines,
     oonEstimate: lines.some((L) => L.outOfNetwork && L.perYear > 0),
+    // kinds left out of the total because this plan's terms could not be priced (e.g. ['maternity'])
+    unpriced: lines.some((L) => L.unpriced) ? ['maternity'] : [],
   };
 }
 
@@ -420,6 +460,7 @@ export function planTotal(plan, inputs) {
       drugsDeductible: o.drugsDeductible,
       notCoveredPaid: o.notCoveredPaid,
       custom: o.custom,
+      unpriced: o.unpriced,
       warnings: o.warnings,
     },
     firmness,
