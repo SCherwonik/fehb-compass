@@ -921,17 +921,38 @@
     "stay": "Member Pays Nothing"
    },
    "term": null,
-   "unpriced": "OPM's spreadsheet says the hospital stay for the birth costs nothing, but the brochure's inpatient hospital benefit (which lists maternity rooms) is 20% after the deductible while maternity care costs nothing; how the bill splits between the hospital and the doctors is not known.",
+   "estimate": {
+    "assumed": [
+     "split"
+    ],
+    "parts": [
+     {
+      "of": "hospital",
+      "kind": "pct",
+      "value": 30,
+      "deductible": false
+     },
+     {
+      "of": "doctors",
+      "kind": "zero",
+      "deductible": false
+     }
+    ]
+   },
    "brochure": "73-849",
    "page": 58,
-   "quote": "20% after deductible",
+   "quote": "30% after deductible",
    "also": [
+    {
+     "page": 58,
+     "quote": "There is no deductible for the Basic Option."
+    },
     {
      "page": 33,
      "quote": "Complete maternity (obstetrical) care, such as:"
     }
    ],
-   "reason": "OPM's spreadsheet says the hospital stay for the birth costs nothing, but the brochure's inpatient hospital benefit (which lists maternity rooms) is 20% after the deductible while maternity care costs nothing; how the bill splits between the hospital and the doctors is not known."
+   "reason": "Basic: complete maternity care costs nothing; the inpatient hospital benefit (which lists maternity rooms) is 30% (the Basic Option has no deductible). The brochure does not say how the bill divides between the hospital and the doctors. (The earlier review had the Standard and Basic columns swapped.)"
   },
   {
    "year": 2027,
@@ -941,11 +962,38 @@
     "stay": "Member Pays Nothing"
    },
    "term": null,
-   "unpriced": "OPM's spreadsheet says the hospital stay for the birth costs nothing, but the brochure's inpatient hospital benefit (which lists maternity rooms) is 30% after the deductible while maternity care costs nothing; how the bill splits between the hospital and the doctors is not known.",
+   "estimate": {
+    "assumed": [
+     "split"
+    ],
+    "parts": [
+     {
+      "of": "hospital",
+      "kind": "pct",
+      "value": 20,
+      "deductible": true
+     },
+     {
+      "of": "doctors",
+      "kind": "zero",
+      "deductible": false
+     }
+    ]
+   },
    "brochure": "73-849",
    "page": 58,
-   "quote": "30% after deductible",
-   "reason": "OPM's spreadsheet says the hospital stay for the birth costs nothing, but the brochure's inpatient hospital benefit (which lists maternity rooms) is 30% after the deductible while maternity care costs nothing; how the bill splits between the hospital and the doctors is not known."
+   "quote": "20% after deductible",
+   "also": [
+    {
+     "page": 58,
+     "quote": "The calendar year deductible for the Standard Plan is: $350 per person"
+    },
+    {
+     "page": 33,
+     "quote": "Complete maternity (obstetrical) care, such as:"
+    }
+   ],
+   "reason": "Standard: complete maternity care costs nothing; the inpatient hospital benefit (which lists maternity rooms) is 20% after the deductible. The brochure does not say how the bill divides between the hospital and the doctors. (The earlier review had the Standard and Basic columns swapped.)"
   },
   {
    "year": 2027,
@@ -954,18 +1002,26 @@
     "maternity": "Member Pays Nothing",
     "stay": "Member Pays Nothing"
    },
-   "term": null,
-   "unpriced": "OPM's spreadsheet says the hospital stay for the birth costs nothing, but the brochure sends hospital costs to Section 5(c), where the inpatient hospital benefit is 20% of the Plan allowance, while maternity care costs nothing; how the bill splits between the hospital and the doctors is not known.",
+   "term": {
+    "kind": "zero",
+    "value": 0,
+    "deductible": false,
+    "per": "pregnancy"
+   },
    "brochure": "73-051",
-   "page": 62,
-   "quote": "In-network: 20% of Plan allowance",
+   "page": 63,
+   "quote": "Maternity delivery charges in a hospital or birthing center",
    "also": [
     {
      "page": 41,
-     "quote": "Hospital costs, see Section 5(c)"
+     "quote": "Delivery (including home births)"
+    },
+    {
+     "page": 63,
+     "quote": "In-network: Nothing"
     }
    ],
-   "reason": "OPM's spreadsheet says the hospital stay for the birth costs nothing, but the brochure sends hospital costs to Section 5(c), where the inpatient hospital benefit is 20% of the Plan allowance, while maternity care costs nothing; how the bill splits between the hospital and the doctors is not known."
+   "reason": "Standard Option: complete maternity care, including delivery, costs nothing in-network (no deductible), and the inpatient hospital benefit lists \"Maternity delivery charges in a hospital or birthing center\" at nothing (no deductible). The earlier review read only the general 20% room-and-board line."
   },
   {
    "year": 2027,
@@ -975,11 +1031,34 @@
     "stay": "Member Pays Nothing - N/A"
    },
    "term": null,
-   "unpriced": "OPM's spreadsheet says the hospital stay for the birth costs nothing, but the brochure's Basic Option inpatient hospital benefit (which lists maternity rooms) is 20% after the deductible while maternity care costs nothing; how the bill splits is not known.",
+   "estimate": {
+    "assumed": [
+     "split"
+    ],
+    "parts": [
+     {
+      "of": "hospital",
+      "kind": "pct",
+      "value": 20,
+      "deductible": true
+     },
+     {
+      "of": "doctors",
+      "kind": "zero",
+      "deductible": false
+     }
+    ]
+   },
    "brochure": "73-017",
    "page": 56,
    "quote": "20% of the Plan allowance (deductible applies)",
-   "reason": "OPM's spreadsheet says the hospital stay for the birth costs nothing, but the brochure's Basic Option inpatient hospital benefit (which lists maternity rooms) is 20% after the deductible while maternity care costs nothing; how the bill splits is not known."
+   "also": [
+    {
+     "page": 35,
+     "quote": "Complete maternity (obstetrical) care, such as:"
+    }
+   ],
+   "reason": "Basic Option: complete maternity care costs nothing; the inpatient hospital benefit (which lists maternity rooms) is 20% of the Plan allowance after the deductible. OPM's spreadsheet says the stay costs nothing. The brochure does not say how the bill divides between the hospital and the doctors."
   },
   {
    "year": 2027,
@@ -989,11 +1068,34 @@
     "stay": "Member Pays Nothing - N/A"
    },
    "term": null,
-   "unpriced": "OPM's spreadsheet says the hospital stay for the birth costs nothing, but the brochure's inpatient hospital benefit (which lists maternity rooms) is 20% after the deductible while maternity care costs nothing; how the bill splits is not known.",
+   "estimate": {
+    "assumed": [
+     "split"
+    ],
+    "parts": [
+     {
+      "of": "hospital",
+      "kind": "pct",
+      "value": 20,
+      "deductible": true
+     },
+     {
+      "of": "doctors",
+      "kind": "zero",
+      "deductible": false
+     }
+    ]
+   },
    "brochure": "73-899",
    "page": 56,
    "quote": "20% of the Plan allowance (deductible applies)",
-   "reason": "OPM's spreadsheet says the hospital stay for the birth costs nothing, but the brochure's inpatient hospital benefit (which lists maternity rooms) is 20% after the deductible while maternity care costs nothing; how the bill splits is not known."
+   "also": [
+    {
+     "page": 35,
+     "quote": "Complete maternity (obstetrical) care, such as:"
+    }
+   ],
+   "reason": "Basic Option: complete maternity care costs nothing; the inpatient hospital benefit (which lists maternity rooms) is 20% of the Plan allowance after the deductible. OPM's spreadsheet says the stay costs nothing. The brochure does not say how the bill divides between the hospital and the doctors."
   },
   {
    "year": 2027,
@@ -1003,11 +1105,39 @@
     "stay": "$100 Copayment - Maximum Copay: $500 per admission."
    },
    "term": null,
-   "unpriced": "The brochure's High Option inpatient hospital benefit is $100 per day up to a maximum of $500 per admission; the number of days in the hospital is not known.",
+   "estimate": {
+    "assumed": [
+     "days"
+    ],
+    "parts": [
+     {
+      "of": "hospital",
+      "kind": "per_day",
+      "value": 100,
+      "deductible": false,
+      "cap": 500
+     },
+     {
+      "of": "doctors",
+      "kind": "zero",
+      "deductible": false
+     }
+    ]
+   },
    "brochure": "73-015",
    "page": 53,
    "quote": "$100 per day up to a maximum of $500 per admission copay.",
-   "reason": "The brochure's High Option inpatient hospital benefit is $100 per day up to a maximum of $500 per admission; the number of days in the hospital is not known."
+   "also": [
+    {
+     "page": 34,
+     "quote": "Nothing for inpatient professional delivery services."
+    },
+    {
+     "page": 24,
+     "quote": "The High Option has no deductible."
+    }
+   ],
+   "reason": "High Option: routine prenatal and postpartum visits and inpatient professional delivery services cost nothing; the hospital stay is $100 per day up to a maximum of $500 per admission (no deductible). The brochure does not say how many days."
   },
   {
    "year": 2027,
@@ -1017,11 +1147,40 @@
     "stay": "Member Pays Nothing"
    },
    "term": null,
-   "unpriced": "OPM's spreadsheet says maternity care costs nothing, but the brochure charges $10 per office visit for every postpartum care visit after the first; the number of visits is not known.",
+   "estimate": {
+    "assumed": [
+     "visits"
+    ],
+    "parts": [
+     {
+      "of": "hospital",
+      "kind": "zero",
+      "deductible": false
+     },
+     {
+      "of": "doctors",
+      "kind": "zero",
+      "deductible": false
+     },
+     {
+      "of": "doctors",
+      "kind": "per_visit",
+      "value": 10,
+      "visits": "postpartum_after_first",
+      "deductible": false
+     }
+    ]
+   },
    "brochure": "73-061",
    "page": 33,
    "quote": "visit for all postpartum care visits thereafter.",
-   "reason": "OPM's spreadsheet says maternity care costs nothing, but the brochure charges $10 per office visit for every postpartum care visit after the first; the number of visits is not known."
+   "also": [
+    {
+     "page": 33,
+     "quote": "Nothing for Inpatient professional delivery services."
+    }
+   ],
+   "reason": "High: prenatal care, the first postpartum visit, inpatient professional delivery services and the hospital stay cost nothing; postpartum visits after the first are $10 each. The brochure does not say how many postpartum visits."
   },
   {
    "year": 2027,
@@ -1031,11 +1190,1528 @@
     "stay": "20% Coinsurance - $500 annual hospital deductible, then 20% of inpatient charges"
    },
    "term": null,
-   "unpriced": "High Option: a $500 hospital deductible (inpatient and outpatient combined) applies to the delivery stay, and postpartum visits after the first cost $45 each; the number of visits is not known.",
+   "estimate": {
+    "assumed": [
+     "visits"
+    ],
+    "parts": [
+     {
+      "of": "hospital",
+      "kind": "usd",
+      "value": 500,
+      "deductible": false
+     },
+     {
+      "of": "doctors",
+      "kind": "zero",
+      "deductible": false
+     },
+     {
+      "of": "doctors",
+      "kind": "per_visit",
+      "value": 45,
+      "visits": "postpartum_after_first",
+      "deductible": false
+     }
+    ],
+    "note": "The $500 hospital deductible is counted in full for the birth."
+   },
    "brochure": "73-009",
-   "page": 39,
-   "quote": "$45 per office visit for postpartum care visits thereafter.",
-   "reason": "High Option: a $500 hospital deductible (inpatient and outpatient combined) applies to the delivery stay, and postpartum visits after the first cost $45 each; the number of visits is not known."
+   "page": 40,
+   "quote": "$500 hospital deductible for inpatient and outpatient hospital services combined, then Nothing for inpatient hospital maternity charges",
+   "also": [
+    {
+     "page": 39,
+     "quote": "$45 per office visit for postpartum care visits thereafter."
+    }
+   ],
+   "reason": "High Option: routine prenatal care and the first postpartum visit cost nothing, postpartum visits after the first are $45 each, and the delivery stay costs the $500 hospital deductible (inpatient and outpatient combined), then nothing. The brochure does not say how many postpartum visits."
+  },
+  {
+   "year": 2027,
+   "plan_code": "314",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "25% Coinsurance"
+   },
+   "term": null,
+   "estimate": {
+    "assumed": [
+     "split"
+    ],
+    "parts": [
+     {
+      "of": "hospital",
+      "kind": "pct",
+      "value": 25,
+      "deductible": true
+     },
+     {
+      "of": "doctors",
+      "kind": "zero",
+      "deductible": false
+     }
+    ]
+   },
+   "brochure": "71-006",
+   "page": 69,
+   "quote": "In-network: 25% of the Plan allowance",
+   "also": [
+    {
+     "page": 41,
+     "quote": "Delivery professional fees"
+    },
+    {
+     "page": 41,
+     "quote": "In-network: Nothing (no deductible)"
+    }
+   ],
+   "reason": "Standard Option: complete maternity care, including the delivery professional fees, costs nothing in-network (no deductible); the inpatient hospital stay is 25% of the Plan allowance, after the deductible. The brochure does not say how the bill divides between the hospital and the doctors."
+  },
+  {
+   "year": 2027,
+   "plan_code": "441",
+   "sheet": {
+    "maternity": "15% Coinsurance",
+    "stay": "Member Pays Nothing"
+   },
+   "term": null,
+   "estimate": {
+    "assumed": [
+     "split"
+    ],
+    "parts": [
+     {
+      "of": "hospital",
+      "kind": "zero",
+      "deductible": false
+     },
+     {
+      "of": "doctors",
+      "kind": "pct",
+      "value": 15,
+      "deductible": true
+     }
+    ]
+   },
+   "brochure": "71-015",
+   "page": 40,
+   "quote": "PPO: 15% of the Plan allowance",
+   "also": [
+    {
+     "page": 66,
+     "quote": "we waive the per confinement copayment when you use a PPO facility"
+    },
+    {
+     "page": 66,
+     "quote": "PPO: Nothing after a $250 copayment per confinement"
+    }
+   ],
+   "reason": "High Option: maternity care by doctors (prenatal, delivery, postpartum) is 15% of the Plan allowance after the deductible; the hospital stay for the birth costs nothing (the $250 per-confinement copayment is waived for maternity at PPO facilities). The brochure does not say how the bill divides between the hospital and the doctors."
+  },
+  {
+   "year": 2027,
+   "plan_code": "LA1",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "10% Coinsurance - after the deductible"
+   },
+   "term": null,
+   "estimate": {
+    "assumed": [
+     "split"
+    ],
+    "parts": [
+     {
+      "of": "hospital",
+      "kind": "pct",
+      "value": 10,
+      "deductible": true
+     },
+     {
+      "of": "doctors",
+      "kind": "zero",
+      "deductible": false
+     }
+    ]
+   },
+   "brochure": "73-321",
+   "page": 66,
+   "quote": "10% of our allowance after deductible",
+   "also": [
+    {
+     "page": 42,
+     "quote": "Nothing for inpatient professional delivery services"
+    }
+   ],
+   "reason": "Prosper: routine prenatal and postpartum care and inpatient professional delivery services cost nothing; the inpatient hospital stay is 10% of the allowance after the deductible. The brochure does not say how the bill divides between the hospital and the doctors."
+  },
+  {
+   "year": 2027,
+   "plan_code": "JN4",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "20% Coinsurance - of plan allowance per admission"
+   },
+   "term": null,
+   "estimate": {
+    "assumed": [
+     "split",
+     "visits"
+    ],
+    "parts": [
+     {
+      "of": "hospital",
+      "kind": "pct",
+      "value": 20,
+      "deductible": false
+     },
+     {
+      "of": "doctors",
+      "kind": "zero",
+      "deductible": false
+     },
+     {
+      "of": "doctors",
+      "kind": "per_visit",
+      "value": 55,
+      "visits": "postpartum_after_first",
+      "deductible": false
+     }
+    ]
+   },
+   "brochure": "73-052",
+   "page": 61,
+   "quote": "20% of plan allowance per admission",
+   "also": [
+    {
+     "page": 37,
+     "quote": "No copay for routine prenatal care or the first postpartum care visit"
+    },
+    {
+     "page": 37,
+     "quote": "$25 for PCP visit or $55 for specialist visit for postpartum care visits thereafter"
+    },
+    {
+     "page": 38,
+     "quote": "We pay hospitalization and surgeon services for maternity care (delivery) the same as for illness and injury"
+    },
+    {
+     "page": 51,
+     "quote": "Nothing for the surgery."
+    }
+   ],
+   "reason": "Basic Option: routine prenatal care and the first postpartum visit cost nothing, the delivery is paid like surgery (nothing for the surgery), postpartum visits after the first are $25 (PCP) or $55 (specialist), and the hospital stay is 20% of the plan allowance per admission (the Basic Option has no deductible). The brochure does not say how the bill divides between the hospital and the doctors, or how many postpartum visits there are."
+  },
+  {
+   "year": 2027,
+   "plan_code": "JC4",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "20% Coinsurance - of plan allowance per admission"
+   },
+   "term": null,
+   "estimate": {
+    "assumed": [
+     "split",
+     "visits"
+    ],
+    "parts": [
+     {
+      "of": "hospital",
+      "kind": "pct",
+      "value": 20,
+      "deductible": false
+     },
+     {
+      "of": "doctors",
+      "kind": "zero",
+      "deductible": false
+     },
+     {
+      "of": "doctors",
+      "kind": "per_visit",
+      "value": 35,
+      "visits": "postpartum_after_first",
+      "deductible": false
+     }
+    ]
+   },
+   "brochure": "73-851",
+   "page": 62,
+   "quote": "20% of our Plan allowance per admission",
+   "also": [
+    {
+     "page": 38,
+     "quote": "$15 for PCP visit or $35 for specialist visits for postpartum care visits thereafter"
+    },
+    {
+     "page": 39,
+     "quote": "We pay hospitalization and surgeon services for maternity care"
+    },
+    {
+     "page": 52,
+     "quote": "Nothing for the surgery."
+    }
+   ],
+   "reason": "Basic Option: routine prenatal care and the first postpartum visit cost nothing, the delivery is paid like surgery (nothing for the surgery), postpartum visits after the first are $15 (PCP) or $35 (specialist), and the hospital stay is 20% of the Plan allowance per admission (no deductible). The brochure does not say how the bill divides between the hospital and the doctors, or how many postpartum visits there are."
+  },
+  {
+   "year": 2027,
+   "plan_code": "JR4",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "20% Coinsurance - of plan allowance per admission"
+   },
+   "term": null,
+   "estimate": {
+    "assumed": [
+     "split",
+     "visits"
+    ],
+    "parts": [
+     {
+      "of": "hospital",
+      "kind": "pct",
+      "value": 20,
+      "deductible": false
+     },
+     {
+      "of": "doctors",
+      "kind": "zero",
+      "deductible": false
+     },
+     {
+      "of": "doctors",
+      "kind": "per_visit",
+      "value": 35,
+      "visits": "postpartum_after_first",
+      "deductible": false
+     }
+    ]
+   },
+   "brochure": "73-851",
+   "page": 62,
+   "quote": "20% of our Plan allowance per admission",
+   "also": [
+    {
+     "page": 38,
+     "quote": "$15 for PCP visit or $35 for specialist visits for postpartum care visits thereafter"
+    },
+    {
+     "page": 39,
+     "quote": "We pay hospitalization and surgeon services for maternity care"
+    },
+    {
+     "page": 52,
+     "quote": "Nothing for the surgery."
+    }
+   ],
+   "reason": "Basic Option: routine prenatal care and the first postpartum visit cost nothing, the delivery is paid like surgery (nothing for the surgery), postpartum visits after the first are $15 (PCP) or $35 (specialist), and the hospital stay is 20% of the Plan allowance per admission (no deductible). The brochure does not say how the bill divides between the hospital and the doctors, or how many postpartum visits there are."
+  },
+  {
+   "year": 2027,
+   "plan_code": "P34",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "20% Coinsurance - of plan allowance per admission"
+   },
+   "term": null,
+   "estimate": {
+    "assumed": [
+     "split",
+     "visits"
+    ],
+    "parts": [
+     {
+      "of": "hospital",
+      "kind": "pct",
+      "value": 20,
+      "deductible": false
+     },
+     {
+      "of": "doctors",
+      "kind": "zero",
+      "deductible": false
+     },
+     {
+      "of": "doctors",
+      "kind": "per_visit",
+      "value": 35,
+      "visits": "postpartum_after_first",
+      "deductible": false
+     }
+    ]
+   },
+   "brochure": "73-851",
+   "page": 62,
+   "quote": "20% of our Plan allowance per admission",
+   "also": [
+    {
+     "page": 38,
+     "quote": "$15 for PCP visit or $35 for specialist visits for postpartum care visits thereafter"
+    },
+    {
+     "page": 39,
+     "quote": "We pay hospitalization and surgeon services for maternity care"
+    },
+    {
+     "page": 52,
+     "quote": "Nothing for the surgery."
+    }
+   ],
+   "reason": "Basic Option: routine prenatal care and the first postpartum visit cost nothing, the delivery is paid like surgery (nothing for the surgery), postpartum visits after the first are $15 (PCP) or $35 (specialist), and the hospital stay is 20% of the Plan allowance per admission (no deductible). The brochure does not say how the bill divides between the hospital and the doctors, or how many postpartum visits there are."
+  },
+  {
+   "year": 2027,
+   "plan_code": "KX1",
+   "sheet": {
+    "maternity": "Member Pays Nothing - after deductible is met",
+    "stay": "20% Coinsurance - of our allowance after deductible is met"
+   },
+   "term": null,
+   "estimate": {
+    "assumed": [
+     "split"
+    ],
+    "parts": [
+     {
+      "of": "hospital",
+      "kind": "pct",
+      "value": 20,
+      "deductible": true
+     },
+     {
+      "of": "doctors",
+      "kind": "zero",
+      "deductible": true
+     }
+    ]
+   },
+   "brochure": "73-776",
+   "page": 105,
+   "quote": "In-network: Primary care, Specialist - Nothing; Outpatient Facility, Inpatient Hospital - 20% coinsurance of our allowance",
+   "also": [
+    {
+     "page": 106,
+     "quote": "Once you've met your deductible, you"
+    }
+   ],
+   "reason": "HDHP: once the deductible is met, maternity care by primary care doctors and specialists costs nothing and the inpatient hospital stay is 20% coinsurance of the allowance. The brochure does not say how the bill divides between the hospital and the doctors."
+  },
+  {
+   "year": 2027,
+   "plan_code": "UW4",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "20% Coinsurance - after deductible"
+   },
+   "term": null,
+   "estimate": {
+    "assumed": [
+     "split"
+    ],
+    "parts": [
+     {
+      "of": "hospital",
+      "kind": "pct",
+      "value": 20,
+      "deductible": true
+     },
+     {
+      "of": "doctors",
+      "kind": "zero",
+      "deductible": false
+     }
+    ]
+   },
+   "brochure": "73-797",
+   "page": 40,
+   "quote": "Nothing (No deductible)",
+   "also": [
+    {
+     "page": 65,
+     "quote": "20% of the Plan allowance"
+    }
+   ],
+   "reason": "Standard Option: complete maternity care (prenatal, delivery, postpartum) costs nothing (no deductible); the inpatient hospital stay is 20% of the Plan allowance after the deductible. The brochure does not say how the bill divides between the hospital and the doctors."
+  },
+  {
+   "year": 2027,
+   "plan_code": "874",
+   "sheet": {
+    "maternity": "Member Pays Nothing - Deductible does not apply",
+    "stay": "30% - Based on semiprivate room rate; deductible applies; coinsurance applies to eligible charge"
+   },
+   "term": null,
+   "estimate": {
+    "assumed": [
+     "split"
+    ],
+    "parts": [
+     {
+      "of": "hospital",
+      "kind": "pct",
+      "value": 30,
+      "deductible": true
+     },
+     {
+      "of": "doctors",
+      "kind": "zero",
+      "deductible": false
+     }
+    ]
+   },
+   "brochure": "73-010",
+   "page": 67,
+   "quote": "30% of eligible charge (based on semiprivate room rate) (deductible applies)",
+   "also": [
+    {
+     "page": 42,
+     "quote": "physician or certified nurse-midwife services for routine:"
+    }
+   ],
+   "reason": "Standard Option: routine maternity care by a physician or certified nurse-midwife (prenatal, delivery, postpartum) costs nothing at Plan providers; the inpatient hospital stay is 30% of the eligible charge after the deductible. The brochure does not say how the bill divides between the hospital and the doctors."
+  },
+  {
+   "year": 2027,
+   "plan_code": "A84",
+   "sheet": {
+    "maternity": "Member Pays Nothing - only postpartum pays $50 after first visit",
+    "stay": "10% Coinsurance"
+   },
+   "term": null,
+   "estimate": {
+    "assumed": [
+     "split",
+     "visits"
+    ],
+    "parts": [
+     {
+      "of": "hospital",
+      "kind": "pct",
+      "value": 10,
+      "deductible": true
+     },
+     {
+      "of": "doctors",
+      "kind": "zero",
+      "deductible": false
+     },
+     {
+      "of": "doctors",
+      "kind": "per_visit",
+      "value": 60,
+      "visits": "postpartum_after_first",
+      "deductible": false
+     }
+    ]
+   },
+   "brochure": "73-881",
+   "page": 38,
+   "quote": "or inpatient professional delivery services.",
+   "also": [
+    {
+     "page": 39,
+     "quote": "$60 per office visit for all postpartum care visits thereafter."
+    },
+    {
+     "page": 57,
+     "quote": "10% coinsurance (deductible applies)"
+    }
+   ],
+   "reason": "Standard: prenatal care, the first postpartum visit and inpatient professional delivery services cost nothing; postpartum visits after the first are $60 each; the inpatient hospital stay is 10% coinsurance after the deductible. The brochure does not say how the bill divides between the hospital and the doctors, or how many postpartum visits there are."
+  },
+  {
+   "year": 2027,
+   "plan_code": "P84",
+   "sheet": {
+    "maternity": "Member Pays Nothing - only postpartum pays $50 after first visit",
+    "stay": "10% Coinsurance"
+   },
+   "term": null,
+   "estimate": {
+    "assumed": [
+     "split",
+     "visits"
+    ],
+    "parts": [
+     {
+      "of": "hospital",
+      "kind": "pct",
+      "value": 10,
+      "deductible": true
+     },
+     {
+      "of": "doctors",
+      "kind": "zero",
+      "deductible": false
+     },
+     {
+      "of": "doctors",
+      "kind": "per_visit",
+      "value": 60,
+      "visits": "postpartum_after_first",
+      "deductible": false
+     }
+    ]
+   },
+   "brochure": "73-881",
+   "page": 38,
+   "quote": "or inpatient professional delivery services.",
+   "also": [
+    {
+     "page": 39,
+     "quote": "$60 per office visit for all postpartum care visits thereafter."
+    },
+    {
+     "page": 57,
+     "quote": "10% coinsurance (deductible applies)"
+    }
+   ],
+   "reason": "Standard: prenatal care, the first postpartum visit and inpatient professional delivery services cost nothing; postpartum visits after the first are $60 each; the inpatient hospital stay is 10% coinsurance after the deductible. The brochure does not say how the bill divides between the hospital and the doctors, or how many postpartum visits there are."
+  },
+  {
+   "year": 2027,
+   "plan_code": "A81",
+   "sheet": {
+    "maternity": "Member Pays Nothing - only postpartum pays $50 after first visit.",
+    "stay": "20% Coinsurance"
+   },
+   "term": null,
+   "estimate": {
+    "assumed": [
+     "split",
+     "visits"
+    ],
+    "parts": [
+     {
+      "of": "hospital",
+      "kind": "pct",
+      "value": 20,
+      "deductible": true
+     },
+     {
+      "of": "doctors",
+      "kind": "zero",
+      "deductible": false
+     },
+     {
+      "of": "doctors",
+      "kind": "per_visit",
+      "value": 60,
+      "visits": "postpartum_after_first",
+      "deductible": false
+     }
+    ]
+   },
+   "brochure": "73-881",
+   "page": 38,
+   "quote": "or inpatient professional delivery services.",
+   "also": [
+    {
+     "page": 39,
+     "quote": "$60 per office visit for all postpartum care visits thereafter."
+    },
+    {
+     "page": 57,
+     "quote": "20% coinsurance (deductible applies)"
+    }
+   ],
+   "reason": "Basic: prenatal care, the first postpartum visit and inpatient professional delivery services cost nothing; postpartum visits after the first are $60 each; the inpatient hospital stay is 20% coinsurance after the deductible. The brochure does not say how the bill divides between the hospital and the doctors, or how many postpartum visits there are."
+  },
+  {
+   "year": 2027,
+   "plan_code": "P81",
+   "sheet": {
+    "maternity": "Member Pays Nothing - only postpartum pays $50 after first visit.",
+    "stay": "20% Coinsurance"
+   },
+   "term": null,
+   "estimate": {
+    "assumed": [
+     "split",
+     "visits"
+    ],
+    "parts": [
+     {
+      "of": "hospital",
+      "kind": "pct",
+      "value": 20,
+      "deductible": true
+     },
+     {
+      "of": "doctors",
+      "kind": "zero",
+      "deductible": false
+     },
+     {
+      "of": "doctors",
+      "kind": "per_visit",
+      "value": 60,
+      "visits": "postpartum_after_first",
+      "deductible": false
+     }
+    ]
+   },
+   "brochure": "73-881",
+   "page": 38,
+   "quote": "or inpatient professional delivery services.",
+   "also": [
+    {
+     "page": 39,
+     "quote": "$60 per office visit for all postpartum care visits thereafter."
+    },
+    {
+     "page": 57,
+     "quote": "20% coinsurance (deductible applies)"
+    }
+   ],
+   "reason": "Basic: prenatal care, the first postpartum visit and inpatient professional delivery services cost nothing; postpartum visits after the first are $60 each; the inpatient hospital stay is 20% coinsurance after the deductible. The brochure does not say how the bill divides between the hospital and the doctors, or how many postpartum visits there are."
+  },
+  {
+   "year": 2027,
+   "plan_code": "RE1",
+   "sheet": {
+    "maternity": "$30 - delivery is 30% after deductible, postpartum and others are $30/$75 (PCP/specialist office visit))",
+    "stay": "30% Coinsurance - after deductible"
+   },
+   "term": null,
+   "estimate": {
+    "assumed": [
+     "split",
+     "visits"
+    ],
+    "parts": [
+     {
+      "of": "hospital",
+      "kind": "pct",
+      "value": 30,
+      "deductible": true
+     },
+     {
+      "of": "doctors",
+      "kind": "zero",
+      "deductible": false
+     },
+     {
+      "of": "doctors",
+      "kind": "per_visit",
+      "value": 75,
+      "visits": "postpartum_after_first",
+      "deductible": false
+     }
+    ]
+   },
+   "brochure": "73-881",
+   "page": 38,
+   "quote": "or inpatient professional delivery services.",
+   "also": [
+    {
+     "page": 39,
+     "quote": "$75 per office visit for all postpartum care visits thereafter."
+    },
+    {
+     "page": 57,
+     "quote": "30% coinsurance (deductible applies)"
+    }
+   ],
+   "reason": "Value: prenatal care, the first postpartum visit and inpatient professional delivery services cost nothing; postpartum visits after the first are $75 each; the inpatient hospital stay is 30% coinsurance after the deductible. The brochure does not say how the bill divides between the hospital and the doctors, or how many postpartum visits there are."
+  },
+  {
+   "year": 2027,
+   "plan_code": "YZ1",
+   "sheet": {
+    "maternity": "$30 - delivery is 30% after deductible, postpartum and others are $30/$75 (PCP/specialist office visit))",
+    "stay": "30% Coinsurance - after deductible"
+   },
+   "term": null,
+   "estimate": {
+    "assumed": [
+     "split",
+     "visits"
+    ],
+    "parts": [
+     {
+      "of": "hospital",
+      "kind": "pct",
+      "value": 30,
+      "deductible": true
+     },
+     {
+      "of": "doctors",
+      "kind": "zero",
+      "deductible": false
+     },
+     {
+      "of": "doctors",
+      "kind": "per_visit",
+      "value": 75,
+      "visits": "postpartum_after_first",
+      "deductible": false
+     }
+    ]
+   },
+   "brochure": "73-881",
+   "page": 38,
+   "quote": "or inpatient professional delivery services.",
+   "also": [
+    {
+     "page": 39,
+     "quote": "$75 per office visit for all postpartum care visits thereafter."
+    },
+    {
+     "page": 57,
+     "quote": "30% coinsurance (deductible applies)"
+    }
+   ],
+   "reason": "Value: prenatal care, the first postpartum visit and inpatient professional delivery services cost nothing; postpartum visits after the first are $75 each; the inpatient hospital stay is 30% coinsurance after the deductible. The brochure does not say how the bill divides between the hospital and the doctors, or how many postpartum visits there are."
+  },
+  {
+   "year": 2027,
+   "plan_code": "JN1",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "$150 Copayment - $150 per day up to a maximum of $450 per admission"
+   },
+   "term": null,
+   "estimate": {
+    "assumed": [
+     "days",
+     "visits"
+    ],
+    "parts": [
+     {
+      "of": "hospital",
+      "kind": "per_day",
+      "value": 150,
+      "deductible": false,
+      "cap": 450
+     },
+     {
+      "of": "doctors",
+      "kind": "zero",
+      "deductible": false
+     },
+     {
+      "of": "doctors",
+      "kind": "per_visit",
+      "value": 30,
+      "visits": "postpartum_after_first",
+      "deductible": false
+     }
+    ]
+   },
+   "brochure": "73-052",
+   "page": 61,
+   "quote": "$150 per day up to a maximum of $450 per admission",
+   "also": [
+    {
+     "page": 37,
+     "quote": "No copay for routine prenatal care or the first postpartum care visit"
+    },
+    {
+     "page": 37,
+     "quote": "$15 for PCP visit or $30 for specialist visit for postpartum care visits thereafter"
+    },
+    {
+     "page": 38,
+     "quote": "We pay hospitalization and surgeon services for maternity care (delivery) the same as for illness and injury"
+    },
+    {
+     "page": 51,
+     "quote": "Nothing for the surgery."
+    }
+   ],
+   "reason": "High Option: routine prenatal care and the first postpartum visit cost nothing, the delivery is paid like surgery (nothing for the surgery), postpartum visits after the first are $15 (PCP) or $30 (specialist), and the hospital stay is $150 per day up to $450 per admission. The brochure does not say how many days or postpartum visits."
+  },
+  {
+   "year": 2027,
+   "plan_code": "JC1",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "$250 Copayment - $250 per day up to a maximum of $1000 per admission"
+   },
+   "term": null,
+   "estimate": {
+    "assumed": [
+     "days",
+     "visits"
+    ],
+    "parts": [
+     {
+      "of": "hospital",
+      "kind": "per_day",
+      "value": 250,
+      "deductible": false,
+      "cap": 1000
+     },
+     {
+      "of": "doctors",
+      "kind": "zero",
+      "deductible": false
+     },
+     {
+      "of": "doctors",
+      "kind": "per_visit",
+      "value": 35,
+      "visits": "postpartum_after_first",
+      "deductible": false
+     }
+    ]
+   },
+   "brochure": "73-851",
+   "page": 62,
+   "quote": "$250 per day up to a maximum of $1,000 per admission",
+   "also": [
+    {
+     "page": 38,
+     "quote": "$20 for PCP visit or $35 for specialist visits for postpartum care visits thereafter"
+    },
+    {
+     "page": 39,
+     "quote": "We pay hospitalization and surgeon services for maternity care"
+    },
+    {
+     "page": 52,
+     "quote": "Nothing for the surgery."
+    }
+   ],
+   "reason": "High Option: routine prenatal care and the first postpartum visit cost nothing, the delivery is paid like surgery (nothing for the surgery), postpartum visits after the first are $20 (PCP) or $35 (specialist), and the hospital stay is $250 per day up to $1,000 per admission. The brochure does not say how many days or postpartum visits."
+  },
+  {
+   "year": 2027,
+   "plan_code": "JR1",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "$250 Copayment - $250 per day up to a maximum of $1000 per admission"
+   },
+   "term": null,
+   "estimate": {
+    "assumed": [
+     "days",
+     "visits"
+    ],
+    "parts": [
+     {
+      "of": "hospital",
+      "kind": "per_day",
+      "value": 250,
+      "deductible": false,
+      "cap": 1000
+     },
+     {
+      "of": "doctors",
+      "kind": "zero",
+      "deductible": false
+     },
+     {
+      "of": "doctors",
+      "kind": "per_visit",
+      "value": 35,
+      "visits": "postpartum_after_first",
+      "deductible": false
+     }
+    ]
+   },
+   "brochure": "73-851",
+   "page": 62,
+   "quote": "$250 per day up to a maximum of $1,000 per admission",
+   "also": [
+    {
+     "page": 38,
+     "quote": "$20 for PCP visit or $35 for specialist visits for postpartum care visits thereafter"
+    },
+    {
+     "page": 39,
+     "quote": "We pay hospitalization and surgeon services for maternity care"
+    },
+    {
+     "page": 52,
+     "quote": "Nothing for the surgery."
+    }
+   ],
+   "reason": "High Option: routine prenatal care and the first postpartum visit cost nothing, the delivery is paid like surgery (nothing for the surgery), postpartum visits after the first are $20 (PCP) or $35 (specialist), and the hospital stay is $250 per day up to $1,000 per admission. The brochure does not say how many days or postpartum visits."
+  },
+  {
+   "year": 2027,
+   "plan_code": "P31",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "$250 Copayment - $250 per day up to a maximum of $1000 per admission"
+   },
+   "term": null,
+   "estimate": {
+    "assumed": [
+     "days",
+     "visits"
+    ],
+    "parts": [
+     {
+      "of": "hospital",
+      "kind": "per_day",
+      "value": 250,
+      "deductible": false,
+      "cap": 1000
+     },
+     {
+      "of": "doctors",
+      "kind": "zero",
+      "deductible": false
+     },
+     {
+      "of": "doctors",
+      "kind": "per_visit",
+      "value": 35,
+      "visits": "postpartum_after_first",
+      "deductible": false
+     }
+    ]
+   },
+   "brochure": "73-851",
+   "page": 62,
+   "quote": "$250 per day up to a maximum of $1,000 per admission",
+   "also": [
+    {
+     "page": 38,
+     "quote": "$20 for PCP visit or $35 for specialist visits for postpartum care visits thereafter"
+    },
+    {
+     "page": 39,
+     "quote": "We pay hospitalization and surgeon services for maternity care"
+    },
+    {
+     "page": 52,
+     "quote": "Nothing for the surgery."
+    }
+   ],
+   "reason": "High Option: routine prenatal care and the first postpartum visit cost nothing, the delivery is paid like surgery (nothing for the surgery), postpartum visits after the first are $20 (PCP) or $35 (specialist), and the hospital stay is $250 per day up to $1,000 per admission. The brochure does not say how many days or postpartum visits."
+  },
+  {
+   "year": 2027,
+   "plan_code": "2X1",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "$250 Copayment - $250 per day up to a maximum of $1000 per admission"
+   },
+   "term": null,
+   "estimate": {
+    "assumed": [
+     "days",
+     "visits"
+    ],
+    "parts": [
+     {
+      "of": "hospital",
+      "kind": "per_day",
+      "value": 250,
+      "deductible": false,
+      "cap": 1000
+     },
+     {
+      "of": "doctors",
+      "kind": "zero",
+      "deductible": false
+     },
+     {
+      "of": "doctors",
+      "kind": "per_visit",
+      "value": 35,
+      "visits": "postpartum_after_first",
+      "deductible": false
+     }
+    ]
+   },
+   "brochure": "73-806",
+   "page": 56,
+   "quote": "$250 per day up to a maximum of $1,000 per admission",
+   "also": [
+    {
+     "page": 36,
+     "quote": "No copay for prenatal care or the first postpartum care visit"
+    },
+    {
+     "page": 36,
+     "quote": "$20 for PCP visit or $35 for specialist visit for postpartum care visits thereafter"
+    },
+    {
+     "page": 37,
+     "quote": "We pay hospitalization and surgeon services for maternity care (delivery) the same as for"
+    },
+    {
+     "page": 48,
+     "quote": "Nothing for the surgery."
+    }
+   ],
+   "reason": "High Option: prenatal care and the first postpartum visit cost nothing, the delivery is paid like surgery (nothing for the surgery), postpartum visits after the first are $20 (PCP) or $35 (specialist), and the hospital stay is $250 per day up to $1,000 per admission. The brochure does not say how many days or postpartum visits."
+  },
+  {
+   "year": 2027,
+   "plan_code": "JK1",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "$100 Copayment - per day, up to $500 per admission"
+   },
+   "term": null,
+   "estimate": {
+    "assumed": [
+     "days"
+    ],
+    "parts": [
+     {
+      "of": "hospital",
+      "kind": "per_day",
+      "value": 100,
+      "deductible": false,
+      "cap": 500
+     },
+     {
+      "of": "doctors",
+      "kind": "zero",
+      "deductible": false
+     }
+    ]
+   },
+   "brochure": "73-776",
+   "page": 40,
+   "quote": "hospital - $100 copayment per day, up to $500 maximum per inpatient admission.",
+   "also": [
+    {
+     "page": 40,
+     "quote": "In-network: Primary Care, Specialist - Nothing"
+    }
+   ],
+   "reason": "High: maternity care by primary care doctors and specialists costs nothing; the inpatient hospital stay is $100 per day, up to $500 per admission. The brochure does not say how many days."
+  },
+  {
+   "year": 2027,
+   "plan_code": "JK4",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "$150 Copayment - per day, up to $750 per admission"
+   },
+   "term": null,
+   "estimate": {
+    "assumed": [
+     "days"
+    ],
+    "parts": [
+     {
+      "of": "hospital",
+      "kind": "per_day",
+      "value": 150,
+      "deductible": false,
+      "cap": 750
+     },
+     {
+      "of": "doctors",
+      "kind": "zero",
+      "deductible": false
+     }
+    ]
+   },
+   "brochure": "73-776",
+   "page": 40,
+   "quote": "Inpatient hospital - $150 copayment per day, up to $750 maximum per inpatient admission.",
+   "also": [
+    {
+     "page": 40,
+     "quote": "In-network: Primary Care, Specialist - Nothing"
+    }
+   ],
+   "reason": "Standard: maternity care by primary care doctors and specialists costs nothing; the inpatient hospital stay is $150 per day, up to $750 per admission. The brochure does not say how many days."
+  },
+  {
+   "year": 2027,
+   "plan_code": "B31",
+   "sheet": {
+    "maternity": "Member Pays Nothing",
+    "stay": "$250 Copayment - 250/day up to 4 days"
+   },
+   "term": null,
+   "estimate": {
+    "assumed": [
+     "days"
+    ],
+    "parts": [
+     {
+      "of": "hospital",
+      "kind": "per_day",
+      "value": 250,
+      "deductible": false,
+      "maxDays": 4
+     },
+     {
+      "of": "doctors",
+      "kind": "zero",
+      "deductible": false
+     }
+    ]
+   },
+   "brochure": "73-877",
+   "page": 52,
+   "quote": "$250 per day for a maximum of 4 days",
+   "also": [
+    {
+     "page": 32,
+     "quote": "Nothing for Prenatal and Postpartum care. For delivery- See Section 5c for Inpatient Hospital Copays"
+    }
+   ],
+   "reason": "High Option: prenatal and postpartum care cost nothing and the delivery is charged as the inpatient hospital copay, $250 per day for a maximum of 4 days. The brochure does not say how many days."
+  },
+  {
+   "year": 2027,
+   "plan_code": "DH1",
+   "sheet": {
+    "maternity": "Member Pays Nothing - $20 Copay per visit for postpartum care visits",
+    "stay": "Member Pays Nothing"
+   },
+   "term": null,
+   "estimate": {
+    "assumed": [
+     "days",
+     "visits"
+    ],
+    "parts": [
+     {
+      "of": "hospital",
+      "kind": "per_day",
+      "value": 100,
+      "deductible": false,
+      "cap": 500
+     },
+     {
+      "of": "doctors",
+      "kind": "zero",
+      "deductible": false
+     },
+     {
+      "of": "doctors",
+      "kind": "per_visit",
+      "value": 20,
+      "visits": "postpartum_after_first",
+      "deductible": false
+     }
+    ]
+   },
+   "brochure": "73-860",
+   "page": 53,
+   "quote": "$100 copayment per day up to a maximum of $500 per admission",
+   "also": [
+    {
+     "page": 33,
+     "quote": "Nothing for inpatient professional delivery services."
+    },
+    {
+     "page": 33,
+     "quote": "first postpartum care visit; $20 per office visit for all postpartum care visits thereafter."
+    }
+   ],
+   "reason": "High Option: prenatal care, the first postpartum visit and inpatient professional delivery services cost nothing; postpartum visits after the first are $20 each; the hospital stay is $100 per day up to $500 per admission (OPM's spreadsheet says the stay costs nothing). The brochure does not say how many days or postpartum visits."
+  },
+  {
+   "year": 2027,
+   "plan_code": "DH4",
+   "sheet": {
+    "maternity": "Member Pays Nothing - $20 Copayment per visit for postpartum care",
+    "stay": "Member Pays Nothing"
+   },
+   "term": null,
+   "estimate": {
+    "assumed": [
+     "days",
+     "visits"
+    ],
+    "parts": [
+     {
+      "of": "hospital",
+      "kind": "per_day",
+      "value": 200,
+      "deductible": false,
+      "cap": 1000
+     },
+     {
+      "of": "doctors",
+      "kind": "zero",
+      "deductible": false
+     },
+     {
+      "of": "doctors",
+      "kind": "per_visit",
+      "value": 20,
+      "visits": "postpartum_after_first",
+      "deductible": false
+     }
+    ]
+   },
+   "brochure": "73-860",
+   "page": 53,
+   "quote": "$200 copayment per day up to a maximum of $1,000 per admission",
+   "also": [
+    {
+     "page": 33,
+     "quote": "Nothing for inpatient professional delivery services."
+    },
+    {
+     "page": 33,
+     "quote": "first postpartum care visit; $20 per office visit for all postpartum care visits thereafter."
+    }
+   ],
+   "reason": "Standard Option: prenatal care, the first postpartum visit and inpatient professional delivery services cost nothing; postpartum visits after the first are $20 each; the hospital stay is $200 per day up to $1,000 per admission (OPM's spreadsheet says the stay costs nothing). The brochure does not say how many days or postpartum visits."
+  },
+  {
+   "year": 2027,
+   "plan_code": "EA1",
+   "sheet": {
+    "maternity": "$60 Copayment - Copayment for initial visit to specialist",
+    "stay": "$250 Copayment - $250 per day, days 1-6. Prior authorization required. Your benefits/services may be denied."
+   },
+   "term": null,
+   "estimate": {
+    "assumed": [
+     "days"
+    ],
+    "parts": [
+     {
+      "of": "hospital",
+      "kind": "per_day",
+      "value": 250,
+      "deductible": false,
+      "maxDays": 6
+     },
+     {
+      "of": "doctors",
+      "kind": "usd",
+      "value": 60,
+      "deductible": false
+     }
+    ],
+    "note": "The initial visit is counted at the specialist copay ($60), the higher of the two the brochure lists."
+   },
+   "brochure": "73-197",
+   "page": 36,
+   "quote": "$250 copay day/maximum 6 days per admission",
+   "also": [
+    {
+     "page": 36,
+     "quote": "$60 for initial visit to specialist"
+    },
+    {
+     "page": 36,
+     "quote": "$10 for initial visit for primary care"
+    }
+   ],
+   "reason": "High: complete maternity care (prenatal, delivery, postpartum) costs only the initial visit copay ($10 primary care or $60 specialist; the higher is used) and the hospital stay is $250 a day for at most 6 days per admission. The brochure does not say how many days."
+  },
+  {
+   "year": 2027,
+   "plan_code": "P21",
+   "sheet": {
+    "maternity": "$20 Copayment - up to a maximum of $150 per pregnancy",
+    "stay": "$175 Copayment - $175/day copay up to 5 days"
+   },
+   "term": null,
+   "estimate": {
+    "assumed": [
+     "days",
+     "visits"
+    ],
+    "parts": [
+     {
+      "of": "hospital",
+      "kind": "per_day",
+      "value": 175,
+      "deductible": false,
+      "maxDays": 5
+     },
+     {
+      "of": "doctors",
+      "kind": "per_visit",
+      "value": 25,
+      "visits": "all",
+      "cap": 150,
+      "deductible": false
+     }
+    ]
+   },
+   "brochure": "73-563",
+   "page": 38,
+   "quote": "$25 copay per visit up to a maximum of $150 per pregnancy",
+   "also": [
+    {
+     "page": 38,
+     "quote": "$175/day copay per admission up to 5 days"
+    }
+   ],
+   "reason": "High Option: maternity visits are $25 each up to $150 per pregnancy, and the delivery is the inpatient admission copay, $175 a day for up to 5 days. The brochure does not say how many visits or days."
+  },
+  {
+   "year": 2027,
+   "plan_code": "NM1",
+   "sheet": {
+    "maternity": "$0 - Nothing for prenatal care or the first postpartum care visit; $10 per office visit for all postpartum care visits thereafter. $25 for inpatient professional delivery services.",
+    "stay": "$300 Copayment - per admission"
+   },
+   "term": null,
+   "estimate": {
+    "assumed": [
+     "visits"
+    ],
+    "parts": [
+     {
+      "of": "hospital",
+      "kind": "usd",
+      "value": 300,
+      "deductible": false
+     },
+     {
+      "of": "doctors",
+      "kind": "usd",
+      "value": 25,
+      "deductible": false
+     },
+     {
+      "of": "doctors",
+      "kind": "per_visit",
+      "value": 10,
+      "visits": "postpartum_after_first",
+      "deductible": false
+     }
+    ]
+   },
+   "brochure": "73-129",
+   "page": 33,
+   "quote": "$25 for inpatient professional delivery services.",
+   "also": [
+    {
+     "page": 50,
+     "quote": "$300 per admission"
+    },
+    {
+     "page": 33,
+     "quote": "Nothing for prenatal care or the first postpartum care visit; $10 per office visit for all postpartum care visits thereafter."
+    }
+   ],
+   "reason": "High Option: prenatal care and the first postpartum visit cost nothing, inpatient professional delivery services are $25, postpartum visits after the first are $10 each, and the hospital stay is $300 per admission. The brochure does not say how many postpartum visits."
+  },
+  {
+   "year": 2027,
+   "plan_code": "W51",
+   "sheet": {
+    "maternity": "Member Pays Nothing - Routine prenatal care and lab tests.",
+    "stay": "$500 Copayment - $0 copay for first post-natal visit only"
+   },
+   "term": null,
+   "estimate": {
+    "assumed": [
+     "visits"
+    ],
+    "parts": [
+     {
+      "of": "hospital",
+      "kind": "usd",
+      "value": 500,
+      "deductible": false
+     },
+     {
+      "of": "doctors",
+      "kind": "zero",
+      "deductible": false
+     },
+     {
+      "of": "doctors",
+      "kind": "per_visit",
+      "value": 25,
+      "visits": "postpartum_after_first",
+      "deductible": false
+     }
+    ]
+   },
+   "brochure": "73-936",
+   "page": 56,
+   "quote": "$500 copay per admission",
+   "also": [
+    {
+     "page": 38,
+     "quote": "Nothing for inpatient professional delivery services."
+    },
+    {
+     "page": 38,
+     "quote": "postpartum care visit; $25 copay per office visit for all postpartum care visits thereafter."
+    }
+   ],
+   "reason": "High: prenatal care, the first postpartum visit and inpatient professional delivery services cost nothing; postpartum visits after the first are $25 each; the delivery is subject to the $500 inpatient hospital copay per admission. The brochure does not say how many postpartum visits."
+  },
+  {
+   "year": 2027,
+   "plan_code": "891",
+   "sheet": {
+    "maternity": "$7.50 Copayment - $0 copay for office visits when enrolled in Maternal Program during the first trimester",
+    "stay": "Member Pays Nothing"
+   },
+   "term": null,
+   "estimate": {
+    "assumed": [
+     "visits"
+    ],
+    "parts": [
+     {
+      "of": "hospital",
+      "kind": "zero",
+      "deductible": false
+     },
+     {
+      "of": "doctors",
+      "kind": "per_visit",
+      "value": 0,
+      "visits": "all",
+      "deductible": false
+     }
+    ],
+    "note": "Office visits are counted at $0, for enrolling in the plan’s Maternal Program in the first trimester ($7.50 each otherwise)."
+   },
+   "brochure": "73-016",
+   "page": 32,
+   "quote": "$0 copay for office visits when enrolled in Maternal Program during the first trimester",
+   "also": [
+    {
+     "page": 32,
+     "quote": "Nothing for delivery"
+    },
+    {
+     "page": 32,
+     "quote": "$7.50 per office visits"
+    }
+   ],
+   "reason": "High: office visits cost $0 when enrolled in the Maternal Program during the first trimester ($7.50 otherwise), the delivery costs nothing, and the hospital stay costs nothing in-network. The brochure does not say how many visits."
+  },
+  {
+   "year": 2027,
+   "plan_code": "AS1",
+   "sheet": {
+    "maternity": "25% Coinsurance - $0 PCP Visit; $60 Specialist Visit",
+    "stay": "25% Coinsurance"
+   },
+   "term": {
+    "kind": "pct",
+    "value": 25,
+    "deductible": true,
+    "per": "pregnancy"
+   },
+   "brochure": "73-905",
+   "page": 35,
+   "quote": "25% coinsurance of Plan allowance",
+   "also": [
+    {
+     "page": 57,
+     "quote": "25% coinsurance of Plan allowance"
+    },
+    {
+     "page": 31,
+     "quote": "The calendar year deductible applies to almost all benefits in this Section."
+    }
+   ],
+   "reason": "Complete maternity care (prenatal, delivery, postpartum) and the inpatient hospital stay are both 25% coinsurance of the Plan allowance; the calendar year deductible applies to almost all benefits and neither says otherwise."
   }
  ]
 }

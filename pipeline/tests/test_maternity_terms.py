@@ -93,6 +93,27 @@ def test_apply_maternity_terms_prices_only_reviewed_plans(tmp_path):
         assert t["suggested"] == {"kind": "zero", "value": 0.0, "deductible": None, "per": "pregnancy"}
 
 
+def test_apply_maternity_terms_estimate_entry_and_its_assumptions(tmp_path):
+    b = {"2027": {"X1": entry("Member Pays Nothing", "25% Coinsurance")}}
+    est = {"assumed": ["split"], "parts": [{"of": "hospital", "kind": "pct", "value": 25, "deductible": True},
+                                           {"of": "doctors", "kind": "zero", "deductible": False}]}
+    n, priced = build_data.apply_maternity_terms(b, _spec(tmp_path, [{**REVIEWED, "sheet": {"maternity": "Member Pays Nothing", "stay": "25% Coinsurance"},
+                                                                      "term": None, "estimate": est}]))
+    m = b["2027"]["X1"]["maternity"]
+    assert (n, priced) == (1, 1) and m["priced"] is True and m["estimated"] is True
+    assert m["assumed"] == ["split"] and m["parts"] == est["parts"]
+    # "assumed" must name exactly what the parts need: days for a per-day charge, visits for a per-visit one
+    for bad in ({**est, "assumed": []}, {**est, "assumed": ["split", "days"]}, {**est, "assumed": ["split", "guess"]},
+                {"assumed": ["days"], "parts": [{"of": "all", "kind": "per_day", "deductible": False}]},
+                {"assumed": ["visits"], "parts": [{"of": "all", "kind": "per_visit", "value": 10, "deductible": False}]},
+                {"assumed": [], "parts": [{"of": "all", "kind": "pct", "value": 10, "deductible": None}]}):
+        with pytest.raises(ValueError):
+            build_data.check_maternity_estimate(bad, "X1")
+    ok = {"assumed": ["days", "visits"], "parts": [{"of": "hospital", "kind": "per_day", "value": 250, "cap": 1000, "deductible": False},
+                                                   {"of": "doctors", "kind": "per_visit", "value": 35, "visits": "postpartum_after_first", "deductible": False}]}
+    assert build_data.check_maternity_estimate(ok, "X1")["assumed"] == ["days", "visits"]
+
+
 def test_apply_maternity_terms_unpriced_entry_and_build_stops(tmp_path):
     b = {"2027": {"X1": entry("Member Pays Nothing", "Member Pays Nothing")}}
     build_data.apply_maternity_terms(b, _spec(tmp_path, [{**REVIEWED, "term": None, "unpriced": "why"}]))
@@ -115,7 +136,9 @@ def test_tracked_maternity_terms_file_is_complete_and_quotes_are_verbatim():
             assert k in t, (code, k)
         assert t["year"] == 2027 and isinstance(t["page"], int) and t["quote"].strip(), code
         assert set(t["sheet"]) == {"maternity", "stay"}, code
-        if t["term"] is None:
+        if t["term"] is None and t.get("estimate") is not None:
+            build_data.check_maternity_estimate(t["estimate"], code)
+        elif t["term"] is None:
             assert t["unpriced"].strip(), code
         else:
             assert t["term"]["kind"] in ("zero", "usd", "pct") and t["term"]["per"] in ("pregnancy", "delivery", "admission"), code
@@ -132,10 +155,12 @@ def test_benefits_json_carries_the_reviewed_maternity_terms():
     brochures = json.loads((DATA / "brochures.json").read_text(encoding="utf-8"))["2027"]
     for t in SPEC["terms"]:
         m = b["2027"][t["plan_code"]]["maternity"]
-        assert m["source"] == "brochure" and m["priced"] == (t["term"] is not None), t["plan_code"]
+        assert m["source"] == "brochure" and m["priced"] == (t["term"] is not None or t.get("estimate") is not None), t["plan_code"]
+        assert m.get("estimated", False) == (t.get("estimate") is not None), t["plan_code"]
         assert t["plan_code"] in brochures[t["brochure"]]["plan_codes"], (t["plan_code"], t["brochure"])
     priced = {c for c, e in b["2027"].items() if e["maternity"]["priced"]}
-    assert priced == {t["plan_code"] for t in SPEC["terms"] if t["term"] is not None}
-    assert len(priced) == 42 and len(b["2027"]) == 118
+    assert priced == {t["plan_code"] for t in SPEC["terms"] if t["term"] is not None or t.get("estimate") is not None}
+    estimated = {c for c, e in b["2027"].items() if e["maternity"].get("estimated")}
+    assert len(priced) == 82 and len(estimated) == 38 and len(b["2027"]) == 118
     assert b["2027"]["131"]["maternity"]["value"] == 3000.0 and b["2027"]["131"]["maternity"]["per"] == "pregnancy"
     assert not any(e["maternity"]["priced"] for e in b["2026"].values())

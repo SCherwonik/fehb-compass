@@ -107,7 +107,10 @@ export function renderCompare(section, { data, state, onRemove, onClose }) {
     grid.append(h('div', { class: 'cg-row', role: 'row' },
       h('div', { class: 'cg-label', role: 'rowheader' }, 'Maternity (one pregnancy)', h('span', { class: 'cg-label-sub' }, 'not in the total above')),
       rows.map((r) => h('div', { class: 'cg-cell', role: 'cell' }, r.maternity?.priced
-        ? [h('span', { class: 'cg-now' }, `+ ${usd(r.maternity.cost)}`), h('span', { class: 'cg-was' }, 'from its 2027 brochure')]
+        ? (r.maternity.estimated
+          ? [h('span', { class: 'cg-now', title: r.maternity.estimate }, `+ ${usd(r.maternity.cost)} est.`),
+            h('span', { class: 'cg-was', title: r.maternity.estimate }, 'estimated: the brochure leaves out a count or share')]
+          : [h('span', { class: 'cg-now' }, `+ ${usd(r.maternity.cost)}`), h('span', { class: 'cg-was' }, 'from its 2027 brochure')])
         : [h('span', { class: 'cg-now cg-text is-warn', title: r.maternity?.gap?.text ?? MATERNITY_UNPRICED }, 'Not priced'),
           h('span', { class: 'cg-was', title: r.maternity?.gap?.text ?? MATERNITY_UNPRICED }, 'the plan’s brochure doesn’t give a total')]))));
   }

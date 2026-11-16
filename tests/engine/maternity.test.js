@@ -90,8 +90,12 @@ test('a plan whose maternity terms are not priced is flagged and its total leave
   assert.match(L.warnings[0], /^Not priced: this plan’s brochure states its maternity cost by percentage of the hospital bill and the doctors’ bill separately/);
   assert.ok(L.notes.includes(`Detail: ${m.reason}`));
   assert.equal(r.firmness, 'estimated');
-  // a brochure-reviewed unpriced plan carries the brochure's reason (AJ1: OPM says nothing, brochure 20%)
-  assert.match(run('AJ1').breakdown.custom[0].notes.join(' '), /20% after the deductible/);
+  // a brochure-reviewed plan whose terms need an assumption is estimated, never left at $0 silently (AJ1: OPM says
+  // nothing, the brochure's hospital benefit is 30%)
+  const aj1 = run('AJ1').breakdown.custom[0];
+  assert.equal(aj1.estimated, true);
+  assert.match(aj1.notes.join(' '), /^Estimated: assumes the charges split 50% hospital/);
+  assert.match(aj1.notes.join(' '), /Hospital: 30% coinsurance/);
 });
 
 test('every unpriced 2027 plan says why as a gap in the plan’s own brochure; no priced plan carries that wording', { skip }, () => {
@@ -115,9 +119,9 @@ test('every unpriced 2027 plan says why as a gap in the plan’s own brochure; n
     assert.match(g.text, /plan/);
     assert.deepEqual(L.warnings, [g.text], code);
   }
-  assert.equal(unpriced, 76);
-  // the three kinds the maternity review found (each kind present; 76 in all)
-  assert.ok(kinds.split > 0 && kinds.day > 0 && kinds.visit > 0, JSON.stringify(kinds));
+  assert.equal(unpriced, 36);
+  // the kinds the maternity review found among the plans still not priced
+  assert.ok(kinds.split > 0 && kinds.split + kinds.day + kinds.visit === 36, JSON.stringify(kinds));
   // the one-line card tag
   assert.equal(MATERNITY_UNPRICED, 'Maternity not priced: the plan’s brochure doesn’t give a total');
   // 2026 plans (never reviewed) get a plain "priced only for 2027 plans" line, not the brochure wording
@@ -139,11 +143,13 @@ test('every priced 2027 plan was checked against its brochure; 2026 is never pri
   const all = Object.entries(real.benefits['2027']);
   const priced = all.filter(([, b]) => b.maternity?.priced);
   assert.equal(all.length, 118);
-  assert.equal(priced.length, 42);
+  assert.equal(priced.length, 82);
+  assert.equal(priced.filter(([, b]) => b.maternity.estimated).length, 38);
   for (const [code, b] of priced) {
     const m = b.maternity;
     assert.equal(m.source, 'brochure', code);
-    assert.ok(['zero', 'usd', 'pct'].includes(m.kind) && Number.isFinite(m.value), code);
+    if (m.estimated) assert.ok(Array.isArray(m.parts) && m.parts.length && m.assumed.length, code);
+    else assert.ok(['zero', 'usd', 'pct'].includes(m.kind) && Number.isFinite(m.value), code);
     assert.ok(m.quote && Number.isInteger(m.page) && /^7\d-\d{3}$/.test(m.brochure), code);
     const r = run(code);
     assert.ok(Number.isFinite(r.total) && r.oop <= r.breakdown.oopMax, code);

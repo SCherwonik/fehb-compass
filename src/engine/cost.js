@@ -1,5 +1,6 @@
 import { ASSUMED_PRICES, FALLBACK_COINSURANCE } from './assumptions.js';
 import { CUSTOM_KINDS } from './scenarios.js';
+import { maternityAssumptionValues, estimateText } from './maternity-assumptions.js';
 
 const cents = (n) => Math.round(n * 100) / 100;
 
@@ -170,6 +171,60 @@ export function maternityShare(t) {
   return { kind: 'text', value: null, raw: 'Member Pays Nothing', deductible: t.deductible, text: `nothing${after}` };
 }
 
+const PART_OF = { hospital: 'Hospital', doctors: 'Doctors and other care', all: 'Maternity care' };
+const VISITS_TEXT = {
+  all: 'per visit', prenatal: 'per prenatal visit', postpartum: 'per postpartum visit',
+  postpartum_after_first: 'per postpartum visit after the first', initial: 'for the first visit',
+};
+
+/**
+ * An estimated maternity term's parts as events to price: [{share, share_ (copay entry), text}], skipping parts that
+ * cost nothing and use no deductible. Each part of benefits.maternity.parts states one charge from the brochure:
+ *   of: 'hospital' | 'doctors' | 'all' (the share of the line's price it is billed on: split.hospital, the rest, all)
+ *   kind: 'zero' | 'pct' (value %, optional cap) | 'usd' (value, once) | 'per_day' (value a day; maxDays, cap)
+ *         | 'per_visit' (value a visit; visits: all|prenatal|postpartum|postpartum_after_first|initial; cap)
+ *   deductible: true | false
+ * The per-day and per-visit counts and the hospital share come from `v` (maternityAssumptionValues).
+ */
+export function maternityParts(m, v = maternityAssumptionValues()) {
+  const out = [];
+  for (const p of m.parts ?? []) {
+    const share = p.of === 'hospital' ? v.hospitalShare : p.of === 'doctors' ? 1 - v.hospitalShare : 1;
+    const after = p.deductible === true ? ', after the deductible' : '';
+    const capText = Number.isFinite(p.cap) ? ` (at most ${usdTerm(p.cap)})` : '';
+    let c;
+    let text;
+    if (p.kind === 'pct') {
+      c = { kind: 'pct', value: p.value, raw: '', deductible: p.deductible, cap: Number.isFinite(p.cap) ? p.cap : undefined };
+      text = `${p.value}% coinsurance${capText}${after}`;
+    } else if (p.kind === 'usd') {
+      c = { kind: 'usd', value: p.value, raw: '', deductible: p.deductible };
+      text = `${usdTerm(p.value)}${after}`;
+    } else if (p.kind === 'per_day') {
+      const days = Math.min(v.days, Number.isFinite(p.maxDays) ? p.maxDays : Infinity);
+      const amount = Math.min(p.value * days, Number.isFinite(p.cap) ? p.cap : Infinity);
+      c = { kind: 'usd', value: amount, raw: '', deductible: p.deductible };
+      text = `${usdTerm(p.value)} a day${Number.isFinite(p.maxDays) ? ` for up to ${p.maxDays} days` : ''}${capText}${after}`;
+    } else if (p.kind === 'per_visit') {
+      const n = { all: v.prenatal + v.postpartum, prenatal: v.prenatal, postpartum: v.postpartum,
+        postpartum_after_first: Math.max(0, v.postpartum - 1), initial: 1 }[p.visits] ?? 0;
+      const amount = Math.min(p.value * n, Number.isFinite(p.cap) ? p.cap : Infinity);
+      c = { kind: 'usd', value: amount, raw: '', deductible: p.deductible };
+      text = `${usdTerm(p.value)} ${VISITS_TEXT[p.visits] ?? 'per visit'}${capText}${after}`;
+    } else {
+      c = { kind: 'text', value: null, raw: 'Member Pays Nothing', deductible: p.deductible };
+      text = `nothing${after}`;
+    }
+    const label = `${PART_OF[p.of] ?? PART_OF.all}: ${text}`;
+    const free = (c.kind === 'text' || (c.kind === 'usd' && !(c.value > 0))) && p.deductible !== true;
+    out.push({ share, share_: c, text: label, free });
+  }
+  // keep the description of every part, price only the ones that can cost something
+  const priced = out.filter((p) => !p.free);
+  priced.texts = out.map((p) => p.text);
+  return Object.assign(priced, { all: out });
+}
+
 /** Parse an OPM drug tier string ("$0 preventive drugs - $0 Copayment", "25% Coinsurance") into a copay entry. */
 function parseTierRaw(raw) {
   const t = String(raw ?? '');
@@ -287,7 +342,16 @@ export function expectedOop(benefits, usage, assumptions = {}, drugs = []) {
     return a;
   };
 
-  for (const e of buildEvents(usage, prices, drugs)) {
+  // An estimated maternity term (benefits.maternity.parts) splits the line into its stated parts (hospital,
+  // doctors, per-day and per-visit charges), each priced like any other event; see maternityParts.
+  const matValues = maternityAssumptionValues(assumptions.maternity);
+  const matParts = benefits.maternity?.priced === true && Array.isArray(benefits.maternity.parts)
+    ? maternityParts(benefits.maternity, matValues) : null;
+  const events = buildEvents(usage, prices, drugs).flatMap((e) => (matParts && e.line !== undefined && e.kind === 'maternity' && !e.oon
+    ? (matParts.length ? matParts.map((p) => ({ ...e, price: (e.price || 0) * p.share, matPart: p })) : [{ ...e, matPart: 'none' }])
+    : [e]));
+
+  for (const e of events) {
     const price = e.price || 0;
     const custom = e.line !== undefined;
 
@@ -344,7 +408,18 @@ export function expectedOop(benefits, usage, assumptions = {}, drugs = []) {
       if (benefits.maternity?.reason) lineNote(e, `Detail: ${benefits.maternity.reason}`);
       continue;
     }
-    if (maternity) lineNote(e, `Priced with this plan’s maternity terms from its 2027 brochure: you pay ${maternityShare(benefits.maternity).text}.`);
+    if (maternity && e.matPart) {
+      // Estimated: the brochure's stated parts, with the missing count or share from MATERNITY_ASSUMPTIONS
+      flat = false;
+      const L = lines[e.line];
+      L.estimated = true;
+      L.assumed = benefits.maternity.assumed ?? [];
+      lineNote(e, estimateText(L.assumed, matValues, benefits.maternity.note ?? ''));
+      lineNote(e, `The plan’s stated terms, from its 2027 brochure: ${matParts.all.map((p) => p.text).join('; ')}.`);
+      if (e.matPart === 'none') continue; // every part costs nothing
+    } else if (maternity) {
+      lineNote(e, `Priced with this plan’s maternity terms from its 2027 brochure: you pay ${maternityShare(benefits.maternity).text}.`);
+    }
     if (total >= oopMax) continue; // same as the old early break: nothing in-network costs more after the max
 
     const isRx = custom && CUSTOM_KINDS[e.kind]?.rx === true;
@@ -353,7 +428,7 @@ export function expectedOop(benefits, usage, assumptions = {}, drugs = []) {
       // Tier 0 = preventive drugs: never behind the deductible (preventive care is exempt for HDHPs too).
       c = benefits.tier0 ? { ...parseTierRaw(benefits.tier0), raw: `${benefits.tier0} - no deductible` } : null;
     }
-    if (maternity) c = maternityShare(benefits.maternity);
+    if (maternity) c = e.matPart ? e.matPart.share_ : maternityShare(benefits.maternity);
 
     let dedPiece = 0, coinsPiece = 0, copayPiece = 0;
     // a term that states its deductible (true / false) wins over the wording rules
@@ -437,6 +512,8 @@ export function expectedOop(benefits, usage, assumptions = {}, drugs = []) {
     oonEstimate: lines.some((L) => L.outOfNetwork && L.perYear > 0),
     // kinds left out of the total because this plan's terms could not be priced (e.g. ['maternity'])
     unpriced: lines.some((L) => L.unpriced) ? ['maternity'] : [],
+    // kinds in the total as an estimate (stated terms plus MATERNITY_ASSUMPTIONS), e.g. ['maternity']
+    estimated: lines.some((L) => L.estimated) ? ['maternity'] : [],
   };
 }
 
@@ -490,6 +567,7 @@ export function planTotal(plan, inputs) {
       notCoveredPaid: o.notCoveredPaid,
       custom: o.custom,
       unpriced: o.unpriced,
+      estimated: o.estimated,
       warnings: o.warnings,
     },
     firmness,

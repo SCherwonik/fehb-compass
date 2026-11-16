@@ -12,7 +12,7 @@
 import { usd, signedUsd, signedPct, deltaTone, DASH } from './format.js';
 import { FLAG_TEXT } from '../engine/diff.js';
 import { networkLabel } from './network.js';
-import { baseTotal, medsCost, anyMeds, anyDv, dvCost, dvLabel, basisOf, basisNote, medsRanked, rankTotal, anyMaternity, maternityRanked } from './model.js';
+import { baseTotal, medsCost, anyMeds, anyDv, dvCost, dvLabel, basisOf, basisNote, medsRanked, rankTotal, anyMaternity, maternityRanked, anyMatEstimated } from './model.js';
 import { MATERNITY_UNPRICED } from '../engine/cost.js';
 
 const fin = (n) => typeof n === 'number' && Number.isFinite(n);
@@ -108,6 +108,8 @@ export function boardContext(rankedRows, state, mine = null, baseline = null) {
     withMat,
     // a "Having a baby" line is in the custom lines: the Cost section gets its Maternity row
     matOn: anyMaternity(set),
+    // some plan's maternity amount is an estimate (MATERNITY_ASSUMPTIONS): totals that include it say so
+    matEstimated: anyMatEstimated(set),
     enrollment: state?.enrollment ?? 'self',
     scenario: state?.scenario ?? 'typical',
     stateCode: state?.location?.state ?? null, // for the "Part of VA" chip on partial-state plans
@@ -194,7 +196,8 @@ function matTotalNote(row, ctx) {
   const m = row.maternity;
   if (!m) return '';
   if (!m.priced) return '; maternity not priced (see its row)';
-  return ctx?.withMat !== false ? ', incl. maternity' : `; ${m.cost > 0 ? '+ ' : ''}${usd(m.cost)} maternity not in total`;
+  const est = m.estimated ? ' (est.)' : '';
+  return ctx?.withMat !== false ? `, incl. maternity${est}` : `; ${m.cost > 0 ? '+ ' : ''}${usd(m.cost)} maternity${est} not in total`;
 }
 
 /**
@@ -208,9 +211,13 @@ export function maternityCell(row, ctx) {
     const sub = m.gap?.kind ? 'the plan’s brochure doesn’t give a total' : 'priced for 2027 plans only';
     return { text: 'Not priced', sub, tone: 'warn', value: null, title: m.gap?.text ?? MATERNITY_UNPRICED };
   }
+  const where = ctx?.withMat !== false ? 'in the total above' : 'not in the total above';
+  if (m.estimated) {
+    return { text: `${m.cost > 0 ? '+ ' : ''}${usd(m.cost)} est.`, sub: `estimated, ${where}`, value: m.cost, title: m.estimate };
+  }
   return {
     text: `${m.cost > 0 ? '+ ' : ''}${usd(m.cost)}`,
-    sub: ctx?.withMat !== false ? 'in the total above' : 'not in the total above',
+    sub: where,
     value: m.cost,
     title: 'What one pregnancy adds on this plan, from its 2027 brochure’s maternity terms (deductible and out-of-pocket max applied).',
   };
@@ -256,8 +263,9 @@ export const MEDICAL_SECTIONS = [
       },
       {
         key: 'maternity', label: 'Maternity (one pregnancy)', when: (ctx) => ctx.matOn, best: 'min',
-        hint: 'What the “Having a baby” line adds on each plan. It joins the totals only when every plan shown is priced: '
-          + 'some plans’ brochures state maternity costs in a way that cannot be totaled for one pregnancy.',
+        hint: 'What the “Having a baby” line adds on each plan (“est.”: estimated, where the brochure leaves out a count or '
+          + 'share; hover for what is assumed). It joins the totals only when every plan shown has a price: some plans’ '
+          + 'brochures state maternity costs in a way that cannot be totaled for one pregnancy.',
         cell: maternityCell,
       },
       { key: 'premium', label: 'Premium', best: 'min', cell: (r) => money(r.cost.premium, { sub: 'per year' }) },
@@ -429,12 +437,13 @@ export function scopeText(mode, group) {
  * 'per year, estimated' | 'per year, incl. dental/vision' | '..., excl. meds' | '..., excl. meds and maternity'
  * (the ranking basis, I3: medications and maternity are in the total only when priced on every plan).
  */
-export function totalLabelOf(row, withMeds = true, withMat = true) {
+export function totalLabelOf(row, withMeds = true, withMat = true, matEstimated = false) {
   const parts = [dvCost(row) ? dvLabel(row) : 'estimated'];
   const incl = [];
   const excl = [];
   if (row?.meds?.entries?.length) (withMeds ? incl : excl).push('meds');
-  if (row?.maternity) (withMat && row.maternity.priced ? incl : excl).push('maternity');
+  // maternity in the ranked totals with some plans' amounts estimated (MATERNITY_ASSUMPTIONS): say so on every total
+  if (row?.maternity) (withMat && row.maternity.priced ? incl : excl).push(withMat && matEstimated ? 'maternity (some estimated)' : 'maternity');
   if (incl.length) parts.push(`incl. ${incl.join(' and ')}`);
   if (excl.length) parts.push(`excl. ${excl.join(' and ')}`);
   return `per year, ${parts.join(', ')}`;
@@ -534,7 +543,7 @@ export function medicalHeader(row, group, ctx, scope) {
     network: networkLabel(row.plan, row.code),
     chips,
     total: rankTotal(row, ctx?.withMeds !== false, ctx?.withMat !== false),
-    totalLabel: totalLabelOf(row, ctx?.withMeds !== false, ctx?.withMat !== false),
+    totalLabel: totalLabelOf(row, ctx?.withMeds !== false, ctx?.withMat !== false, ctx?.matEstimated === true),
     bar: { p: row.cost?.premium ?? 0, o: row.cost?.oop ?? 0, d: row.cost?.hsaOffset ?? 0 },
     why: whyLine(row, group, ctx, scope),
   };

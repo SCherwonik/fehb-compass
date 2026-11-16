@@ -4,6 +4,7 @@
 import { h } from './dom.js';
 import { ASSUMED_PRICES } from '../engine/assumptions.js';
 import { SCENARIOS, MATERNITY_SOURCE } from '../engine/scenarios.js';
+import { MATERNITY_ASSUMPTIONS } from '../engine/maternity-assumptions.js';
 import { DENTAL_SERVICES, DENTAL_PRESETS } from '../engine/dental.js';
 import { usd } from './format.js';
 import { reduceMotion, EASE_OUT } from './motion.js';
@@ -22,6 +23,19 @@ function table(caption, head, rows, cls = '') {
     h('caption', {}, caption),
     h('thead', {}, h('tr', {}, head.map((t, i) => h('th', { scope: 'col', class: i ? 'num' : '' }, t)))),
     h('tbody', {}, rows.map((r) => h('tr', {}, r.map((c, i) => (i === 0 ? h('th', { scope: 'row' }, c) : h('td', { class: 'num' }, c)))))));
+}
+
+/** The three maternity assumptions (engine/maternity-assumptions.js), with their sources. */
+function maternityAssumptionsTable() {
+  const link = (s) => h('a', { href: s.url, target: '_blank', rel: 'noopener noreferrer' }, s.label);
+  const rows = Object.values(MATERNITY_ASSUMPTIONS).map((a) => h('tr', {},
+    h('th', { scope: 'row' }, a.what),
+    h('td', {}, a.label),
+    h('td', {}, a.basis, ...a.sources.flatMap((s) => [' ', link(s)]))));
+  return h('table', { class: 'ab-table ab-table-text' },
+    h('caption', {}, 'Assumptions used only where a plan’s brochure leaves the count or share out'),
+    h('thead', {}, h('tr', {}, ['What', 'Assumed', 'Source'].map((t) => h('th', { scope: 'col' }, t)))),
+    h('tbody', {}, rows));
 }
 
 function content() {
@@ -61,10 +75,12 @@ function content() {
       h('p', {}, `The “Having a baby” cost in “Fine-tune your year” stands for one pregnancy: prenatal care, delivery, postpartum care and the hospital stay for the birth. It is priced at ${usd(MATERNITY_SOURCE.price)}, the average health spending associated with pregnancy, childbirth and postpartum care for women with employer insurance (${MATERNITY_SOURCE.publisher}, ${MATERNITY_SOURCE.date}, from ${MATERNITY_SOURCE.basis}; they paid ${usd(MATERNITY_SOURCE.oop)} of it out of pocket on average). No primary source splitting vaginal and cesarean births was found, so the two are not priced apart.`),
       h('ul', {},
         h('li', {}, 'Each plan’s share comes from its own 2027 brochure, read by hand, because OPM’s spreadsheet was wrong about the hospital stay for the birth for about a quarter of the plans checked. The plan’s deductible and out-of-pocket maximum apply as for any other care.'),
-        h('li', {}, 'Some brochures state maternity costs in a way that cannot be totaled for one pregnancy: by percentage of the hospital bill and the doctors’ bill separately, per hospital day, or per visit. For those plans no estimate is added (nothing is assumed about the bill, the days or the visits) and the plan says “Maternity not priced: the plan’s brochure doesn’t give a total”. This is a gap in the plan’s published information, not in this app: see its brochure.'),
-        h('li', {}, 'So that those plans never look cheaper just because their maternity is not priced, plans are ranked without maternity (“excl. maternity”) unless every plan shown is priced; what one pregnancy adds on each priced plan is shown apart. 2026 plans are never maternity-priced.'),
+        h('li', {}, 'Some brochures state maternity costs in a way that cannot be totaled for one pregnancy: per hospital day, per visit, or by percentage of the hospital bill and the doctors’ bill separately. Where the stated terms themselves were checked in the brochure, the app fills in the one missing count or share from the table below and marks the amount “estimated”, with a note saying what it assumes and why. The assumptions stand in for information missing from the plan’s brochure, not for anything the plan states.'),
+        h('li', {}, 'Where even that is not possible (the brochure’s terms are unclear, or totaling them would need another assumption), the plan says “Maternity not priced: the plan’s brochure doesn’t give a total”. This is a gap in the plan’s published information, not in this app: see its brochure.'),
+        h('li', {}, 'So that those plans never look cheaper just because their maternity is not priced, plans are ranked without maternity (“excl. maternity”) unless every plan shown has a maternity price (stated or estimated); what one pregnancy adds on each plan is shown apart. When estimates are in the ranked totals, the totals say “incl. maternity (some estimated)”. 2026 plans are never maternity-priced.'),
         h('li', {}, `The baby’s own care is not included: it is billed under the baby’s coverage (newborn care averages ${usd(MATERNITY_SOURCE.newbornPrice)}, ${usd(MATERNITY_SOURCE.newbornOop)} out of pocket, in the same study). Switch to Self Plus One or Self and Family to see the baby’s premium.`),
-        h('li', {}, h('a', { href: MATERNITY_SOURCE.url, target: '_blank', rel: 'noopener noreferrer' }, 'KFF: Health costs associated with pregnancy, childbirth, and postpartum care')))),
+        h('li', {}, h('a', { href: MATERNITY_SOURCE.url, target: '_blank', rel: 'noopener noreferrer' }, 'KFF: Health costs associated with pregnancy, childbirth, and postpartum care'))),
+      maternityAssumptionsTable()),
     h('section', {},
       h('h3', {}, 'Dental and vision'),
       h('ul', {},

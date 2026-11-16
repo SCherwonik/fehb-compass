@@ -3,7 +3,7 @@
 import { h, svg, ICON_CHECK, ICON_CHEVRON } from './dom.js';
 import { segmented, mineSwitch } from './inputs.js';
 import { assumptionChips, describeUsage, effectiveUsage, overrideChanges, inNetworkAtMax } from './assumptions.js';
-import { computeRows, savingsVsCurrent, availablePlans, servesState, SORTS, rankWithMine, baseTotal, dvCost, dvLabel, basisOf, basisNote, basisParts, anyMeds, anyDv, anyMaternity, personLimitsNote, areaChip, rankTotal, planMeta } from './model.js';
+import { computeRows, savingsVsCurrent, availablePlans, servesState, SORTS, rankWithMine, baseTotal, dvCost, dvLabel, basisOf, basisNote, basisParts, anyMeds, anyDv, anyMaternity, anyMatEstimated, personLimitsNote, areaChip, rankTotal, planMeta } from './model.js';
 import { dvMathLines } from './dental-board.js';
 import { GROUP_LABELS, GROUP_MODES } from './grouping.js';
 import { createResultsBoard, mineNoteText } from './results-board.js';
@@ -309,7 +309,7 @@ export function createResults(main, { store, onRanked }) {
     // headline = the ranked total: without medications unless every shown plan has every drug priced (I3), and
     // without maternity unless every shown plan is maternity-priced
     tweenNumber(r.total, rankTotal(row, medsInRank, matInRank), usd, { animate: anim });
-    setText(r.totalLabel, ended ? endedTotalLabel({ medsOn, dvOn, matOn }) : totalLabelOf(row, medsInRank, matInRank));
+    setText(r.totalLabel, ended ? endedTotalLabel({ medsOn, dvOn, matOn }) : totalLabelOf(row, medsInRank, matInRank, matEstimated));
 
     // bar: premium | expected care, with the deposit shown as a hatched portion at the end
     const gross = row.cost.premium + row.cost.oop;
@@ -370,16 +370,19 @@ export function createResults(main, { store, onRanked }) {
     const unpricedTag = unpriced && h('li', { class: 'tag tag-warn', title: `${gapText} See the math.` },
       svg(ICON_WARN), ended ? 'Maternity not priced for 2026 plans' : MATERNITY_UNPRICED);
     // a priced plan: what one pregnancy adds, in the headline total or shown apart from it
+    // an estimated amount (MATERNITY_ASSUMPTIONS) says so on the tag, and its title says what is assumed and why
     const matCost = row.maternity?.priced ? row.maternity.cost : null;
+    const matEst = row.maternity?.estimated === true;
+    const matWhere = matInRank
+      ? 'Included in this total: every shown plan is priced.'
+      : 'Left out of the ranked total because some shown plans’ brochures give no maternity total.';
     const matTag = matCost != null && h('li', {
-      class: 'tag',
-      title: matInRank
-        ? 'What one pregnancy adds on this plan, from its 2027 brochure’s maternity terms. Included in this total: every shown plan is priced.'
-        : 'What one pregnancy adds on this plan, from its 2027 brochure’s maternity terms. Left out of the ranked total because some shown plans’ brochures give no maternity total.',
-    }, `${matCost > 0 ? '+ ' : ''}${usd(matCost)} maternity${matInRank ? ', in total' : ''}`);
+      class: `tag${matEst ? ' tag-est' : ''}`,
+      title: matEst ? `${row.maternity.estimate} ${matWhere}` : `What one pregnancy adds on this plan, from its 2027 brochure’s maternity terms. ${matWhere}`,
+    }, `${matCost > 0 ? '+ ' : ''}${usd(matCost)} maternity${matEst ? ' (estimated)' : ''}${matInRank ? ', in total' : ''}`);
     const st = state.location.state;
     const area = areaChip(row, st ? STATE_NAMES[st] ?? st : null, st ? state.location.zip : null, data.zipCounty ?? null);
-    const key = `${ended ? 'ended' : ''}${row.isMine ? `mine:${mineWhere}:${rankTag}` : ''}|${vsMine}:${vsExcl}|${row.cost.firmness}|${row.diff.status}|${row.diff.flags.join(',')}|${oon}:${unpriced}:${gapText}:${matCost}:${matInRank}|${area?.title ?? ''}`;
+    const key = `${ended ? 'ended' : ''}${row.isMine ? `mine:${mineWhere}:${rankTag}` : ''}|${vsMine}:${vsExcl}|${row.cost.firmness}|${row.diff.status}|${row.diff.flags.join(',')}|${oon}:${unpriced}:${gapText}:${matCost}:${matEst}:${matInRank}|${area?.title ?? ''}`;
     if (key !== rec.chipsKey) {
       rec.chipsKey = key;
       const items = ended ? [
@@ -444,12 +447,13 @@ export function createResults(main, { store, onRanked }) {
         ? 'No maternity cost is in this 2026 total: maternity is priced only for 2027 plans, from their brochures.'
         : 'No maternity cost is in this total: the plan’s brochure gives no way to total it for one pregnancy (see Your own costs below).';
     } else if (matInRank) {
-      text = `Every shown plan’s brochure prices maternity, so the ${usd(m.cost)} this pregnancy adds here is in the ranked total.`;
+      text = `Every shown plan has a maternity price${matEstimated ? ' (some estimated)' : ''}, so the ${usd(m.cost)} this pregnancy adds here${m.estimated ? ' (estimated)' : ''} is in the ranked total.`;
     } else {
       text = `Plans are ranked without maternity, because some shown plans’ brochures give no maternity total: the ${usd(m.cost)} `
-        + `this pregnancy adds here is left out of the ranked total (${usd(rankTotal(row, medsInRank, false))}).`;
+        + `this pregnancy adds here${m.estimated ? ' (estimated)' : ''} is left out of the ranked total (${usd(rankTotal(row, medsInRank, false))}).`;
     }
-    return mathLine(text, '', 'math-sub math-note math-mat');
+    // an estimate's reason (what it assumes and why) is the line's own note under "Your own costs"
+    return [mathLine(text + (m.estimated ? ' See Your own costs below for what the estimate assumes.' : ''), '', 'math-sub math-note math-mat')];
   }
 
   function fillMath(rec) {
@@ -490,7 +494,7 @@ export function createResults(main, { store, onRanked }) {
         `− ${usd(cost.hsaOffset)}`),
       ...dvMathLines(row.dv, mathLine),
       mathLine('Estimated yearly total', usd(cost.total), 'math-total'),
-      matMathLine(row),
+      ...(matMathLine(row) ?? []),
     ].filter(Boolean);
 
     const prices = Object.entries(ASSUMED_PRICES).map(([k, v]) =>
@@ -506,7 +510,7 @@ export function createResults(main, { store, onRanked }) {
         h('div', { class: 'mc-row' },
           h('span', { class: 'mc-name' }, c.label,
             h('span', { class: 'math-how' }, `${c.perYear} × ${usdExact(c.price)}${c.outOfNetwork ? ', out of network' : ''}`)),
-          h('span', { class: 'num mc-cost' }, c.unpriced ? 'not counted' : `+ ${usd(c.cost)}`)),
+          h('span', { class: 'num mc-cost' }, c.unpriced ? 'not counted' : `+ ${usd(c.cost)}${c.estimated ? ' (estimated)' : ''}`)),
         [...c.warnings.map((w) => h('p', { class: 'mc-warn' }, svg(ICON_WARN), w)),
           ...c.notes.map((n) => h('p', { class: 'mc-note' }, n))]))),
     ];
@@ -569,7 +573,8 @@ export function createResults(main, { store, onRanked }) {
     const meds = parts.includes('meds');
     let medsNote = '';
     // maternity left out (not priced on every plan, or compared with a 2026 plan): what it adds, or "not priced"
-    const matOn2 = (n, where) => (n == null ? `not priced on ${where} (its brochure gives no total)` : `${usd(n)} on ${where}`);
+    const estOf = (r) => (r?.maternity?.estimated ? ' (estimated)' : '');
+    const matOn2 = (n, where, r) => (n == null ? `not priced on ${where} (its brochure gives no total)` : `${usd(n)}${estOf(r)} on ${where}`);
     let matNote = '';
     if (v.kind === 'continuing') {
       const same = v.best.code === v.current.code;
@@ -584,8 +589,12 @@ export function createResults(main, { store, onRanked }) {
       }
       if (parts.includes('mat')) {
         matNote = same
-          ? (v.currentMat == null ? 'Maternity is not priced on this plan: its brochure gives no total.' : `One pregnancy adds ${usd(v.currentMat)} on this plan.`)
-          : `One pregnancy: ${matOn2(v.bestMat, v.best.plan.name)}; ${matOn2(v.currentMat, 'your plan')}. Left out above because not every plan’s brochure gives a maternity total.`;
+          ? (v.currentMat == null ? 'Maternity is not priced on this plan: its brochure gives no total.' : `One pregnancy adds ${usd(v.currentMat)}${estOf(v.current)} on this plan.`)
+          : `One pregnancy: ${matOn2(v.bestMat, v.best.plan.name, v.best)}; ${matOn2(v.currentMat, 'your plan', v.current)}. Left out above because not every plan’s brochure gives a maternity total.`;
+      } else if (v.withMat && (v.best.maternity?.estimated || v.current.maternity?.estimated)) {
+        // maternity is in these totals, and some of it is an estimate: say where
+        const est = [v.best, v.current].filter((r, i, a) => r.maternity?.estimated && a.findIndex((x) => x.code === r.code) === i);
+        matNote = `These totals include one pregnancy; the amount is estimated on ${est.map((r) => r.plan.name).join(' and ')}. ${est[0].maternity.estimate}`;
       }
       if (meds) {
         medsNote = same
@@ -601,7 +610,7 @@ export function createResults(main, { store, onRanked }) {
       if (parts.includes('mat')) {
         matNote = v.bestMat == null
           ? `Maternity is not priced on ${v.best.plan.name}: its brochure gives no total.`
-          : `Plus one pregnancy: ${usd(v.bestMat)} on ${v.best.plan.name}, not priced for 2026 plans.`;
+          : `Plus one pregnancy: ${usd(v.bestMat)}${estOf(v.best)} on ${v.best.plan.name}, not priced for 2026 plans.`;
       }
       if (meds) {
         medsNote = v.bestMeds == null
@@ -694,6 +703,7 @@ export function createResults(main, { store, onRanked }) {
   let medsInRank = true; // the ranked totals include them (every shown plan has every drug priced: model.medsRanked)
   let matOn = false; // a "Having a baby" line is in the custom lines
   let matInRank = true; // the ranked totals include it (every shown plan is maternity-priced: model.maternityRanked)
+  let matEstimated = false; // some shown plan's maternity amount is an estimate (MATERNITY_ASSUMPTIONS)
   function render(state = store.get()) {
     if (!data) return;
     // the Dental & Vision tab hides this frame (src/ui/dental-board.js): skip the work until it is back
@@ -711,6 +721,7 @@ export function createResults(main, { store, onRanked }) {
     medsInRank = res.medsInRank !== false;
     matOn = anyMaternity(rows);
     matInRank = res.matInRank !== false;
+    matEstimated = anyMatEstimated(rows);
     sortCtl.sync(ui.sort);
     typeCtl.sync(ui.type);
     viewCtl.sync(state.view);
@@ -735,7 +746,7 @@ export function createResults(main, { store, onRanked }) {
     renderMineNote(state, res, res.notInState && zipOnly ? mineWhere : where);
     // say when the ranking also carries the user's priced medications or the dental/vision add-on
     const dvRow = rows.find((r) => dvCost(r) > 0);
-    const extras = [medsOn && medsInRank && 'your medications', matOn && matInRank && 'maternity', dvRow && `the ${dvLabel(dvRow).replace('incl. ', '').replace('/', ' and ')} add-on`].filter(Boolean);
+    const extras = [medsOn && medsInRank && 'your medications', matOn && matInRank && (matEstimated ? 'maternity (some estimated)' : 'maternity'), dvRow && `the ${dvLabel(dvRow).replace('incl. ', '').replace('/', ' and ')} add-on`].filter(Boolean);
     const ranksTotal = isBoard || ui.sort === 'total';
     const incl = (extras.length && ranksTotal ? `, including ${extras.join(' and ')}` : '')
       + (ranksTotal && ((medsOn && !medsInRank) || (matOn && !matInRank))

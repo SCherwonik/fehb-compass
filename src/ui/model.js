@@ -1,6 +1,7 @@
 // Results model: eligibility, costing, year-over-year diff, ranking and the savings banner.
 // DOM-free (pure functions over loaded data + state) so it is unit tested under node.
 import { planTotal, maternityGap } from '../engine/cost.js';
+import { estimateText, maternityAssumptionValues } from '../engine/maternity-assumptions.js';
 import { SCENARIOS, applyOverrides, usageFromCustom } from '../engine/scenarios.js';
 import { diffPlan, planFacts } from '../engine/diff.js';
 import { statesFromServiceArea } from '../data.js';
@@ -69,8 +70,10 @@ export const hasMaternityLine = (inputs) => (inputs?.usage?.custom ?? []).some((
 
 /**
  * The maternity part of a row when the custom lines include a maternity line, else null:
- *   { priced, gap, cost, baseTotal, total }
- * priced: the plan's brochure-reviewed terms price it; gap: maternityGap (why not, said as a gap in the plan's
+ *   { priced, estimated, assumed, estimate, gap, cost, baseTotal, total }
+ * priced: the plan's brochure-reviewed terms price it, stated or estimated; estimated: the amount fills a count or
+ * share the brochure leaves out from MATERNITY_ASSUMPTIONS (assumed: which ones; estimate: the "Estimated: ..."
+ * sentence that says what is assumed and why); gap: maternityGap (why not, said as a gap in the plan's
  * published information); cost: what the pregnancy adds to this plan's total (with vs without the maternity line,
  * medications left out: deductible, OOP max and HRA effects included; 0 when unpriced, since the engine leaves an
  * unpriced line out of the total); baseTotal: the total without medications, dental/vision or maternity;
@@ -81,12 +84,18 @@ function maternityPart(input, inputs, base, meds) {
   const priced = input.benefits?.maternity?.priced === true;
   if (!priced) {
     // the engine already left the line out: the totals without it are the totals
-    return { priced, gap: maternityGap(input.benefits?.maternity), cost: 0, baseTotal: base.total, total: null };
+    return { priced, estimated: false, assumed: [], estimate: null, gap: maternityGap(input.benefits?.maternity), cost: 0, baseTotal: base.total, total: null };
   }
   const without = { ...inputs, usage: { ...inputs.usage, custom: inputs.usage.custom.filter((l) => l?.kind !== 'maternity') } };
   const baseNo = planTotal(input, without).total;
   const withMedsNo = meds?.entries.length ? planTotal(input, { ...without, drugs: meds.entries }).total : null;
-  return { priced, gap: null, cost: cents(base.total - baseNo), baseTotal: baseNo, total: withMedsNo };
+  const m = input.benefits.maternity;
+  const estimated = m.estimated === true;
+  return {
+    priced, estimated, assumed: estimated ? m.assumed ?? [] : [],
+    estimate: estimated ? estimateText(m.assumed, maternityAssumptionValues(inputs.assumptions?.maternity), m.note ?? '') : null,
+    gap: null, cost: cents(base.total - baseNo), baseTotal: baseNo, total: withMedsNo,
+  };
 }
 
 /**
@@ -187,6 +196,8 @@ export const maternityComplete = (rows) => {
   return list.length > 0 && list.every((r) => r.maternity?.priced === true);
 };
 export const maternityRanked = (rows) => !anyMaternity(rows) || maternityComplete(rows);
+/** True when any of these rows' maternity amount is an estimate (labels then say "some estimated"). */
+export const anyMatEstimated = (rows) => (rows ?? []).some((r) => r?.maternity?.estimated === true);
 /** What the pregnancy adds on this plan; null when it is not priced here (say "not priced", never $0). */
 export const matAdded = (row) => (row?.maternity ? (row.maternity.priced ? row.maternity.cost : null) : null);
 
@@ -594,7 +605,7 @@ export function endedRow(data, state) {
     dv: null,
     baseTotal: cost.total,
     maternity: hasMaternityLine(inputs)
-      ? { priced: false, gap: maternityGap(input.benefits.maternity), cost: 0, baseTotal: cost.total, total: null }
+      ? { priced: false, estimated: false, assumed: [], estimate: null, gap: maternityGap(input.benefits.maternity), cost: 0, baseTotal: cost.total, total: null }
       : null,
     area: null,
     areaSplit: null,

@@ -819,6 +819,42 @@ def _maternity_gap(m: str, s: str) -> str:
     return "OPM's maternity terms are not plain enough to price without the plan brochure."
 
 
+MATERNITY_ASSUMPTION_KEYS = ("days", "visits", "split")
+_PART_KINDS = ("zero", "pct", "usd", "per_day", "per_visit")
+_PART_OF = ("hospital", "doctors", "all")
+_PART_VISITS = ("all", "prenatal", "postpartum", "postpartum_after_first", "initial")
+
+
+def check_maternity_estimate(est: dict, where: str) -> dict:
+    """Validate a reviewed entry's "estimate": {"assumed": [...], "parts": [...], "note"?}. Each part is one charge the
+    brochure states ({of: hospital|doctors|all, kind: zero|pct|usd|per_day|per_visit, value, deductible: true|false,
+    cap?, maxDays?, visits?}); the counts and shares it leaves out come from the app's approved assumptions
+    (src/engine/maternity-assumptions.js), and "assumed" must name exactly the ones the parts need:
+    split for a coinsurance part on the hospital's or the doctors' share, days for per-day charges, visits for
+    per-visit charges."""
+    assumed = list(est.get("assumed") or [])
+    parts = list(est.get("parts") or [])
+    if not parts or any(a not in MATERNITY_ASSUMPTION_KEYS for a in assumed) or len(set(assumed)) != len(assumed):
+        raise ValueError(f"{where}: bad estimate {est!r}")
+    for q in parts:
+        if q.get("of") not in _PART_OF or q.get("kind") not in _PART_KINDS or q.get("deductible") not in (True, False):
+            raise ValueError(f"{where}: bad estimate part {q!r}")
+        if q["kind"] in ("pct", "usd", "per_day", "per_visit") and not isinstance(q.get("value"), (int, float)):
+            raise ValueError(f"{where}: estimate part needs a value {q!r}")
+        if q["kind"] == "per_visit" and q.get("visits") not in _PART_VISITS:
+            raise ValueError(f"{where}: per-visit part needs visits {q!r}")
+    # only a coinsurance part depends on how the bill divides (a copay or a per-day / per-visit charge does not)
+    need = {"split"} if any(q["of"] != "all" and q["kind"] == "pct" for q in parts) else set()
+    need |= {"days"} if any(q["kind"] == "per_day" for q in parts) else set()
+    need |= {"visits"} if any(q["kind"] == "per_visit" for q in parts) else set()
+    if need != set(assumed):
+        raise ValueError(f"{where}: estimate assumes {sorted(assumed)} but its parts need {sorted(need)}")
+    out = {"assumed": assumed, "parts": parts}
+    if est.get("note"):
+        out["note"] = est["note"]
+    return out
+
+
 def apply_maternity_terms(benefits: dict, path: Path = MATERNITY_TERMS_PATH) -> tuple[int, int]:
     """Give every plan benefits[year][code]["maternity"] (see maternity_term), then apply the brochure-reviewed
     entries of pipeline/maternity_terms.json (2027 only). Each entry names the plan, the two OPM cells it was
@@ -844,7 +880,11 @@ def apply_maternity_terms(benefits: dict, path: Path = MATERNITY_TERMS_PATH) -> 
                                  f"({cur['maternity']!r} / {cur['stay']!r}): re-check the brochure")
             meta = {k: o[k] for k in ("brochure", "page", "quote", "reason") if k in o}
             t = o["term"]
-            if t is None:
+            if t is None and o.get("estimate") is not None:
+                est = check_maternity_estimate(o["estimate"], f"{Path(path).name}: {code}")
+                e["maternity"] = {"priced": True, "estimated": True, **est, "source": "brochure",
+                                  "maternity": cur["maternity"], "stay": cur["stay"], **meta}
+            elif t is None:
                 e["maternity"] = {"priced": False, "source": "brochure", "maternity": cur["maternity"], "stay": cur["stay"],
                                   **meta, "reason": o["unpriced"]}
             else:
