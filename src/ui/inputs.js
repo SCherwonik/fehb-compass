@@ -245,6 +245,53 @@ export function combobox({ id, label, hint, placeholder, emptyLabel, onSelect })
   };
 }
 
+/**
+ * The same plan picker as combobox() (same arguments, same el / setModel / sync), built on the browser's own
+ * <select>: on a phone that is the system picker, like the State field beside it. Groups become <optgroup>s and
+ * the 2027 status goes into the option text, since a native list cannot show badges or search.
+ */
+export function nativePlanSelect({ id, label, hint, emptyLabel, onSelect }) {
+  const hintId = hint ? nextId('hint') : null;
+  const select = h('select', { id, class: 'select is-empty', 'aria-describedby': hintId }, h('option', { value: '' }, emptyLabel));
+  const el = h('div', { class: 'field' },
+    h('label', { class: 'field-label', for: id }, label),
+    h('div', { class: 'select-wrap' }, select, svg(ICON_CHEVRON)),
+    hint && h('p', { class: 'field-hint', id: hintId }, hint));
+  let selected = '';
+  const paint = () => {
+    select.value = [...select.options].some((o) => o.value === selected) ? selected : '';
+    select.classList.toggle('is-empty', select.value === '');
+  };
+  select.addEventListener('change', () => {
+    selected = select.value;
+    select.classList.toggle('is-empty', selected === '');
+    onSelect(selected || null);
+  });
+  const optionText = (o) => {
+    const status = o.continues === undefined ? '' : o.continues ? ' (continues in 2027)' : ' (ended in 2027)';
+    return `${o.name}${o.code ? ` · plan ${o.code}` : ''}${status}`;
+  };
+  return {
+    el,
+    input: select,
+    setModel(m) {
+      select.replaceChildren(
+        h('option', { value: '' }, emptyLabel),
+        ...m.groups.map((g) => h('optgroup', { label: g.label }, g.options.map((o) => h('option', { value: o.code }, optionText(o))))),
+      );
+      paint();
+    },
+    sync(code) {
+      selected = code ?? '';
+      paint();
+    },
+  };
+}
+
+// Which control picks the 2026 plan: 'native' (the browser's own list, like the State field) or 'combobox' (the
+// searchable list with badges). One switch, so the two can be compared.
+const PLAN_PICKER = 'native';
+
 // ---------- panel ----------
 
 /**
@@ -284,11 +331,12 @@ export function renderInputs(form, { data, store, meds }) {
 
   // -- current plan: searchable, grouped by whether it carries into 2027 for the chosen state
   const plans27 = plansForYear(data.plans, 2027);
-  const current = combobox({
+  const currentArgs = {
     id: 'in-current', label: 'Your 2026 plan', placeholder: 'Search plans, or skip', emptyLabel: 'Not enrolled or skip',
     hint: 'Shows 2026 plans; plans marked ended have no 2027 version.',
     onSelect: (code) => store.set({ currentPlan2026: code }),
-  });
+  };
+  const current = PLAN_PICKER === 'combobox' ? combobox(currentArgs) : nativePlanSelect(currentArgs);
   let currentFor; // state the combobox groups were last built for
   function syncCurrentModel(st) {
     if (st === currentFor) return;
