@@ -564,3 +564,6 @@ body:has(.tray.is-visible) .footer { padding-bottom: 104px; }
 .math-meter { height: 6px; margin: 2px 0 0 var(--space-5); border-radius: 999px; background: var(--border); overflow: hidden; }
 .math-meter > i { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
 .math-meter-note { margin: 3px 0 var(--space-1) var(--space-5); }
+
+/* no dashed rule between a line and its bar, or under a note */
+.math-line:has(+ .math-meter), .math-sub.math-note { border-bottom: 0; }
