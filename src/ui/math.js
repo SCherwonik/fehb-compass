@@ -77,6 +77,21 @@ function deductibleLines(b, drugsDed) {
   ];
 }
 
+/** "Toward the out-of-pocket max: $890 of $6,000" with a bar; in-network care only (out-of-network has its own limit). */
+function oopMaxLines(b, cost, hitMax) {
+  const limit = Number.isFinite(b.oopMax) ? b.oopMax : null;
+  if (!limit) return [mathLine('This plan lists no out-of-pocket max.', '', 'math-sub math-note')];
+  const used = Math.max(0, cost.oop - (b.oonPaid || 0) - (b.notCoveredPaid || 0));
+  const pct = Math.max(0, Math.min(100, (used / limit) * 100));
+  return [
+    mathLine(h('span', {}, 'Toward the out-of-pocket max ', h('span', { class: 'math-how' }, `of ${usd(limit)}${b.onePerson ? ' (one person)' : ''}`)), usd(used), 'math-sub'),
+    h('div', { class: 'math-meter', role: 'img', 'aria-label': `${usd(used)} of the ${usd(limit)} out-of-pocket max reached` }, h('i', { style: `width:${pct.toFixed(1)}%` })),
+    h('p', { class: 'math-how math-meter-note' }, hitMax
+      ? `Capped: the plan pays everything in-network after this, so care costs stop at ${usd(limit)}.`
+      : `${usd(limit - used)} below the max. If this year went worse, in-network care would stop at ${usd(limit)}.`),
+  ];
+}
+
 /** One scenario service: "3 × $150 = $450 billed" and what the member pays after the plan's rule, with the rule itself. */
 function serviceItem(s, capped) {
   const name = SERVICE_NAMES[s.service] ?? (s.label ? s.label[0].toUpperCase() + s.label.slice(1) : 'Care');
@@ -122,8 +137,8 @@ export function mathContent(row, state, data, basis) {
     ...deductibleLines(b, drugsDed),
     mathLine('Coinsurance', usd(b.coinsurancePaid), 'math-sub'),
     mathLine('Copays', usd(b.copays), 'math-sub'),
+    ...oopMaxLines(b, cost, hitMax),
     b.oonPaid > 0 && mathLine('Out of network, at full cost', usd(b.oonPaid), 'math-sub'),
-    hitMax && mathLine(`Capped at the ${usd(b.oopMax)} out-of-pocket max${b.onePerson ? ' for one person' : ''}`, '', 'math-sub math-note'),
     b.onePerson && mathLine(personLimitsNote(b), '', 'math-sub math-note math-person'),
     Math.abs(careSum - cost.oop) > 1 && mathLine('Rounding', usd(cost.oop - careSum), 'math-sub'),
     row.account && mathLine(
