@@ -271,8 +271,12 @@ export const MEDICAL_SECTIONS = [
       { key: 'premium', label: 'Premium', best: 'min', cell: (r) => money(r.cost.premium, { sub: 'per year' }) },
       {
         key: 'oop', label: 'Expected care costs', best: 'min',
-        cell: (r, ctx) => money(r.cost.oop, {
-          sub: ctx.scenario === 'nothing' ? 'your own costs' : `${SCENARIO_TEXT[ctx.scenario] ?? 'typical'} year${ctx.adjusted ? ', adjusted' : ''}`,
+        // the board turns this cell into the number plus a "See the math" button (results-board.js hooks.math)
+        cell: (r, ctx) => ({
+          ...money(r.cost.oop, {
+            sub: ctx.scenario === 'nothing' ? 'your own costs' : `${SCENARIO_TEXT[ctx.scenario] ?? 'typical'} year${ctx.adjusted ? ', adjusted' : ''}`,
+          }),
+          hook: 'math',
         }),
       },
       {

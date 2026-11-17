@@ -305,6 +305,7 @@ export function expectedOop(benefits, usage, assumptions = {}, drugs = []) {
     : null));
   const warnings = [];
   const warned = new Set();
+  const services = new Map();
   let flat = true;
 
   const lines = (usage.custom || []).map((l) => ({
@@ -354,6 +355,19 @@ export function expectedOop(benefits, usage, assumptions = {}, drugs = []) {
   for (const e of events) {
     const price = e.price || 0;
     const custom = e.line !== undefined;
+    // the scenario's own services (visits, labs, stays, generic fills), one entry per kind: how many, what they bill
+    // in all, and (below) what the member pays after the plan's rule, the deductible and the out-of-pocket max
+    let svc = null;
+    if (!custom && e.drug === undefined) {
+      const key = `${e.service}|${e.label}`;
+      svc = services.get(key);
+      if (!svc) {
+        svc = { service: e.service, label: e.label, count: 0, price, spend: 0, cost: 0, rule: benefits.copays?.[e.service]?.raw ?? null };
+        services.set(key, svc);
+      }
+      svc.count += 1;
+      svc.spend += price;
+    }
 
     if (e.drug !== undefined) {
       // a medication priced from its brochure tier terms
@@ -492,6 +506,7 @@ export function expectedOop(benefits, usage, assumptions = {}, drugs = []) {
     const cp = take(copayPiece);
     copays += cp;
     if (custom) lines[e.line].cost += d + ci + cp;
+    else if (svc) svc.cost += d + ci + cp;
   }
 
   for (const L of lines) L.cost = cents(L.cost);
@@ -502,6 +517,8 @@ export function expectedOop(benefits, usage, assumptions = {}, drugs = []) {
     copays: cents(copays),
     oonPaid: cents(oonPaid),
     total: cents(total + oonPaid + notCoveredPaid),
+    // [{service, label, count, price, spend, cost, rule}] for the scenario's visits, labs, stays and generic fills
+    services: [...services.values()].map((s) => ({ ...s, spend: cents(s.spend), cost: cents(s.cost) })),
     drugs: drugOut,
     drugsPaid: cents(drugsPaid + notCoveredPaid),
     drugsDeductible: cents(drugsDeductible),
@@ -561,6 +578,7 @@ export function planTotal(plan, inputs) {
       accountType: hra ? 'HRA' : 'HSA',
       oonPaid: o.oonPaid,
       oonEstimate: o.oonEstimate,
+      services: o.services,
       drugs: o.drugs,
       drugsPaid: o.drugsPaid,
       drugsDeductible: o.drugsDeductible,

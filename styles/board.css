@@ -556,3 +556,22 @@ html.has-board-full .topbar, html.has-board-full .sit-bar, html.has-board-full .
   line-height: var(--leading-snug);
 }
 .rhead-mine[hidden] { display: none; }
+
+/* "See the math" under Expected care costs: opens the plan's math in a dialog */
+.bd-math-btn {
+  margin-top: var(--space-1);
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--text-xs);
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.bd-math-btn:hover { text-decoration-thickness: 2px; }
+.bd-math-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--radius-sm); }
+/* the card's math panel is animated open by .card.is-open; in the dialog it is simply shown */
+.math-dialog { width: min(860px, calc(100vw - 2 * var(--space-4))); }
+.math-dialog .math-inner { opacity: 1; transform: none; padding-top: 0; transition: none; }

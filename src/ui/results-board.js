@@ -9,6 +9,9 @@ import { buildMatrix, filterMatrix, matrixBoardSections, pinnedMatrixCells } fro
 import { createMatrixToolbar, matrixPrefs, setMatrixPrefs, onMatrixPrefs } from './matrix.js';
 import { rxSummaryRows } from './rx-model.js';
 import { rxBoardSections, rxBoardHooks } from './rx-board.js';
+import { anyMatEstimated } from './model.js';
+import { openMathDialog } from './math.js';
+import { h } from './dom.js';
 
 /** Text for the note under the results header about the user's own plan ('' when there is nothing to say). */
 export function mineNoteText(data, state, res, where) {
@@ -35,7 +38,24 @@ export function createResultsBoard() {
   let open = false;
   const board = createBoard({
     label: 'Plan comparison board. Columns are plans, best first.',
-    hooks: rxBoardHooks,
+    hooks: {
+      ...rxBoardHooks,
+      // Expected care costs: the figure, its note, and a button that opens how this plan's total adds up
+      math(row, td, d) {
+        const plan = row.plan?.name ?? row.code ?? 'this plan';
+        const btn = h('button', { type: 'button', class: 'bd-math-btn', 'aria-label': `See the math for ${plan}` }, 'See the math');
+        btn.addEventListener('click', () => {
+          if (!last) return;
+          const [data, state, res] = last;
+          openMathDialog(row, state, data, { medsInRank: res.medsInRank !== false, matInRank: res.matInRank !== false, matEstimated: anyMatEstimated(res.ranked) }, btn);
+        });
+        td.replaceChildren(
+          h('span', { class: 'bd-v' }, d.text),
+          d.best && h('span', { class: 'sr-only' }, ' (best in this row)'),
+          d.sub && h('span', { class: 'bd-s' }, d.sub),
+          btn);
+      },
+    },
     onSectionToggle: (key, isOpen) => {
       if (key.startsWith('mx-')) setMatrixPrefs({ open: { [key.slice(3)]: isOpen } }, 'board-section');
     },
