@@ -59,6 +59,24 @@ const serviceName = (s, n) => {
   return n === 1 ? (SERVICE_SINGULAR[s.service] ?? plural) : plural;
 };
 
+/** "Toward the deductible: $250 of $3,000" with a bar of how much of it this year uses (medications' share included). */
+function deductibleLines(b, drugsDed) {
+  const limit = Number.isFinite(b.deductible) ? b.deductible : null;
+  const used = b.deductiblePaid;
+  const shown = used - drugsDed;
+  if (!limit) return [mathLine('Toward the deductible', usd(shown), 'math-sub'), mathLine('This plan has no deductible to meet.', '', 'math-sub math-note')];
+  const pct = Math.max(0, Math.min(100, (used / limit) * 100));
+  return [
+    mathLine(h('span', {}, 'Toward the deductible ', h('span', { class: 'math-how' }, `of ${usd(limit)}${b.onePerson ? ' (one person)' : ''}`)), usd(shown), 'math-sub'),
+    h('div', {
+      class: 'math-meter', role: 'img',
+      'aria-label': `${usd(used)} of the ${usd(limit)} deductible used${drugsDed > 0 ? `, ${usd(drugsDed)} of it by your medications` : ''}`,
+    }, h('i', { style: `width:${pct.toFixed(1)}%` })),
+    h('p', { class: 'math-how math-meter-note' },
+      used >= limit - 0.5 ? 'Deductible fully met this year.' : `${usd(limit - used)} of the deductible is left unused${drugsDed > 0 ? `; medications used ${usd(drugsDed)} of it` : ''}.`),
+  ];
+}
+
 /** One scenario service: "3 × $150 = $450 billed" and what the member pays after the plan's rule, with the rule itself. */
 function serviceItem(s, capped) {
   const name = SERVICE_NAMES[s.service] ?? (s.label ? s.label[0].toUpperCase() + s.label.slice(1) : 'Care');
@@ -101,7 +119,7 @@ export function mathContent(row, state, data, basis) {
       c.unpriced ? 'not counted' : usd(c.cost), 'math-sub math-svc-line')),
     row.meds && mathLine('Your medications', usd(b.drugsPaid || 0), 'math-sub math-svc-line'),
     h('p', { class: 'math-how math-split-h' }, 'How that was paid:'),
-    mathLine('Toward the deductible', usd(b.deductiblePaid - drugsDed), 'math-sub'),
+    ...deductibleLines(b, drugsDed),
     mathLine('Coinsurance', usd(b.coinsurancePaid), 'math-sub'),
     mathLine('Copays', usd(b.copays), 'math-sub'),
     b.oonPaid > 0 && mathLine('Out of network, at full cost', usd(b.oonPaid), 'math-sub'),
