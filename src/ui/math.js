@@ -24,6 +24,12 @@ const SERVICE_NAMES = {
   rx_tier1: 'Generic prescription fills',
 };
 
+const SERVICE_SINGULAR = {
+  primary_care: 'Primary care visit', specialist: 'Specialist visit', lab_xray: 'Lab test or X-ray', imaging: 'Imaging scan (MRI, CT)',
+  emergency: 'Emergency room visit', inpatient_admission: 'Hospital stay', inpatient_surgeon: 'Surgery during a stay',
+  rx_tier1: 'Generic prescription fill',
+};
+
 export function mathLine(label, value, cls = '') {
   return h('div', { class: `math-line ${cls}` }, h('span', { class: 'math-label' }, label), h('span', { class: 'math-val' }, value));
 }
@@ -46,6 +52,12 @@ function matMathLine(row, { medsInRank, matInRank, matEstimated }) {
   // an estimate's reason (what it assumes and why) is the line's own note under "Your own costs"
   return [mathLine(text + (m.estimated ? ' See Your own costs below for what the estimate assumes.' : ''), '', 'math-sub math-note math-mat')];
 }
+
+// "Primary care visit" for one, "Primary care visits" for more
+const serviceName = (s, n) => {
+  const plural = SERVICE_NAMES[s.service] ?? (s.label ? s.label[0].toUpperCase() + s.label.slice(1) : 'Care');
+  return n === 1 ? (SERVICE_SINGULAR[s.service] ?? plural) : plural;
+};
 
 /** One scenario service: "3 × $150 = $450 billed" and what the member pays after the plan's rule, with the rule itself. */
 function serviceItem(s, capped) {
@@ -80,13 +92,19 @@ export function mathContent(row, state, data, basis) {
   const lines = [
     mathLine(h('span', {}, h('i', { class: 'dot dot-prem' }), 'Premium ', h('span', { class: 'math-how' }, premiumHow)), usd(cost.premium)),
     mathLine(h('span', {}, h('i', { class: 'dot dot-oop' }), 'Expected care costs'), `+ ${usd(cost.oop)}`),
+    // what makes up that figure: each service of the scenario, "1 × Primary care visit", then your own lines
+    ...(b.services ?? []).map((s) => mathLine(
+      h('span', {}, `${s.count} × ${serviceName(s, s.count)} `, h('span', { class: 'math-how' }, `${usdExact(s.price)} billed each`)),
+      s.cost < 0.005 ? '$0' : usd(s.cost), 'math-sub math-svc-line')),
+    ...(b.custom ?? []).map((c) => mathLine(
+      h('span', {}, `${c.perYear} × ${c.label} `, h('span', { class: 'math-how' }, `${usdExact(c.price)} each`)),
+      c.unpriced ? 'not counted' : usd(c.cost), 'math-sub math-svc-line')),
+    row.meds && mathLine('Your medications', usd(b.drugsPaid || 0), 'math-sub math-svc-line'),
+    h('p', { class: 'math-how math-split-h' }, 'How that was paid:'),
     mathLine('Toward the deductible', usd(b.deductiblePaid - drugsDed), 'math-sub'),
     mathLine('Coinsurance', usd(b.coinsurancePaid), 'math-sub'),
     mathLine('Copays', usd(b.copays), 'math-sub'),
     b.oonPaid > 0 && mathLine('Out of network, at full cost', usd(b.oonPaid), 'math-sub'),
-    row.meds && mathLine(h('span', {}, 'Your medications ',
-      h('span', { class: 'math-how' }, `${row.meds.entries.length} of ${row.meds.count} priced${b.notCoveredPaid > 0 ? `, ${usd(b.notCoveredPaid)} not covered` : ''}`)),
-    usd(b.drugsPaid || 0), 'math-sub math-meds'),
     hitMax && mathLine(`Capped at the ${usd(b.oopMax)} out-of-pocket max${b.onePerson ? ' for one person' : ''}`, '', 'math-sub math-note'),
     b.onePerson && mathLine(personLimitsNote(b), '', 'math-sub math-note math-person'),
     Math.abs(careSum - cost.oop) > 1 && mathLine('Rounding', usd(cost.oop - careSum), 'math-sub'),
