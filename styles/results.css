@@ -567,3 +567,6 @@ body:has(.tray.is-visible) .footer { padding-bottom: 104px; }
 
 /* no dashed rule between a line and its bar, or under a note */
 .math-line:has(+ .math-meter), .math-sub.math-note { border-bottom: 0; }
+
+/* two columns: the notes start level with the Premium line, not above it */
+@media (min-width: 760px) { .math-inner > .math-notes { padding-top: var(--space-2); } }
