@@ -49,11 +49,13 @@ export function createResultsBoard() {
           const [data, state, res] = last;
           openMathDialog(row, state, data, { medsInRank: res.medsInRank !== false, matInRank: res.matInRank !== false, matEstimated: anyMatEstimated(res.ranked) }, btn);
         });
-        td.replaceChildren(
+        // replaceChildren turns a false or empty child into the text "false", so only real nodes go in
+        td.replaceChildren(...[
           h('span', { class: 'bd-v' }, d.text),
-          d.best && h('span', { class: 'sr-only' }, ' (best in this row)'),
-          d.sub && h('span', { class: 'bd-s' }, d.sub),
-          btn);
+          d.best ? h('span', { class: 'sr-only' }, ' (best in this row)') : null,
+          d.sub ? h('span', { class: 'bd-s' }, d.sub) : null,
+          btn,
+        ].filter(Boolean));
       },
     },
     onSectionToggle: (key, isOpen) => {
