@@ -338,6 +338,13 @@ export function createResults(main, { store, onRanked }) {
       if (r.deductible.badge) r.deductible.box.querySelector('dd').append(r.deductible.badge);
     }
     setText(r.oopMax.v, usd(row.facts.oopMax));
+    // an out-of-pocket maximum taken from the plan brochure instead of OPM's spreadsheet
+    const oopBadge = overrideBadge(row.benefits, /^Annual out-of-pocket maximum/);
+    if (Boolean(oopBadge) !== Boolean(r.oopMax.badge)) {
+      r.oopMax.badge?.remove();
+      r.oopMax.badge = oopBadge ? badgeEl(oopBadge) : null;
+      if (r.oopMax.badge) r.oopMax.box.querySelector('dd').append(r.oopMax.badge);
+    }
     if (ended) { setClass(r.oopMax.d, 'fact-d'); setText(r.oopMax.d, '2026'); }
     else setDelta(r.oopMax.d, row.diff.oopMaxChange);
     setText(r.share, costShareSummary(row.benefits, row.facts.coinsurance) || 'Cost sharing varies; see the plan brochure.');

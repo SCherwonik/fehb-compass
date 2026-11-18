@@ -502,7 +502,92 @@ def test_tracked_overrides_file_is_complete():
     for o in spec["overrides"]:
         for k in ("year", "plan_code", "field", "raw_fields", "sheet", "brochure_value", "brochure", "page", "quote", "reason"):
             assert k in o, (o.get("plan_code"), k)
-        assert o["field"] == "deductible" or o["field"].startswith("rx_tier")
+        assert o["field"] in ("deductible", "oop_max", "out_of_network.deductible") or o["field"].startswith("rx_tier")
+
+
+OOP_RAW = ["Annual out-of-pocket maximum (Self)", "Annual out-of-pocket maximum (Self Plus One)",
+           "Annual out-of-pocket maximum (Self & Family)"]
+OOP = {"year": 2027, "plan_code": "X1", "field": "oop_max", "raw_fields": OOP_RAW,
+       "sheet": {"self": 7000, "self_plus_one": 14000, "family": 14000},
+       "brochure_value": {"self": 3500, "self_plus_one": 7000, "family": 7000},
+       "brochure": "73-129", "page": 24, "quote": "q", "reason": "r"}
+OON = {"year": 2027, "plan_code": "X1", "field": "out_of_network.deductible", "raw_fields": [],
+       "sheet": {"self": 1600, "self_plus_one": 3200, "family": 3200},
+       "brochure_value": {"self": 2000, "self_plus_one": 4000, "family": 4000},
+       "brochure": "73-828", "page": 35, "quote": "q3", "reason": "r3"}
+
+
+def _entry_oop(**over):
+    e = _entry(oop_max={"self": 7000.0, "self_plus_one": 14000.0, "family": 14000.0},
+               out_of_network={"deductible": {"self": 1600.0, "self_plus_one": 3200.0, "family": 3200.0},
+                               "oop_max": {"self": 10000.0, "self_plus_one": 20000.0, "family": 20000.0}})
+    e["raw"].update({OOP_RAW[0]: "$7,000", OOP_RAW[1]: "$14,000", OOP_RAW[2]: "$14,000"})
+    e.update(over)
+    return e
+
+
+def test_apply_benefit_overrides_patches_oop_max(tmp_path):
+    b = {"2027": {"X1": _entry_oop()}}
+    assert build_data.apply_benefit_overrides(b, _spec(tmp_path, [OOP])) == 1
+    e = b["2027"]["X1"]
+    assert e["oop_max"] == {"self": 3500.0, "self_plus_one": 7000.0, "family": 7000.0}
+    assert e["raw"][OOP_RAW[0]] == "$3,500" and e["raw"][OOP_RAW[2]] == "$7,000"
+    assert e["overrides"][OOP_RAW[0]] == {"field": "oop_max", "sheet": "$7,000", "brochure": "73-129",
+                                          "page": 24, "quote": "q", "reason": "r"}
+    assert e["out_of_network"]["oop_max"]["self"] == 10000.0 and e["deductible"]["self"] == 5500.0
+
+
+def test_apply_benefit_overrides_patches_out_of_network_deductible_without_raw_fields(tmp_path):
+    b = {"2027": {"X1": _entry_oop()}}
+    raw_before = dict(b["2027"]["X1"]["raw"])
+    assert build_data.apply_benefit_overrides(b, _spec(tmp_path, [OON])) == 1
+    e = b["2027"]["X1"]
+    assert e["out_of_network"]["deductible"] == {"self": 2000.0, "self_plus_one": 4000.0, "family": 4000.0}
+    assert e["out_of_network"]["oop_max"]["self"] == 10000.0 and e["deductible"]["self"] == 5500.0
+    assert e["raw"] == raw_before
+    assert e["overrides"] == {build_data.OON_DEDUCTIBLE_KEY: {
+        "field": "out_of_network.deductible", "sheet": "$1,600", "brochure": "73-828", "page": 35, "quote": "q3", "reason": "r3"}}
+
+
+def test_apply_benefit_overrides_stops_when_oop_or_out_of_network_sheet_is_stale(tmp_path):
+    b = {"2027": {"X1": _entry_oop(oop_max={"self": 6000.0, "self_plus_one": 12000.0, "family": 12000.0})}}
+    with pytest.raises(ValueError, match="X1.*oop_max"):
+        build_data.apply_benefit_overrides(b, _spec(tmp_path, [OOP]))
+    b = {"2027": {"X1": _entry_oop()}}
+    with pytest.raises(ValueError, match="X1.*out_of_network.deductible"):
+        build_data.apply_benefit_overrides(b, _spec(tmp_path, [{**OON, "sheet": {"self": 1, "self_plus_one": 2, "family": 2}}]))
+
+
+@needs_data
+def test_every_tracked_override_matches_the_built_data():
+    """A spreadsheet refresh that reverts a patched value must fail here, not silently ship the stale number."""
+    spec = json.loads((PIPELINE / "benefit_overrides.json").read_text(encoding="utf-8"))
+    b = load("benefits.json")
+    for o in spec["overrides"]:
+        e = b[str(o["year"])][o["plan_code"]]
+        where = (o["plan_code"], o["field"])
+        if o["field"] == "out_of_network.deductible":
+            assert e["out_of_network"]["deductible"] == {k: float(v) for k, v in o["brochure_value"].items()}, where
+            assert build_data.OON_DEDUCTIBLE_KEY in e["overrides"], where
+        elif o["field"] in ("deductible", "oop_max"):
+            want = {k: float(v) for k, v in o["brochure_value"].items()}
+            assert e[o["field"]] == want, where
+            for f in o["raw_fields"]:
+                tier = next(k for k, suf in build_data.ENROLL_SUFFIX if f.endswith(suf))
+                assert e["raw"][f] == build_data._usd_text(want[tier]), (where, f)
+                assert e["overrides"][f]["field"] == o["field"], (where, f)
+        else:
+            bv = o["brochure_value"]
+            c = e["copays"][o["field"]]
+            assert c["value"] == float(bv["value"]) and c["kind"] == bv["kind"] and c["raw"] == o["brochure_text"], where
+            assert c.get("cap") == (float(bv["cap"]) if bv.get("cap") is not None else None), where
+            for f in o["raw_fields"]:
+                assert e["raw"][f] == o["brochure_text"], (where, f)
+
+
+@needs_data
+def test_nm1_self_only_oop_max_is_the_brochure_3500():
+    assert load("benefits.json")["2027"]["NM1"]["oop_max"]["self"] == 3500.0
 
 
 @needs_data

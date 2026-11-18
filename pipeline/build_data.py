@@ -689,6 +689,9 @@ def apply_text_fixes(plans: list, benefits: dict) -> None:
 OVERRIDES_PATH = Path(__file__).resolve().parent / "benefit_overrides.json"
 
 
+OON_DEDUCTIBLE_KEY = "Out-of-network annual deductible"
+
+
 def _usd_text(v: float) -> str:
     return f"${v:,.0f}" if float(v).is_integer() else f"${v:,.2f}"
 
@@ -696,8 +699,12 @@ def _usd_text(v: float) -> str:
 def apply_benefit_overrides(benefits: dict, path: Path = OVERRIDES_PATH) -> int:
     """Patch benefits where a hand-checked 2027 brochure value replaces OPM's spreadsheet (I5).
 
-    Each entry of pipeline/benefit_overrides.json names a plan, an engine field ('deductible' or 'rx_tierN'),
-    the spreadsheet value it expects, the brochure value, and the raw fields that display it. The engine
+    Each entry of pipeline/benefit_overrides.json names a plan, an engine field ('deductible', 'oop_max', 'out_of_network.deductible'
+    or 'rx_tierN'), the spreadsheet value it expects, the brochure value, and the raw fields that display it.
+    'oop_max' works like 'deductible' (self / self_plus_one / family, shown in the "Annual out-of-pocket
+    maximum" raw fields). 'out_of_network.deductible' patches benefits[code]["out_of_network"]["deductible"];
+    the spreadsheet's out-of-network row has no raw fields, so raw_fields is empty and the provenance record
+    is kept under the key "Out-of-network annual deductible". The engine
     field gets the brochure value, the raw fields show the brochure text, and entry["overrides"][raw field]
     keeps the spreadsheet text, brochure number, page, quote and reason (the app's "Differs from OPM
     spreadsheet" badge). A spreadsheet value that no longer matches stops the build: re-check the brochure.
@@ -714,17 +721,23 @@ def apply_benefit_overrides(benefits: dict, path: Path = OVERRIDES_PATH) -> int:
             raise ValueError(f"{Path(path).name}: plan {code!r} is not in the {year} benefits")
         meta = {k: o[k] for k in ("brochure", "page", "quote", "reason") if k in o}
         record = e.setdefault("overrides", {})
-        if field == "deductible":
+        if field in ("deductible", "oop_max", "out_of_network.deductible"):
+            holder = e["out_of_network"] if field == "out_of_network.deductible" else e
+            key = field.rsplit(".", 1)[-1]
             want = {k: float(v) for k, v in o["sheet"].items()}
-            if e["deductible"] != want:
-                raise ValueError(f"{Path(path).name}: {code} deductible is {e['deductible']}, expected {want}: re-check")
-            e["deductible"] = {k: float(v) for k, v in o["brochure_value"].items()}
+            if holder.get(key) != want:
+                raise ValueError(f"{Path(path).name}: {code} {field} is {holder.get(key)}, expected {want}: re-check")
+            holder[key] = {k: float(v) for k, v in o["brochure_value"].items()}
+            if field == "out_of_network.deductible":
+                if o["raw_fields"]:
+                    raise ValueError(f"{Path(path).name}: {code} {field} has no raw fields to patch")
+                record[OON_DEDUCTIBLE_KEY] = {"field": field, "sheet": _usd_text(want["self"]), **meta}
             for f in o["raw_fields"]:
                 tier = next((k for k, suf in ENROLL_SUFFIX if f.endswith(suf)), None)
                 if tier is None or f not in e["raw"]:
                     raise ValueError(f"{Path(path).name}: {code} has no raw field {f!r}")
                 record[f] = {"field": field, "sheet": e["raw"][f], **meta}
-                e["raw"][f] = _usd_text(e["deductible"][tier])
+                e["raw"][f] = _usd_text(holder[key][tier])
         elif re.fullmatch(r"rx_tier[0-9]", field):
             c = e["copays"].get(field) or {}
             if c.get("raw") != o["sheet"]:

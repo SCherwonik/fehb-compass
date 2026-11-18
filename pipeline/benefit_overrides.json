@@ -1,5 +1,5 @@
 {
- "about": "Benefit values where the 2027 plan brochure (the plan's official statement of benefits) disagrees with OPM's benefits spreadsheet and the brochure was checked by hand. pipeline/build_data.py applies each entry to data/benefits.json: the engine field gets the brochure value, the listed raw fields show the brochure text, and benefits[code].overrides keeps the spreadsheet value, page, quote and reason (the app shows a 'Differs from OPM spreadsheet' badge). Each entry's 'sheet' must equal the spreadsheet value or the build stops.",
+ "about": "Benefit values where the 2027 plan brochure (the plan's official statement of benefits) disagrees with OPM's benefits spreadsheet and the brochure was checked by hand. pipeline/build_data.py applies each entry to data/benefits.json: the engine field (deductible, oop_max, out_of_network.deductible or an rx tier) gets the brochure value, the listed raw fields show the brochure text, and benefits[code].overrides keeps the spreadsheet value, page, quote and reason (the app shows a 'Differs from OPM spreadsheet' badge). An out_of_network.deductible entry has no raw fields (the spreadsheet's out-of-network row has none); its record is kept under 'Out-of-network annual deductible'. Each entry's 'sheet' must equal the spreadsheet value or the build stops.",
  "overrides": [
   {
    "year": 2027,
@@ -445,6 +445,404 @@
    "quote": "Tier 4 (Specialty Drugs): 30% up to $500 per prescription or refill",
    "reason": "Basic column Tier 4 (Specialty) is 30% up to $500; the spreadsheet puts the 30% in its Tier 5 and fills Tier 4 with a tier the brochure does not have (50%).",
    "source": "pipeline/rx_adjudication.json (ruling: brochure_correct, confidence: high)"
+  },
+  {
+   "year": 2027,
+   "plan_code": "NM1",
+   "field": "oop_max",
+   "raw_fields": [
+    "Annual out-of-pocket maximum (Self)",
+    "Annual out-of-pocket maximum (Self Plus One)",
+    "Annual out-of-pocket maximum (Self & Family)"
+   ],
+   "sheet": {
+    "self": 7000,
+    "self_plus_one": 14000,
+    "family": 14000
+   },
+   "brochure_value": {
+    "self": 3500,
+    "self_plus_one": 7000,
+    "family": 7000
+   },
+   "brochure": "73-129",
+   "page": 24,
+   "quote": "total $3,500 for Self Only, or $7,000 for a Self Plus One",
+   "also": [
+    {
+     "page": 76,
+     "quote": "You pay without Medicare: $3,500 self only/$7,000"
+    },
+    {
+     "page": 85,
+     "quote": "Nothing after $3,500/Self Only or $7,000/Self Plus One or Self"
+    }
+   ],
+   "reason": "Section 4, the Medicare table and the Summary all give $3,500 Self Only / $7,000 Self Plus One and Self and Family; the only $7,000/$14,000 in the brochure is the generic IRS-limit sentence on p15.",
+   "source": "read by hand from pipeline/raw/brochures_txt/2027/73-129.txt"
+  },
+  {
+   "year": 2027,
+   "plan_code": "UX1",
+   "field": "oop_max",
+   "raw_fields": [
+    "Annual out-of-pocket maximum (Self)",
+    "Annual out-of-pocket maximum (Self Plus One)",
+    "Annual out-of-pocket maximum (Self & Family)"
+   ],
+   "sheet": {
+    "self": 6000,
+    "self_plus_one": 12000,
+    "family": 12000
+   },
+   "brochure_value": {
+    "self": 6500,
+    "self_plus_one": 13000,
+    "family": 13000
+   },
+   "brochure": "73-017",
+   "page": 25,
+   "quote": "$13,000 for Self Plus One or Self and Family enrollment (for the Basic Option)",
+   "also": [
+    {
+     "page": 83,
+     "quote": "Member Cost BASIC Option without Medicare: $6,500/$13,000"
+    },
+    {
+     "page": 95,
+     "quote": "Nothing after $6,500/Self Only or $13,000/per"
+    }
+   ],
+   "reason": "Section 4, the Medicare table and the Summary give the Basic Option $6,500 / $13,000; the sheet carries the Standard Option's $6,000 / $12,000 (the 2026 sheet had $6,500 / $13,000).",
+   "source": "read by hand from pipeline/raw/brochures_txt/2027/73-017.txt"
+  },
+  {
+   "year": 2027,
+   "plan_code": "A81",
+   "field": "oop_max",
+   "raw_fields": [
+    "Annual out-of-pocket maximum (Self)",
+    "Annual out-of-pocket maximum (Self Plus One)",
+    "Annual out-of-pocket maximum (Self & Family)"
+   ],
+   "sheet": {
+    "self": 6000,
+    "self_plus_one": 12000,
+    "family": 12000
+   },
+   "brochure_value": {
+    "self": 7000,
+    "self_plus_one": 14000,
+    "family": 14000
+   },
+   "brochure": "73-881",
+   "page": 27,
+   "quote": "is $7,000 for Self Only, $14,000 for Self Plus One, or $14,000",
+   "also": [
+    {
+     "page": 18,
+     "quote": "Out-Of-Pocket Maximum will increase for the Self Only Plan from $6,000 to $7,000"
+    },
+    {
+     "page": 92,
+     "quote": "$7,000 Self Only, $14,000 Self Plus One, $14,000 Self and"
+    }
+   ],
+   "reason": "Basic Option; the sheet carries the 2026 figures that the Changes section says increased.",
+   "source": "read by hand from pipeline/raw/brochures_txt/2027/73-881.txt"
+  },
+  {
+   "year": 2027,
+   "plan_code": "P81",
+   "field": "oop_max",
+   "raw_fields": [
+    "Annual out-of-pocket maximum (Self)",
+    "Annual out-of-pocket maximum (Self Plus One)",
+    "Annual out-of-pocket maximum (Self & Family)"
+   ],
+   "sheet": {
+    "self": 6000,
+    "self_plus_one": 12000,
+    "family": 12000
+   },
+   "brochure_value": {
+    "self": 7000,
+    "self_plus_one": 14000,
+    "family": 14000
+   },
+   "brochure": "73-881",
+   "page": 27,
+   "quote": "is $7,000 for Self Only, $14,000 for Self Plus One, or $14,000",
+   "also": [
+    {
+     "page": 18,
+     "quote": "Out-Of-Pocket Maximum will increase for the Self Only Plan from $6,000 to $7,000"
+    }
+   ],
+   "reason": "Basic Option (same brochure as A81); the sheet carries the 2026 figures.",
+   "source": "read by hand from pipeline/raw/brochures_txt/2027/73-881.txt"
+  },
+  {
+   "year": 2027,
+   "plan_code": "A84",
+   "field": "oop_max",
+   "raw_fields": [
+    "Annual out-of-pocket maximum (Self)",
+    "Annual out-of-pocket maximum (Self Plus One)",
+    "Annual out-of-pocket maximum (Self & Family)"
+   ],
+   "sheet": {
+    "self": 5500,
+    "self_plus_one": 11000,
+    "family": 11000
+   },
+   "brochure_value": {
+    "self": 6000,
+    "self_plus_one": 12000,
+    "family": 12000
+   },
+   "brochure": "73-881",
+   "page": 27,
+   "quote": "is $6000 for Self Only, $12,000 for Self Plus One, or $12,000",
+   "also": [
+    {
+     "page": 18,
+     "quote": "Out-Of-Pocket Maximum will increase for the Self Only Plan from $5,500 to $6,000"
+    },
+    {
+     "page": 90,
+     "quote": "$6,000 Self Only, $12,000 Self Plus One , $12,000 Self and"
+    }
+   ],
+   "reason": "Standard Option; the sheet carries the 2026 figures that the Changes section says increased.",
+   "source": "read by hand from pipeline/raw/brochures_txt/2027/73-881.txt"
+  },
+  {
+   "year": 2027,
+   "plan_code": "P84",
+   "field": "oop_max",
+   "raw_fields": [
+    "Annual out-of-pocket maximum (Self)",
+    "Annual out-of-pocket maximum (Self Plus One)",
+    "Annual out-of-pocket maximum (Self & Family)"
+   ],
+   "sheet": {
+    "self": 5500,
+    "self_plus_one": 11000,
+    "family": 11000
+   },
+   "brochure_value": {
+    "self": 6000,
+    "self_plus_one": 12000,
+    "family": 12000
+   },
+   "brochure": "73-881",
+   "page": 27,
+   "quote": "is $6000 for Self Only, $12,000 for Self Plus One, or $12,000",
+   "also": [
+    {
+     "page": 18,
+     "quote": "Out-Of-Pocket Maximum will increase for the Self Only Plan from $5,500 to $6,000"
+    }
+   ],
+   "reason": "Standard Option (same brochure as A84); the sheet carries the 2026 figures.",
+   "source": "read by hand from pipeline/raw/brochures_txt/2027/73-881.txt"
+  },
+  {
+   "year": 2027,
+   "plan_code": "A84",
+   "field": "deductible",
+   "raw_fields": [
+    "Annual deductible (Self)",
+    "Annual deductible (Self Plus One)",
+    "Annual deductible (Self & Family)",
+    "Net deductible (Self)",
+    "Net deductible (Self Plus One)",
+    "Net deductible (Self & Family)"
+   ],
+   "sheet": {
+    "self": 300,
+    "self_plus_one": 600,
+    "family": 600
+   },
+   "brochure_value": {
+    "self": 350,
+    "self_plus_one": 700,
+    "family": 700
+   },
+   "brochure": "73-881",
+   "page": 33,
+   "quote": "$350 for Self Only, $700 for Self Plus One or $700 for Self and Family",
+   "also": [
+    {
+     "page": 26,
+     "quote": "The calendar year deductible is $350 per person."
+    },
+    {
+     "page": 18,
+     "quote": "Deductible will increase for the Self Only from $300 to $350"
+    }
+   ],
+   "reason": "Standard Option; the sheet carries the 2026 deductible that the Changes section says increased.",
+   "source": "read by hand from pipeline/raw/brochures_txt/2027/73-881.txt"
+  },
+  {
+   "year": 2027,
+   "plan_code": "P84",
+   "field": "deductible",
+   "raw_fields": [
+    "Annual deductible (Self)",
+    "Annual deductible (Self Plus One)",
+    "Annual deductible (Self & Family)",
+    "Net deductible (Self)",
+    "Net deductible (Self Plus One)",
+    "Net deductible (Self & Family)"
+   ],
+   "sheet": {
+    "self": 300,
+    "self_plus_one": 600,
+    "family": 600
+   },
+   "brochure_value": {
+    "self": 350,
+    "self_plus_one": 700,
+    "family": 700
+   },
+   "brochure": "73-881",
+   "page": 33,
+   "quote": "$350 for Self Only, $700 for Self Plus One or $700 for Self and Family",
+   "also": [
+    {
+     "page": 18,
+     "quote": "Deductible will increase for the Self Only from $300 to $350"
+    }
+   ],
+   "reason": "Standard Option (same brochure as A84); the sheet carries the 2026 deductible.",
+   "source": "read by hand from pipeline/raw/brochures_txt/2027/73-881.txt"
+  },
+  {
+   "year": 2027,
+   "plan_code": "RE1",
+   "field": "oop_max",
+   "raw_fields": [
+    "Annual out-of-pocket maximum (Self)",
+    "Annual out-of-pocket maximum (Self Plus One)",
+    "Annual out-of-pocket maximum (Self & Family)"
+   ],
+   "sheet": {
+    "self": 9000,
+    "self_plus_one": 18000,
+    "family": 18000
+   },
+   "brochure_value": {
+    "self": 9500,
+    "self_plus_one": 19000,
+    "family": 19000
+   },
+   "brochure": "73-881",
+   "page": 27,
+   "quote": "is $9,500 for Self Only, $19,000 for Self Plus One, or $19,000",
+   "also": [
+    {
+     "page": 18,
+     "quote": "Out-Of-Pocket Maximum will increase for the Self Only Plan from $9,000 to $9,500"
+    },
+    {
+     "page": 94,
+     "quote": "$19,000 Self Plus One,"
+    }
+   ],
+   "reason": "Value Option; the sheet carries the 2026 figures that the Changes section says increased.",
+   "source": "read by hand from pipeline/raw/brochures_txt/2027/73-881.txt"
+  },
+  {
+   "year": 2027,
+   "plan_code": "YZ1",
+   "field": "oop_max",
+   "raw_fields": [
+    "Annual out-of-pocket maximum (Self)",
+    "Annual out-of-pocket maximum (Self Plus One)",
+    "Annual out-of-pocket maximum (Self & Family)"
+   ],
+   "sheet": {
+    "self": 9000,
+    "self_plus_one": 18000,
+    "family": 18000
+   },
+   "brochure_value": {
+    "self": 9500,
+    "self_plus_one": 19000,
+    "family": 19000
+   },
+   "brochure": "73-881",
+   "page": 27,
+   "quote": "is $9,500 for Self Only, $19,000 for Self Plus One, or $19,000",
+   "also": [
+    {
+     "page": 18,
+     "quote": "Out-Of-Pocket Maximum will increase for the Self Only Plan from $9,000 to $9,500"
+    }
+   ],
+   "reason": "Value Option (same brochure as RE1); the sheet carries the 2026 figures.",
+   "source": "read by hand from pipeline/raw/brochures_txt/2027/73-881.txt"
+  },
+  {
+   "year": 2027,
+   "plan_code": "N61",
+   "field": "out_of_network.deductible",
+   "raw_fields": [],
+   "sheet": {
+    "self": 1600,
+    "self_plus_one": 3200,
+    "family": 3200
+   },
+   "brochure_value": {
+    "self": 2000,
+    "self_plus_one": 4000,
+    "family": 4000
+   },
+   "brochure": "73-828",
+   "page": 35,
+   "quote": "in-network and $2,000 for Self Only, $4,000 for Self Plus One",
+   "also": [
+    {
+     "page": 35,
+     "quote": "$4,000 for Self and Family enrollment out-of-network"
+    },
+    {
+     "page": 26,
+     "quote": "from $1,600 to $2,000 and Self Plus One or Self and Family"
+    }
+   ],
+   "reason": "Aetna Direct: the Changes section raises the deductible to $2,000 / $4,000 for both in-network and out-of-network; the sheet's out-of-network row still has the 2026 $1,600 / $3,200.",
+   "source": "read by hand from pipeline/raw/brochures_txt/2027/73-828.txt"
+  },
+  {
+   "year": 2027,
+   "plan_code": "SF4",
+   "field": "out_of_network.deductible",
+   "raw_fields": [],
+   "sheet": {
+    "self": 5000,
+    "self_plus_one": 10000,
+    "family": 10000
+   },
+   "brochure_value": {
+    "self": 500,
+    "self_plus_one": 1000,
+    "family": 1000
+   },
+   "brochure": "73-865",
+   "page": 27,
+   "quote": "$1,000 for Self and Family enrollment under the Point-of-Service Product",
+   "also": [
+    {
+     "page": 73,
+     "quote": "The calendar year deductible is $500 per person under the Standard Option."
+    }
+   ],
+   "reason": "The Point-of-Service Feature Two (non-participating providers) deductible is $500 Self Only / $1,000 Self Plus One and Self and Family in Section 4 and Section 5(i); the same row's $10,000 / $20,000 out-of-pocket maximum matches. The 2026 sheet had $500 / $1,000.",
+   "source": "read by hand from pipeline/raw/brochures_txt/2027/73-865.txt"
   }
  ],
  "not_applied": [
