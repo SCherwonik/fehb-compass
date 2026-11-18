@@ -134,3 +134,20 @@ test('makeRow: a drug for a person beyond the enrollment is not priced and does 
   assert.equal(makeRow(data, s, '401').meds, null, 'dimmed drug: no meds on the row');
   assert.ok(makeRow(data, { ...s, enrollment: 'family', familySize: 4 }, '401').meds, 'covered again at 4 people');
 });
+
+test('an old Family link (#e=f&sc=w&o=h3, no mb) totals the same as one person on every plan', async () => {
+  const { decodeState } = await import('../src/state.js');
+  const { planTotal } = await import('../src/engine/cost.js');
+  const s = { ...decodeState('#e=f&sc=w&o=h3'), location: { state: 'VA', zip: null } };
+  assert.ok(s.others.every((o) => o.scenario === 'nothing'));
+  const usage = { ...applyOverrides(SCENARIOS.worst, { hospitalStays: 3 }), custom: [] };
+  let n = 0;
+  for (const row of computeRows(DATA, s)) {
+    if (row.isEnded) continue;
+    const one = planTotal({ rate: DATA.rates['2027'][row.code], benefits: DATA.benefits['2027'][row.code], account: DATA.benefits['2027'][row.code].account_contribution },
+      { status: 'active', enrollment: 'family', usage });
+    assert.equal(row.cost.total, one.total, row.code);
+    n++;
+  }
+  assert.ok(n > 10);
+});
