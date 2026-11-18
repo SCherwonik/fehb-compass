@@ -131,3 +131,34 @@ Base for this pass: 778cb3b. Every brochure page cited below was re-read in the 
   - 778cb3b against the final tree, 22,500 runs: **no total changed**. Firmness changed only for:
     - 2G4 and B64, all enrollments, healthy, typical and condition: fixed → estimated;
     - 474, Self Plus One and Family, all-'nothing' households: estimated → fixed.
+
+## Fixes after the scoped re-review
+
+Base for this pass: 6478ed6.
+
+- **GG4 (Important).**
+  - 73-849 p24 says "$350 per person under self only enrollment in our Standard Option". For Self Plus One and Self and Family the same paragraph gives only the combined $700; it states no per-person rule within a family enrollment.
+  - GG4 is removed from `pipeline/embedded_deductibles.json` (now 60 plans) and moved from the "Brochure confirms per-person" row (now 60) to "Not stated" (now 3) in `docs/research/2027-family-rules-from-brochures.md`. The table still totals 118, and a test checks that sum.
+  - The board now says "Embedded (assumed)" for GG4. After regeneration only GG4's `deductible_rule_source` changed.
+- **Same standard applied to the other 60.** I read each quote together with the text after it on its page.
+  - None restricts the per-person amount to Self Only enrollment.
+  - The "$X per person" quotes (471, 421, 424, 401, 594, KC1, 574, AM1, 634, V34, 874, PT4, GY4, UX1, 654, N41, T71, L11, LA1, PS1, PS4, FL1, DH1, SF4, YV1, YF1, YJ1) state the amount per person without an enrollment qualifier. Each is followed by the family rule (combined covered expenses reaching the family amount) or the per-enrollment amounts.
+  - The other quotes state the rule within a family enrollment directly:
+    - 104, 131 and the 73-881 codes: "both family members must meet the individual deductible";
+    - 311, 314, 251, 254: "satisfied for an individual";
+    - 441, 444, 454: "per person limit for any covered individual";
+    - 431: "one individual not to exceed";
+    - QQ4, 9K1, DK4, N61, Z24 and the 73-879 codes: "Once an individual meets the Self Only deductible under the Self Plus One";
+    - UW4: "if one member meets the individual deductible";
+    - 474: the individual net deductible.
+  - No other plan moved.
+- **474 on the board (Minor 1).** A plan whose known gaps include a cost-affecting `rule_differs` entry now gets an exception in its board note: the brochure describes its deductible in a way this tool does not model, see the math, brochure 71-004 page 28. This comes from the data; there is no plan-code check.
+- **Pharmacy-only years (Minor 2).**
+  - A new token, `medical_care`, counts any care except pharmacy (scenario visits, labs, imaging, ER, stays, and own lines that are not drugs). The 2G4 and B64 facility gaps now use it, so a year whose only care is pharmacy no longer triggers them.
+  - B64's drug-deductible gap keeps `brand_drugs`.
+  - 474 keeps `any_care`, which includes medications. 71-004 p89 says that during the deductible phase prescription costs are paid from the PCA and then the net deductible, so drugs do count for its account rule.
+  - Side finding, not changed: the app prices 474's generic fills at 25% outside the deductible, while p89 says the member pays the whole drug cost (from the PCA, then the net deductible) until the deductible phase ends.
+- **EA1 (Minor 3).** The note now says the brochure "does not say plainly whether that is each person’s own limit".
+- **Checks.**
+  - pytest passed 303 and node passed 489.
+  - 6478ed6 against the final tree, 22,500 runs: no total changed and **no firmness changed**. No built-in scenario is pharmacy-only: 'nothing' has no care and every other scenario has visits.
