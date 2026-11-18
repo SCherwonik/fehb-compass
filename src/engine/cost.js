@@ -300,7 +300,10 @@ export function expectedOop(benefits, usage, assumptions = {}, drugs = [], carry
   const famMax = fin(benefits.familyOopMax) ? benefits.familyOopMax : Infinity;
   const famOonMax = fin(benefits.oon?.familyOopMax) ? benefits.oon.familyOopMax : Infinity;
   const dedUsed = carry?.dedUsed || 0, oopUsed = carry?.oopUsed || 0, oonUsed = carry?.oonUsed || 0;
-  let dedLeft = Math.max(0, (benefits.deductible || 0) - dedUsed);
+  // embedded plans: each person's own deductible, until the family's deductible spending reaches the family deductible
+  const famDed = fin(benefits.familyDeductible) ? benefits.familyDeductible : Infinity;
+  const famDedUsed = carry?.famDedUsed || 0;
+  let dedLeft = Math.max(0, Math.min((benefits.deductible || 0) - dedUsed, famDed - famDedUsed));
   const defaultDed = benefits.deductibleDefault === true;
   let deductiblePaid = 0, coinsurancePaid = 0, copays = 0, total = 0, oonPaid = 0;
   let drugsPaid = 0, drugsDeductible = 0, notCoveredPaid = 0;
@@ -536,7 +539,7 @@ export function expectedOop(benefits, usage, assumptions = {}, drugs = [], carry
     // kinds in the total as an estimate (stated terms plus MATERNITY_ASSUMPTIONS), e.g. ['maternity']
     estimated: lines.some((L) => L.estimated) ? ['maternity'] : [],
     // the family's running tally after this person (planTotal passes it to the next member)
-    carryOut: { dedUsed: dedUsed + deductiblePaid, oopUsed: oopUsed + total, oonUsed: oonUsed + oonPaid },
+    carryOut: { dedUsed: dedUsed + deductiblePaid, oopUsed: oopUsed + total, oonUsed: oonUsed + oonPaid, famDedUsed: famDedUsed + deductiblePaid },
   };
 }
 
@@ -619,8 +622,9 @@ export function planTotal(plan, inputs) {
 
 /**
  * Two or more covered people, costed one at a time with a running family tally (each member's `carryOut` goes to the
- * next). Embedded plans: every member has the self-only deductible (so the tally's deductible is not carried) and
- * the family's out-of-pocket max caps the sum. Aggregate / unknown HDHPs: one shared deductible, carried.
+ * next). Embedded plans: every member has the self-only deductible until the family's combined deductible spending
+ * reaches the enrollment's (family) deductible, then no one pays more deductible (the `famDedUsed` tally); the family's
+ * out-of-pocket max caps the sum. Aggregate / unknown HDHPs: one shared deductible, carried.
  * No family out-of-pocket max (or out-of-network max) in the data: no family cap, each person still capped alone;
  * for the in-network max that is flagged `breakdown.familyFallback`.
  */
@@ -635,7 +639,10 @@ function familyTotal(plan, inputs, members) {
     oon: { ...person.oon, familyOopMax: fin(resolved.oon?.oopMax) ? resolved.oon.oopMax : null },
   };
   const embedded = person.type === 'embedded';
-  let carry = { dedUsed: 0, oopUsed: 0, oonUsed: 0 };
+  // embedded: the enrollment's (family) deductible caps what everyone spends on their own deductibles together
+  const familyDeductible = embedded && fin(resolved.deductible) ? resolved.deductible : null;
+  if (familyDeductible !== null) b.familyDeductible = familyDeductible;
+  let carry = { dedUsed: 0, oopUsed: 0, oonUsed: 0, famDedUsed: 0 };
   const rows = [];
   let flat = true;
   for (const m of members) {
@@ -673,6 +680,8 @@ function familyTotal(plan, inputs, members) {
       onePerson: false,
       memberCount: members.length,
       familyOopMax,
+      // embedded plans: the family deductible that caps everyone's deductible spending together (null otherwise)
+      familyDeductible,
       familyFallback: familyOopMax === null,
       accountType: hra ? 'HRA' : 'HSA',
       oonPaid: sumC(rows, (r) => r.oonPaid),
