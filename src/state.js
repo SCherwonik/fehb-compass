@@ -350,7 +350,7 @@ export function encodeHash(state) {
   const ov = encodeOverrides(s.overrides);
   if (ov) p.set('o', ov);
   if (s.enrollment === 'family' && s.familySize !== DEFAULT_STATE.familySize) p.set('fs', String(s.familySize));
-  for (const o of s.others) p.append('mb', `${SCENARIO[o.scenario]}_${encodeOverrides(o.overrides)}_${o.name}`);
+  for (const o of s.others.slice(0, memberCount(s) - 1)) p.append('mb', `${SCENARIO[o.scenario]}_${encodeOverrides(o.overrides)}_${o.name}`);
   if (s.dental) p.set('d', '1');
   if (s.selectedPlans.length) p.set('p', s.selectedPlans.join(','));
   if (s.view !== DEFAULT_STATE.view) p.set('v', VIEW[s.view]);

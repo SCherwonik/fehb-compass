@@ -72,3 +72,12 @@ test('no medications in the link', () => {
   const s = sanitizeState({ ...defaultState(), enrollment: 'family', others: [{ name: 'A' }], meds: [{ name: 'x' }] });
   assert.ok(!JSON.stringify(encodeHash(s)).includes('meds'));
 });
+
+test('mb is written only for members the enrollment covers', () => {
+  const others = Array.from({ length: 7 }, (_, i) => ({ name: `P${i}`, scenario: 'worst', overrides: {} }));
+  const mb = (enrollment, familySize = 4) =>
+    new URLSearchParams(encodeHash(sanitizeState({ ...defaultState(), enrollment, familySize, others })).hash).getAll('mb').length;
+  assert.equal(mb('self'), 0);
+  assert.equal(mb('self_plus_one'), 1);
+  assert.equal(mb('family', 4), 3);
+});
