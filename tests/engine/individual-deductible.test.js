@@ -104,3 +104,13 @@ test('the matrix row says the brochure states the threshold', () => {
   assert.deepEqual(row.cells.map((c) => c.display), ['Individual threshold (brochure)', 'Aggregate (shared)']);
   assert.match(DEDUCTIBLE_TYPE_TEXT.individual.note, /brochure/);
 });
+
+test('About and README state the brochure rule with Aetna 224 as the example, and the contradicting brochures', () => {
+  for (const f of ['src/ui/about.js', 'README.md']) {
+    const t = fs.readFileSync(new URL(`../../${f}`, import.meta.url), 'utf8').replace(/\s+/g, ' ');
+    assert.match(t, /Aetna[^.]*\$3,500 of (its|the) \$4,000/, f);
+    assert.match(t, /one or more family members/, f);
+    assert.match(t, /TakeCare[^.]*Kaiser Permanente Washington[^.]*contradict/, f);
+    assert.match(t, /Where a plan[’']s brochure does not state it, (this tool|the app) assumes/, f);
+  }
+});

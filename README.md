@@ -122,6 +122,11 @@ Everything else is external (`src/`, `styles/`, `assets/`): the page loads nothi
 - Each scenario is one person's year of care. With Self Plus One or Self and Family coverage you set up each covered
   person's year, and the household is costed one person after another, in the order listed. How a family deductible
   works differs by plan (some brochures state it, others do not, and SelectHealth's HDHP words it unclearly). Where a
+  brochure states it, the app follows it: UnitedHealthcare's HSA HDHP says the full family deductible must be met first;
+  Aetna's HealthFund HDHP (224) says one person's deductible stops at $3,500 of its $4,000 family deductible and the rest
+  can be met by one or more family members (`pipeline/individual_deductibles.json`). The TakeCare and Kaiser Permanente
+  Washington HDHP brochures contradict themselves about it: the app keeps the shared family deductible, marks those
+  estimates estimated for Self Plus One and Self and Family, and says why in "See the math" (`pipeline/known_gaps.json`). Where a
   plan's brochure does not state it, the app assumes: regular plans give each person their own self-only deductible
   until everyone's deductible spending together reaches the family deductible; HSA plans whose family deductible is
   exactly twice the self-only one, and every other high-deductible plan (the cautious choice), share one family
