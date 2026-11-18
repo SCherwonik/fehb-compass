@@ -342,3 +342,73 @@
 }
 .assume-dismiss svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
 .assume-dismiss:hover { background: color-mix(in srgb, currentColor 16%, transparent); }
+
+/* ---------- covered people: one collapsible row per person ---------- */
+.mb { margin-top: 0; }
+.mb-stepper { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-3); }
+.mb-stepper[hidden] { display: none; }
+.mb-step-label { margin: 0; }
+.mb-step-ctl { display: flex; align-items: center; gap: var(--space-2); }
+.mb-step-val { min-width: 4.5em; text-align: center; font-size: var(--text-sm); font-weight: var(--weight-semibold); }
+.mb-step[aria-disabled="true"] { opacity: 0.35; cursor: default; }
+.mb-step[aria-disabled="true"]:hover { background: var(--surface-glass-strong); }
+.mb-step:focus-visible, .mb-toggle:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.mb-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+.mb-h { margin: 0; font: inherit; }
+.mb-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 46px;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out),
+    border-radius var(--dur-base) var(--ease-out);
+}
+.mb-toggle:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--border-strong)); }
+.mb-toggle svg { width: 16px; height: 16px; fill: none; stroke: var(--text-muted); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; transition: transform var(--dur-base) var(--ease-out); }
+.mb-row.is-open .mb-toggle { border-bottom-left-radius: 0; border-bottom-right-radius: 0; border-bottom-color: transparent; }
+.mb-row.is-open .icon-chev { transform: rotate(180deg); }
+.mb-toggle-copy { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; min-width: 0; }
+.mb-name { font-size: var(--text-md); font-weight: var(--weight-medium); overflow-wrap: anywhere; }
+.mb-sc {
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+}
+.mb-body {
+  border: 1px solid var(--border-control);
+  border-top: 0;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  background: color-mix(in srgb, var(--surface-sunken) 55%, transparent);
+}
+.mb-inner { display: grid; gap: var(--space-3); padding: var(--space-3) var(--space-4) var(--space-4); }
+.mb-inner .field { margin: 0; }
+.mb-inner .ft { margin-top: 0; }
+
+/* "For" selectors and lines tied to a person who is not on this enrollment */
+.cl-for, .md-cell-for { max-width: 14rem; }
+.cl-row.is-uncovered, .md-drug.is-uncovered { opacity: 0.6; }
+.cl-uncovered { margin: 0; font-size: var(--text-xs); font-weight: var(--weight-medium); color: var(--warning); }
+.md-drug-for { font-size: var(--text-xs); color: var(--text-muted); overflow-wrap: anywhere; }
+.md-drug.is-uncovered .md-drug-for { color: var(--warning); }
+@media (prefers-reduced-motion: reduce) { .mb-toggle, .mb-toggle svg { transition: none; } }
+@media (max-width: 440px) {
+  .mb-stepper { flex-direction: column; align-items: stretch; gap: var(--space-2); }
+  .mb-step-ctl { justify-content: space-between; }
+  .mb-inner { padding: var(--space-3) var(--space-2) var(--space-3); }
+  .mb-inner .field-scenario .seg-label { font-size: 0.6875rem; letter-spacing: -0.01em; }
+  .mb-inner .field-scenario .seg { padding-inline: 0; }
+}

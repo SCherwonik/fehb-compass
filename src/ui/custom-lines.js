@@ -6,7 +6,8 @@ import {
   CUSTOM_KINDS, CUSTOM_PRESETS, MAX_CUSTOM_LINES, MAX_LINE_PRICE, MAX_PER_YEAR, MAX_LABEL, RX_TIERS,
   sanitizeLine, lineSpend,
 } from '../engine/scenarios.js';
-import { encodeHash } from '../state.js';
+import { encodeHash, memberCount } from '../state.js';
+import { memberLabel, memberOptions, memberKey, focusedMember } from './members-model.js';
 import { customSummary, droppedText } from './assumptions.js';
 import { reduceMotion, EASE_OUT, tweenNumber } from './motion.js';
 
@@ -57,6 +58,11 @@ export function createCustomLines({ store }) {
   /** rows: [{ id, el, line (last valid), fields }] in display order */
   let rows = [];
   let committed = '[]';
+  // who is covered: a "For" selector shows only with more than one person (state.enrollment), lines for a person
+  // beyond the count are shown dimmed and left out of the footer total
+  let people = { count: 1, key: '' };
+  const memberOf = (l) => (Number.isInteger(l?.member) && l.member > 0 ? l.member : 0);
+  const covered = (l) => memberOf(l) < people.count;
 
   const lines = () => rows.map((r) => r.line);
   function commit() {
@@ -92,6 +98,11 @@ export function createCustomLines({ store }) {
       h('label', { class: 'cl-cap', for: `${id}-tier` }, 'Drug tier'),
       h('div', { class: 'select-wrap' }, tier, svg(ICON_CHEVRON)));
     const oon = h('input', { type: 'checkbox', class: 'cl-oon-input', id: `${id}-oon` });
+    const memberSel = h('select', { class: 'select cl-member', id: `${id}-for` });
+    const forField = h('div', { class: 'cl-cell cl-for', hidden: true },
+      h('label', { class: 'cl-cap', for: `${id}-for` }, 'For'),
+      h('div', { class: 'select-wrap' }, memberSel, svg(ICON_CHEVRON)));
+    const uncovered = h('p', { class: 'cl-uncovered', hidden: true }, 'Not covered at this enrollment');
     const del = h('button', { type: 'button', class: 'cl-del', 'aria-label': 'Remove this cost' }, svg(ICON_X));
     const spend = h('span', { class: 'cl-spend num' });
     const err = h('p', { class: 'cl-err', id: `${id}-err`, role: 'alert' });
@@ -102,6 +113,8 @@ export function createCustomLines({ store }) {
         h('div', { class: 'select-wrap cl-kind-wrap' }, kindSel, svg(ICON_CHEVRON)),
         del),
       label,
+      forField,
+      uncovered,
       h('div', { class: 'cl-grid' },
         h('div', { class: 'cl-cell' },
           h('label', { class: 'cl-cap', for: `${id}-price` }, 'Price each'),
@@ -115,7 +128,7 @@ export function createCustomLines({ store }) {
         h('span', { class: 'cl-spend-wrap' }, spend, h('span', { class: 'cl-spend-unit' }, ' a year before your plan pays'))),
       hint,
       err);
-    const row = { id, el: rowEl, line, fields: { kindSel, label, price, per, tier, tierField, oon, del, spend, err, hint } };
+    const row = { id, el: rowEl, line, fields: { memberSel, forField, uncovered, kindSel, label, price, per, tier, tierField, oon, del, spend, err, hint } };
     fill(row);
     return row;
   }
@@ -132,7 +145,23 @@ export function createCustomLines({ store }) {
     f.tier.value = Number.isInteger(line.tier) ? String(line.tier) : '';
     f.tierField.hidden = !meta.rx;
     f.oon.checked = line.outOfNetwork === true;
+    paintMember(row);
     paintRow(row, false);
+  }
+
+  /** The "For" selector and the dimmed look for a line whose person is not on this enrollment. */
+  function paintMember(row) {
+    const f = row.fields;
+    const m = memberOf(row.line);
+    const state = store.get();
+    f.forField.hidden = people.count <= 1;
+    const opts = memberOptions(state);
+    if (m >= people.count) opts.push([String(m), `${memberLabel(state, m)} (not covered)`]);
+    f.memberSel.replaceChildren(...opts.map(([v, t]) => h('option', { value: v }, t)));
+    f.memberSel.value = String(m);
+    const off = people.count > 1 && m >= people.count;
+    f.uncovered.hidden = !off;
+    row.el.classList.toggle('is-uncovered', off);
   }
 
   function paintRow(row, animate = true) {
@@ -181,6 +210,7 @@ export function createCustomLines({ store }) {
     };
     if (f.tier.value !== '' && CUSTOM_KINDS[draft.kind]?.rx) draft.tier = Number(f.tier.value);
     if (f.oon.checked) draft.outOfNetwork = true;
+    if (Number(f.memberSel.value) > 0) draft.member = Number(f.memberSel.value);
     return { line: sanitizeLine(draft), error: errors.join(' ') };
   }
 
@@ -215,6 +245,7 @@ export function createCustomLines({ store }) {
     row.el.classList.toggle('is-invalid', Boolean(error));
     if (line) {
       row.line = line;
+      if (e.target === row.fields.memberSel) paintMember(row);
       paintRow(row);
       clearTimeout(timer);
       commit();
@@ -254,7 +285,9 @@ export function createCustomLines({ store }) {
 
   function appendRows(newLines, { focus = false } = {}) {
     const room = MAX_CUSTOM_LINES - rows.length;
-    const take = newLines.slice(0, Math.max(0, room));
+    // new lines are for the person whose row is open in "Covered people" (you when there is only you)
+    const who = people.count > 1 ? focusedMember(store.get()) : 0;
+    const take = newLines.slice(0, Math.max(0, room)).map((l) => (who > 0 ? { ...l, member: who } : l));
     const made = take.map((l) => makeRow(l));
     rows.push(...made);
     list.append(...made.map((r) => r.el));
@@ -289,7 +322,7 @@ export function createCustomLines({ store }) {
   // Footer total: recomputed from the rows' current valid values on every edit, add, remove and sync.
   function paintMeta() {
     const n = rows.length;
-    summary.textContent = customSummary(lines());
+    summary.textContent = customSummary(lines().filter(covered));
     const live = `${n} of ${MAX_CUSTOM_LINES} lines`;
     if (countLive.textContent !== live) countLive.textContent = live;
     addBtn.disabled = n >= MAX_CUSTOM_LINES;
@@ -303,7 +336,14 @@ export function createCustomLines({ store }) {
   return {
     el,
     sync(state) {
+      const next = { count: memberCount(state), key: memberKey(state) };
+      const peopleChanged = next.count !== people.count || next.key !== people.key;
+      people = next;
       const json = JSON.stringify(state.custom);
+      if (peopleChanged && json === committed) {
+        for (const r of rows) paintMember(r);
+        paintMeta();
+      }
       if (json !== committed) {
         // changed elsewhere (link, back button, another control): rebuild without animation
         committed = json;

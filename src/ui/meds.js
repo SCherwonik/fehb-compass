@@ -7,6 +7,8 @@ import { availablePlans } from './model.js';
 import { zipCountyHub } from '../data.js';
 import { usdExact } from './format.js';
 import { lookupButton, tierSelect, channelLabel, wireBadges } from './rx-render.js';
+import { memberCount } from '../state.js';
+import { memberLabel, memberOptions, memberKey, focusedMember } from './members-model.js';
 
 const ICON_PILL = '<svg viewBox="0 0 20 20" aria-hidden="true" class="md-icon"><rect x="2.6" y="7" width="14.8" height="6" rx="3" transform="rotate(-35 10 10)"/><path d="M8.3 6.4l3.4 7.2" transform="rotate(-35 10 10)"/></svg>';
 const ICON_LOCK = '<svg viewBox="0 0 16 16" aria-hidden="true" class="md-lock"><rect x="3.2" y="7" width="9.6" height="6.6" rx="1.6"/><path d="M5.4 7V5.2a2.6 2.6 0 0 1 5.2 0V7"/></svg>';
@@ -90,13 +92,17 @@ export function glp1Filter({ store, meds, data }) {
 /**
  * The collapsible "My medications" card, mounted after the input form. Returns { el }.
  */
-export function createMedsPanel({ meds }) {
+export function createMedsPanel({ meds, store }) {
   wireRxControls(meds);
   let open = meds.get().drugs.length > 0;
   let editing = null; // drug id being edited
   let quick = null; // drug id in "check on my top plans"
   let undo = null; // { name, snapshot }
   let fillsTouched = false;
+  // who is covered: the "For" selector shows only with more than one person; a drug for a person beyond the count
+  // is shown dimmed (its cost is left out of the plan totals by the model)
+  let people = { count: 1, key: '' };
+  const memberOf = (d) => (Number.isInteger(d?.member) && d.member > 0 ? d.member : 0);
 
   const countEl = h('span', { class: 'md-count' });
   const toggle = h('button', { type: 'button', class: 'md-toggle', 'aria-expanded': String(open), 'aria-controls': 'md-body' },
@@ -110,6 +116,10 @@ export function createMedsPanel({ meds }) {
   const nameIn = h('input', { class: 'cl-input', id: 'md-name', type: 'text', maxlength: String(MAX_NAME), autocomplete: 'off', spellcheck: 'false', placeholder: 'Drug name, e.g. Eliquis 5 mg' });
   const costIn = h('input', { class: 'cl-input cl-num', id: 'md-cost', type: 'number', min: '0', max: '100000', step: '0.01', inputmode: 'decimal', placeholder: 'optional' });
   const fillsIn = h('input', { class: 'cl-input cl-num', id: 'md-fills', type: 'number', min: '1', max: '365', step: '1', inputmode: 'numeric', value: '12' });
+  const forSel = h('select', { class: 'select', id: 'md-for' });
+  const forCell = h('div', { class: 'cl-cell md-cell-for', hidden: true },
+    h('label', { class: 'cl-cap', for: 'md-for' }, 'For'),
+    h('div', { class: 'select-wrap' }, forSel, svg(ICON_CHEVRON)));
   const costCap = h('label', { class: 'cl-cap', for: 'md-cost' }, 'Full price, 30-day supply');
   const chanSel = h('select', { class: 'select', id: 'md-chan' }, CHANNEL_OPTS.map(([v, t]) => h('option', { value: v }, t)));
   const submit = h('button', { type: 'submit', class: 'btn btn-primary md-add' }, svg(ICON_PLUS), h('span', { class: 'btn-text' }, 'Add drug'));
@@ -119,6 +129,7 @@ export function createMedsPanel({ meds }) {
   const copyLive = h('p', { class: 'sr-only', role: 'status', 'aria-live': 'polite' });
   const form = h('form', { class: 'md-form', novalidate: true },
     h('div', { class: 'cl-cell md-cell-name' }, h('label', { class: 'cl-cap', for: 'md-name' }, 'Drug'), nameIn),
+    forCell,
     h('div', { class: 'cl-grid' },
       h('div', { class: 'cl-cell cl-cell-tier' }, h('label', { class: 'cl-cap', for: 'md-chan' }, 'Where you fill it'),
         h('div', { class: 'select-wrap' }, chanSel, svg(ICON_CHEVRON))),
@@ -166,10 +177,24 @@ export function createMedsPanel({ meds }) {
   });
   fillsIn.addEventListener('input', () => { fillsTouched = true; checkFills(); });
 
+  /** Rebuild the "For" choices from the people on the enrollment; keep `want` (a member index) selected. */
+  function paintFor(want) {
+    const state = store?.get();
+    forCell.hidden = people.count <= 1;
+    if (!state) return;
+    const opts = memberOptions(state);
+    if (want >= people.count) opts.push([String(want), `${memberLabel(state, want)} (not covered)`]);
+    forSel.replaceChildren(...opts.map(([v, t]) => h('option', { value: v }, t)));
+    forSel.value = String(want);
+  }
+  /** New drugs are for the person whose row is open in "Covered people" (you when there is only you). */
+  const defaultFor = () => (store && people.count > 1 ? focusedMember(store.get()) : 0);
+
   function resetForm() {
     editing = null;
     fillsTouched = false;
     form.reset();
+    paintFor(defaultFor());
     fillsIn.value = '12';
     chanSel.value = 'retail30';
     syncCostCap();
@@ -187,6 +212,7 @@ export function createMedsPanel({ meds }) {
       monthlyCost: costIn.value.trim() === '' || !Number.isFinite(Number(costIn.value)) ? null : (Number(costIn.value) * 30) / daysOf(chanSel.value),
       fillsPerYear: fillsIn.value.trim() === '' ? 12 : Math.round(Number(fillsIn.value)),
       channel: chanSel.value,
+      member: people.count > 1 ? Number(forSel.value) || 0 : (editing ? memberOf(meds.get().drugs.find((x) => x.id === editing)) : 0),
     };
     let done;
     if (editing) done = meds.update(editing, fields);
@@ -220,6 +246,7 @@ export function createMedsPanel({ meds }) {
       costIn.value = fillPriceOf(d) ?? '';
       fillsIn.value = String(d.fillsPerYear);
       chanSel.value = d.channel;
+      paintFor(memberOf(d));
       syncCostCap();
       checkFills();
       submit.querySelector('.btn-text').textContent = 'Save changes';
@@ -266,9 +293,12 @@ export function createMedsPanel({ meds }) {
   });
 
   function drugRow(d) {
-    return h('li', { class: 'md-drug', 'data-id': d.id },
+    const m = memberOf(d);
+    const off = people.count > 1 && m >= people.count;
+    return h('li', { class: `md-drug${off ? ' is-uncovered' : ''}`, 'data-id': d.id },
       h('div', { class: 'md-drug-main' },
         h('span', { class: 'md-drug-name' }, d.name),
+        people.count > 1 && h('span', { class: 'md-drug-for' }, off ? `For ${memberLabel(store.get(), m)}. Not covered at this enrollment` : `For ${memberLabel(store.get(), m)}`),
         h('span', { class: 'md-drug-meta' }, [
           d.monthlyCost != null ? `${usdExact(fillPriceOf(d))} for ${daysOf(d.channel)} days` : 'no price',
           `${d.fillsPerYear} ${d.fillsPerYear === 1 ? 'fill' : 'fills'} a year${NINETY.has(d.channel) && d.fillsPerYear > 4 ? ' (over a year of 90-day fills?)' : ''}`,
@@ -329,10 +359,22 @@ export function createMedsPanel({ meds }) {
     renderQuick(state);
   }
 
+  // people on the enrollment (or their names) changed: repaint the "For" choices and the rows
+  function syncPeople(s) {
+    const next = { count: memberCount(s), key: memberKey(s) };
+    if (next.count === people.count && next.key === people.key) return;
+    people = next;
+    paintFor(editing ? memberOf(meds.get().drugs.find((x) => x.id === editing)) : forSel.value === '' ? defaultFor() : Number(forSel.value));
+    render();
+  }
+  store?.subscribe(syncPeople);
+
   meds.subscribe((state, reason) => {
     if (reason === 'meds' && undo && state.drugs.length && JSON.stringify(state) === JSON.stringify(undo.snapshot)) undo = null;
     render(state);
   });
+  if (store) people = { count: memberCount(store.get()), key: memberKey(store.get()) };
+  paintFor(defaultFor());
   render();
   return { el };
 }

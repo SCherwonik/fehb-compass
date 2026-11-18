@@ -182,7 +182,7 @@ async function main() {
       medsCount: () => meds.get()?.drugs?.length ?? 0,
     });
     // "My medications" prices health plans: shown with the health plan inputs only
-    const medsPanel = createMedsPanel({ meds }).el;
+    const medsPanel = createMedsPanel({ meds, store }).el;
     form.after(medsPanel);
     const medsTab = (s) => { medsPanel.classList.toggle('is-off', s.tab !== 'medical'); };
     medsTab(store.get());
