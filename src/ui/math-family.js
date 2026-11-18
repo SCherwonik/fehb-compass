@@ -110,11 +110,16 @@ const LEFT_OUT = new Set(['facility_deductible', 'drug_deductible']);
  */
 export const gapNote = (g) => `${LEFT_OUT.has(g.kind) ? 'Not included in this estimate: ' : ''}${g.text} (Brochure ${g.brochure}, page ${g.page}.)`;
 
-/** The firmness line for a total with known gaps: a brochure cost it leaves out, a brochure that contradicts itself, or both. */
+/**
+ * The firmness line for a total with known gaps: a brochure cost it leaves out, a brochure that contradicts itself, a
+ * brochure rule the estimate does not model (kind 'rule_differs'), or several of these.
+ */
 export function gapFirmness(gaps) {
   const conflict = gaps.some((g) => g.kind === 'conflict');
-  const missing = gaps.some((g) => g.kind !== 'conflict');
-  const why = [missing && 'this total leaves out a cost the plan’s brochure lists', conflict && 'the plan’s brochure contradicts itself about a figure it uses']
+  const differs = gaps.some((g) => g.kind === 'rule_differs');
+  const missing = gaps.some((g) => LEFT_OUT.has(g.kind));
+  const why = [missing && 'this total leaves out a cost the plan’s brochure lists', conflict && 'the plan’s brochure contradicts itself about a figure it uses',
+    differs && 'the plan’s brochure describes a rule this estimate does not model']
     .filter(Boolean).join(', and ');
   return `Estimated: ${why} (see the note below), and part of it may depend on the assumed prices listed below.`;
 }

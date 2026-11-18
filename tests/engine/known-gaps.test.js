@@ -17,8 +17,11 @@ const COST_CONFLICT_PLANS = ['KX1', 'L14'];
 const FAMILY = ['self_plus_one', 'family'];
 // scenarios whose care can trigger each plan's missing deductible (see applies_when below)
 const TRIGGERED_BY = { V31: ['typical', 'condition', 'worst'], '2G4': ['worst'], B64: ['worst'] };
+// the brochure describes a Self Plus One / Self and Family rule the estimate does not model (474: account first, then
+// each person's net deductible)
+const RULE_DIFFERS_PLANS = ['474'];
 const affected = (code, enrollment, scenarios) => scenarios.some((s) => TRIGGERED_BY[code]?.includes(s))
-  || (COST_CONFLICT_PLANS.includes(code) && FAMILY.includes(enrollment));
+  || ([...COST_CONFLICT_PLANS, ...RULE_DIFFERS_PLANS].includes(code) && FAMILY.includes(enrollment));
 const codes = Object.keys(BENEFITS).filter((c) => RATES[c]);
 const U = (name) => ({ ...SCENARIOS[name], custom: [] });
 const without = (b) => { const { known_gaps, ...rest } = b; return rest; };
@@ -183,4 +186,30 @@ test('gapFirmness: the line under the total names what the gaps are', () => {
   assert.match(gapFirmness([conflict]), /brochure contradicts itself/);
   assert.doesNotMatch(gapFirmness([conflict]), /leaves out/);
   assert.match(gapFirmness([cost, conflict]), /leaves out a cost.*contradicts itself/);
+});
+
+// APWU Consumer Driven Option 474 (brochure 71-004 p28): the $2,400 Personal Care Account (Self Plus One / Self and
+// Family) is used first, then each person pays their own $1,000 net deductible. The app gives each person a $2,200
+// deductible and subtracts the account money afterwards. Not modeled (the brochure leaves open whether account payments
+// count toward the out-of-pocket limit): a cost-affecting note for Self Plus One and Self and Family.
+test('474: the account-first deductible is a cost-affecting note for Self Plus One and Family; Self untouched', () => {
+  const g = BENEFITS['474'].known_gaps.find((x) => x.kind === 'rule_differs');
+  assert.equal(g.affects_cost, true);
+  assert.deepEqual(g.enrollments, FAMILY);
+  assert.deepEqual(costGaps(BENEFITS['474'], 'self'), []);
+  for (const scenario of Object.keys(SCENARIOS)) {
+    const self = run('474', BENEFITS['474'], { enrollment: 'self', usage: U(scenario) });
+    assert.deepEqual(self, run('474', without(BENEFITS['474']), { enrollment: 'self', usage: U(scenario) }), scenario);
+    for (const enrollment of FAMILY) {
+      const t = run('474', BENEFITS['474'], { enrollment, usage: U(scenario) });
+      const before = run('474', without(BENEFITS['474']), { enrollment, usage: U(scenario) });
+      assert.equal(t.total, before.total, 'total unchanged');
+      assert.equal(t.firmness, 'estimated');
+      const note = gapNote(t.breakdown.gaps[0]);
+      assert.match(note, /Personal Care Account.*\$1,000 net deductible.*\(Brochure 71-004, page 28\.\)$/);
+      assert.doesNotMatch(note, /Not included/);
+    }
+  }
+  assert.match(gapFirmness([{ kind: 'rule_differs' }]), /brochure describes .* this estimate does not model/);
+  assert.doesNotMatch(gapFirmness([{ kind: 'rule_differs' }]), /leaves out|contradicts/);
 });

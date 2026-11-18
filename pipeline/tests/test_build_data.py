@@ -691,7 +691,8 @@ def test_tracked_known_gaps_land_on_the_right_plans():
     assert {c: sorted(g["kind"] for g in gs) for c, gs in by.items()} == {
         "V31": ["facility_deductible"], "2G4": ["facility_deductible"],
         "B64": ["drug_deductible", "facility_deductible"], "B41": ["conflict"], "B44": ["conflict"],
-        "KX1": ["conflict"], "L14": ["conflict"], **{c: ["cap_not_stated"] for c in CAP_NOT_STATED}}
+        "KX1": ["conflict"], "L14": ["conflict"], "474": ["rule_differs"],
+        **{c: ["cap_not_stated"] for c in CAP_NOT_STATED}}
     assert all(g["affects_cost"] is True for g in spec if g["kind"] not in ("conflict", "cap_not_stated"))
     # a conflict over an out-of-network figure is data only; one over the deductible the estimate uses affects cost
     assert {g["plan_code"]: g["affects_cost"] for g in spec if g["kind"] == "conflict"} == {
@@ -856,7 +857,8 @@ def test_known_gap_may_say_what_care_triggers_it(tmp_path):
 
 def test_tracked_hospital_and_drug_deductibles_say_what_triggers_them():
     spec = json.loads((PIPELINE / "known_gaps.json").read_text(encoding="utf-8"))["gaps"]
-    got = {(g["plan_code"], g["kind"]): g.get("applies_when") for g in spec if g["affects_cost"] and g["kind"] != "conflict"}
+    got = {(g["plan_code"], g["kind"]): g.get("applies_when") for g in spec
+           if g["kind"] in ("facility_deductible", "drug_deductible")}
     assert got == {("V31", "facility_deductible"): ["hospital", "outpatient_surgery", "imaging"],
                    ("2G4", "facility_deductible"): ["hospital", "outpatient_surgery"],
                    ("B64", "facility_deductible"): ["hospital", "outpatient_surgery"],
@@ -911,3 +913,12 @@ def test_tracked_deductible_conflicts_apply_to_family_enrollments_only():
         if g["kind"] == "conflict" and g["affects_cost"]:
             assert g["enrollments"] == ["self_plus_one", "family"], g["plan_code"]
             assert "contradicts itself" in g["text"], g["plan_code"]
+
+
+def test_tracked_474_account_first_deductible_is_a_family_rule_note(tmp_path):
+    spec = json.loads((PIPELINE / "known_gaps.json").read_text(encoding="utf-8"))["gaps"]
+    g = [x for x in spec if x["kind"] == "rule_differs"]
+    assert [x["plan_code"] for x in g] == ["474"]
+    assert g[0]["affects_cost"] is True and g[0]["enrollments"] == ["self_plus_one", "family"]
+    with pytest.raises(ValueError, match="affects_cost"):
+        _apply_gaps(tmp_path, [{**GAP, "kind": "rule_differs", "affects_cost": False}])
