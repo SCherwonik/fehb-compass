@@ -427,9 +427,9 @@ export function renderInputs(form, { data, store, meds }) {
     column(
       group('Coverage', status.el, medicareNote, enrollment.el),
       group('Location', zip.el, location.el),
+      group('Your 2026 plan', current.el, mine.el),
     ),
     column(
-      group('Your 2026 plan', current.el, mine.el),
       group('Filters', account.el, networks, glp1?.el, dvIn.plans),
     ),
     column(group('Your year', year.el, dental, dvAddon.el, dvIn.year)),
