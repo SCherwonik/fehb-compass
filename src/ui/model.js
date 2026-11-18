@@ -293,8 +293,9 @@ export function personLimitsNote(b) {
       + `the family limits (${usd0(b.enrollmentDeductible)} and ${usd0(b.enrollmentOopMax)}) are not reached by one person.`;
   }
   if (b.deductibleType === 'individual') {
+    // every plan in pipeline/individual_deductibles.json also states the per-person out-of-pocket cap (see its about)
     return `${lead}this plan’s brochure says one person’s deductible stops at ${usd0(b.deductible)} of the ${usd0(b.enrollmentDeductible)} family deductible; `
-      + `their costs stop at the ${usd0(b.oopMax)} self-only out-of-pocket max (assumed where the brochure does not say).`;
+      + `as the brochure also states, their costs stop at the ${usd0(b.oopMax)} self-only out-of-pocket max.`;
   }
   const why = b.deductibleType === 'aggregate'
     ? 'this HSA plan’s family deductible is shared'

@@ -124,17 +124,20 @@ Everything else is external (`src/`, `styles/`, `assets/`): the page loads nothi
   works differs by plan (some brochures state it, others do not, and SelectHealth's HDHP words it unclearly). Where a
   brochure states it, the app follows it: UnitedHealthcare's HSA HDHP says the full family deductible must be met first;
   Aetna's HealthFund HDHP (224) says one person's deductible stops at $3,500 of its $4,000 family deductible and the rest
-  can be met by one or more family members (`pipeline/individual_deductibles.json`). The TakeCare and Kaiser Permanente
-  Washington HDHP brochures contradict themselves about it: the app keeps the shared family deductible, marks those
-  estimates estimated for Self Plus One and Self and Family, and says why in "See the math" (`pipeline/known_gaps.json`). Where a
+  can be met by one or more family members, and Altius's HDHP (9K4) states the same rule with $3,500 of its $3,600 family
+  deductible (`pipeline/individual_deductibles.json`). The TakeCare and Kaiser Permanente Washington HDHP brochures
+  contradict themselves about it: the app keeps the shared family deductible (the cautious choice), marks those totals
+  as estimated for Self Plus One and Self and Family, and says why in "See the math" (`pipeline/known_gaps.json`). Where a
   plan's brochure does not state it, the app assumes: regular plans give each person their own self-only deductible
   until everyone's deductible spending together reaches the family deductible; HSA plans whose family deductible is
   exactly twice the self-only one, and every other high-deductible plan (the cautious choice), share one family
   deductible. Out-of-pocket: there is no single figure for everyone. The app caps each person at that plan's own
   self-only out-of-pocket max and the household's sum at the plan's family max (when it lists one). That is the app's
-  assumption for plans whose brochure does not say so (Blue Cross and Blue Shield's and one GEHA HDHP brochure state
-  it; OPM Carrier Letter 2025-04 asks for per-member tracking from 2026; not checked plan by plan). Names are saved in
-  the page link; medications are not.
+  assumption for plans whose brochure does not say so. Many brochures state it (Blue Cross and Blue Shield's, Aetna's
+  HealthFund HDHP (224), Altius's HDHP (9K4) and one GEHA HDHP brochure state it; OPM Carrier Letter 2025-04 asks for
+  per-member tracking from 2026). For 13 plans whose brochure gives enrollment-wide limits only or an unclear "per
+  person", "See the math" says so for Self Plus One and Self and Family (`pipeline/known_gaps.json`, kind
+  `cap_not_stated`). Names are saved in the page link; medications are not.
 - Service areas: OPM lists regional plans by county, so your ZIP is matched to its county with the Census 2020
   ZIP-to-county file (`zip_county.json`; Census ZIP areas only approximate postal ZIPs). Plans the match cannot
   confirm (no ZIP, a PO-box ZIP, a ZIP split across counties) are marked "confirm your county" or "confirm your

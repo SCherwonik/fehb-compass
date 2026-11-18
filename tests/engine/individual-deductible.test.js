@@ -83,6 +83,12 @@ test('See the math: per-person deductible, family bar of $4,000, notes name the 
   const one = run('224', 'family', ['worst']).breakdown;
   assert.match(personLimitsNote(one), /stops at \$3,500 of the \$4,000 family deductible/);
   assert.match(personLimitsNote(one), /brochure/);
+  // 224 and 9K4 brochures also state the per-person out-of-pocket cap (73-828 p16, p37; 73-564 p17, p104)
+  for (const code of ['224', '9K4']) {
+    const note = personLimitsNote(run(code, 'family', ['worst']).breakdown);
+    assert.match(note, /as the brochure also states, their costs stop at the \$[\d,]+ self-only out-of-pocket max\.$/, code);
+    assert.doesNotMatch(note, /assumed/, code);
+  }
   assert.equal(deductibleHow(one, {}), 'individual stops at $3,500 of the family’s $4,000');
   const fam = run('224', 'family', ['worst', 'worst']).breakdown;
   assert.equal(sharedDeductible(fam), false);
@@ -144,6 +150,11 @@ test('the matrix row says the brochure states the threshold', () => {
 test('About and README state the brochure rule with Aetna 224 as the example, and the contradicting brochures', () => {
   for (const f of ['src/ui/about.js', 'README.md']) {
     const t = fs.readFileSync(new URL(`../../${f}`, import.meta.url), 'utf8').replace(/\s+/g, ' ');
+    assert.match(t, /Altius[^.]*\$3,500 of (its|the) \$3,600/, f);
+    assert.match(t, /shared family deductible \(the cautious choice\)/, f);
+    assert.doesNotMatch(t, /estimates estimated/, f);
+    // brochures that state the per-person out-of-pocket cap, Aetna's HealthFund HDHP among them
+    assert.match(t, /Blue Cross and Blue Shield[^.]*Aetna[^.]*state it/, f);
     assert.match(t, /Aetna[^.]*\$3,500 of (its|the) \$4,000/, f);
     assert.match(t, /one or more family members/, f);
     assert.match(t, /TakeCare[^.]*Kaiser Permanente Washington[^.]*contradict/, f);
