@@ -771,6 +771,9 @@ ENROLLMENTS = ("self", "self_plus_one", "family")  # a gap's optional "enrollmen
 # Self and Family.
 GAP_KINDS = {"facility_deductible": (True,), "drug_deductible": (True,), "conflict": (True, False),
              "cap_not_stated": (False,)}
+# a gap's optional "applies_when": the care that can trigger it (the engine's TRIGGERS in src/engine/cost.js); without it
+# the gap applies to every year
+APPLIES_WHEN = ("hospital", "outpatient_surgery", "imaging", "brand_drugs")
 
 
 def brochure_page_text(year, brochure: str, page: int, root: Path = BROCHURE_TXT_DIR) -> str | None:
@@ -855,9 +858,14 @@ def apply_known_gaps(benefits: dict, path: Path = KNOWN_GAPS_PATH, brochure_root
             if want is None or f"Self Only limit of {want}" not in g["text"]:
                 raise ValueError(f"{name}: {code}: the text must name the plan's Self Only out-of-pocket limit "
                                  f"({want or 'none listed'})")
+        when = g.get("applies_when")
+        if "applies_when" in g and (not isinstance(when, list) or not when or not set(when) <= set(APPLIES_WHEN)):
+            raise ValueError(f"{name}: {code}: applies_when must be a non-empty list of {APPLIES_WHEN}")
         entry = {k: g[k] for k in GAP_KEYS if k not in ("year", "plan_code")}
         if enr is not None:
             entry["enrollments"] = enr
+        if when is not None:
+            entry["applies_when"] = when
         e.setdefault("known_gaps", []).append(entry)
         n += 1
     _say_skipped(name, skipped, brochure_root)

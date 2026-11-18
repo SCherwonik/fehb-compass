@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { planTotal, costGaps } from '../../src/engine/cost.js';
+import { planTotal, costGaps, APPLIES_WHEN } from '../../src/engine/cost.js';
 import { SCENARIOS } from '../../src/engine/scenarios.js';
 import { gapNote, gapFirmness } from '../../src/ui/math-family.js';
 
@@ -15,7 +15,10 @@ const CONFLICT_PLANS = ['B41', 'B44'];
 // the brochure contradicts itself about the Self Plus One / Self and Family deductible the estimate uses
 const COST_CONFLICT_PLANS = ['KX1', 'L14'];
 const FAMILY = ['self_plus_one', 'family'];
-const affected = (code, enrollment) => GAP_PLANS.includes(code) || (COST_CONFLICT_PLANS.includes(code) && FAMILY.includes(enrollment));
+// scenarios whose care can trigger each plan's missing deductible (see applies_when below)
+const TRIGGERED_BY = { V31: ['typical', 'condition', 'worst'], '2G4': ['worst'], B64: ['worst'] };
+const affected = (code, enrollment, scenarios) => scenarios.some((s) => TRIGGERED_BY[code]?.includes(s))
+  || (COST_CONFLICT_PLANS.includes(code) && FAMILY.includes(enrollment));
 const codes = Object.keys(BENEFITS).filter((c) => RATES[c]);
 const U = (name) => ({ ...SCENARIOS[name], custom: [] });
 const without = (b) => { const { known_gaps, ...rest } = b; return rest; };
@@ -23,14 +26,23 @@ const run = (code, benefits, inputs) => {
   try { return planTotal({ rate: RATES[code], benefits }, { status: 'active', ...inputs }); } catch { return null; }
 };
 
-test('V31, 2G4 and B64 are estimated in every scenario and enrollment; the gap is in the breakdown', () => {
+// When the member's year can trigger the brochure deductible the estimate leaves out (gap.applies_when): hospital stays
+// (and the birth stay in a maternity line), outpatient surgery, MRI/CT imaging for V31, brand-tier drugs for B64's drug
+// deductible. Scenario usage: healthy/nothing have none; typical and condition have imaging; worst has stays.
+test('V31, 2G4 and B64 are estimated, with the note, only when the year can trigger the missing deductible', () => {
   for (const code of GAP_PLANS) {
     for (const scenario of Object.keys(SCENARIOS)) {
       for (const enrollment of ['self', 'self_plus_one', 'family']) {
         const t = run(code, BENEFITS[code], { enrollment, usage: U(scenario) });
-        assert.equal(t.firmness, 'estimated', `${code} ${scenario} ${enrollment}`);
-        assert.ok(t.breakdown.gaps.length >= 1);
-        assert.match(gapNote(t.breakdown.gaps[0]), /^Not included in this estimate: .+\(Brochure 73-\d+, page \d+\.\)$/);
+        const before = run(code, without(BENEFITS[code]), { enrollment, usage: U(scenario) });
+        if (TRIGGERED_BY[code].includes(scenario)) {
+          assert.equal(t.firmness, 'estimated', `${code} ${scenario} ${enrollment}`);
+          assert.ok(t.breakdown.gaps.length >= 1);
+          assert.match(gapNote(t.breakdown.gaps[0]), /^Not included in this estimate: .+\(Brochure 73-\d+, page \d+\.\)$/);
+        } else {
+          assert.equal(t.breakdown.gaps, undefined, `${code} ${scenario} ${enrollment}: no note`);
+          assert.equal(t.firmness, before.firmness, `${code} ${scenario} ${enrollment}: firmness as before`);
+        }
       }
     }
   }
@@ -38,11 +50,56 @@ test('V31, 2G4 and B64 are estimated in every scenario and enrollment; the gap i
   assert.deepEqual(costGaps(BENEFITS.B64).map((g) => g.kind), ['facility_deductible', 'drug_deductible']);
 });
 
-test('a household total is estimated too, and lists the gap', () => {
-  const usage = U('healthy');
-  const t = run('2G4', BENEFITS['2G4'], { enrollment: 'family', usage, members: [{ usage }, { usage }, { usage }] });
+test("scenario 'nothing': no note and the firmness of the plan without the gap; 'worst': the note", () => {
+  for (const code of GAP_PLANS) {
+    const none = run(code, BENEFITS[code], { enrollment: 'self', usage: U('nothing') });
+    assert.equal(none.breakdown.gaps, undefined, code);
+    assert.equal(none.firmness, run(code, without(BENEFITS[code]), { enrollment: 'self', usage: U('nothing') }).firmness, code);
+    assert.equal(none.firmness, 'fixed', code);
+    const worst = run(code, BENEFITS[code], { enrollment: 'self', usage: U('worst') });
+    assert.equal(worst.firmness, 'estimated', code);
+    assert.equal(worst.breakdown.gaps[0].kind, 'facility_deductible', code);
+  }
+});
+
+test('what triggers each gap: own lines, maternity, imaging (V31 only) and brand-tier drugs (B64 drug deductible)', () => {
+  const line = (kind, extra = {}) => ({ ...SCENARIOS.nothing, custom: [{ kind, label: kind, price: 100, perYear: 1, ...extra }] });
+  const kinds = (code, usage, drugs = []) => (run(code, BENEFITS[code], { enrollment: 'self', usage, drugs }).breakdown.gaps ?? []).map((g) => g.kind);
+  for (const code of GAP_PLANS) {
+    assert.ok(kinds(code, line('hospital_stay')).includes('facility_deductible'), `${code} stay`);
+    assert.ok(kinds(code, line('surgery_outpatient')).includes('facility_deductible'), `${code} surgery`);
+    assert.ok(kinds(code, line('maternity')).includes('facility_deductible'), `${code} birth stay`);
+    assert.deepEqual(kinds(code, line('specialist')), [], `${code} office visit`);
+    assert.deepEqual(kinds(code, line('er')), [], `${code} ER: a copay in these brochures`);
+  }
+  assert.deepEqual(kinds('V31', line('imaging')), ['facility_deductible'], 'V31: MRI/CT');
+  assert.deepEqual(kinds('2G4', line('imaging')), []);
+  assert.deepEqual(kinds('B64', line('rx_brand', { tier: 2 })), ['drug_deductible']);
+  assert.deepEqual(kinds('B64', line('rx_generic', { tier: 1 })), [], 'tier 1 is outside the Tier 2-5 deductible');
+  assert.deepEqual(kinds('B64', { ...SCENARIOS.typical, imaging: 0, custom: [] }), [], 'monthly generics only');
+  const med = { label: 'a drug', fillsPerYear: 12, price: 300, share: { kind: 'usd', value: 50 }, deductibleApplies: null };
+  assert.deepEqual(kinds('B64', U('nothing'), [med]), ['drug_deductible'], 'a medication from the list');
+  assert.deepEqual(kinds('B64', line('rx_brand', { tier: 2, perYear: 0 })), [], 'a line used 0 times');
+});
+
+test('a gap without applies_when applies to every year; an unknown trigger never hides a gap', () => {
+  const g = { kind: 'facility_deductible', affects_cost: true, text: 't', brochure: 'b', page: 1 };
+  assert.equal(costGaps({ known_gaps: [g] }, 'self', [{ usage: SCENARIOS.nothing }]).length, 1);
+  assert.equal(costGaps({ known_gaps: [{ ...g, applies_when: ['hospital'] }] }, 'self', [{ usage: SCENARIOS.nothing }]).length, 0);
+  assert.equal(costGaps({ known_gaps: [{ ...g, applies_when: ['hospital'] }] }, 'self').length, 1, 'no usage given: listed');
+  assert.equal(costGaps({ known_gaps: [{ ...g, applies_when: ['moon_landing'] }] }, 'self', [{ usage: SCENARIOS.nothing }]).length, 1);
+  for (const code of GAP_PLANS) {
+    for (const x of BENEFITS[code].known_gaps) assert.ok(x.applies_when.every((w) => APPLIES_WHEN.includes(w)), code);
+  }
+});
+
+test('a household total is estimated when any member triggers the gap, and lists it', () => {
+  const healthy = U('healthy');
+  const t = run('2G4', BENEFITS['2G4'], { enrollment: 'family', usage: healthy, members: [{ usage: healthy }, { usage: U('worst') }, { usage: healthy }] });
   assert.equal(t.firmness, 'estimated');
   assert.equal(t.breakdown.gaps[0].kind, 'facility_deductible');
+  const none = run('2G4', BENEFITS['2G4'], { enrollment: 'family', usage: healthy, members: [{ usage: healthy }, { usage: healthy }] });
+  assert.equal(none.breakdown.gaps, undefined);
 });
 
 test('conflict entries are data only: no gap in the breakdown, firmness as before', () => {
@@ -71,7 +128,7 @@ test('every plan, scenario and enrollment: totals identical with and without kno
           const { firmness: fb, breakdown: bb, ...rb } = b;
           assert.deepEqual(ra, rb, `${code} ${scenario} ${enrollment}`);
           assert.deepEqual(ba, bb, `${code} ${scenario} ${enrollment}`);
-          if (affected(code, enrollment)) assert.equal(fa, 'estimated');
+          if (affected(code, enrollment, members ? [scenario, 'worst'] : [scenario])) assert.equal(fa, 'estimated');
           else { assert.equal(fa, fb, code); assert.equal(gaps, undefined, code); }
         }
       }
@@ -81,7 +138,7 @@ test('every plan, scenario and enrollment: totals identical with and without kno
 });
 
 test("'fixed' is kept where no cost gap applies", () => {
-  const fixed = codes.filter((c) => !affected(c, 'self')).filter((c) => {
+  const fixed = codes.filter((c) => !affected(c, 'self', ['healthy'])).filter((c) => {
     const t = run(c, BENEFITS[c], { enrollment: 'self', usage: U('healthy') });
     return t && t.firmness === 'fixed';
   });

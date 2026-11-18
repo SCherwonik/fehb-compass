@@ -1,5 +1,5 @@
 {
-  "about": "Known gaps: brochure cost terms the app's estimate does not include (affects_cost true), and brochure contradictions (kind 'conflict': affects_cost false keeps one about a figure the estimate does not use as data only; affects_cost true marks the total estimated and shows the text, which then says the brochure contradicts itself, what each statement is and which one the estimate uses), and plans whose brochure does not state a per-person out-of-pocket limit (kind 'cap_not_stated': affects_cost false, enrollments self_plus_one and family; the estimate caps each person at the plan's own Self Only maximum, the app's stated assumption, and 'See the math' shows the text for those enrollments without changing the total or marking it estimated; the text must name that Self Only maximum). enrollments (optional): the enrollments the entry applies to, all when absent. pipeline/build_data.py attaches each entry to data/benefits.json under benefits[year][plan_code]['known_gaps'] and checks that each quote occurs on the named brochure page (pipeline/raw/brochures_txt/<year>/<brochure>.txt, whitespace-insensitive). amounts: {self, self_plus_one, family} or null where the brochure gives no amounts by enrollment. text is the sentence shown to users in 'See the math', after 'Not included in this estimate:' for a cost term and on its own for a conflict.",
+  "about": "Known gaps: brochure cost terms the app's estimate does not include (affects_cost true), and brochure contradictions (kind 'conflict': affects_cost false keeps one about a figure the estimate does not use as data only; affects_cost true marks the total estimated and shows the text, which then says the brochure contradicts itself, what each statement is and which one the estimate uses), and plans whose brochure does not state a per-person out-of-pocket limit (kind 'cap_not_stated': affects_cost false, enrollments self_plus_one and family; the estimate caps each person at the plan's own Self Only maximum, the app's stated assumption, and 'See the math' shows the text for those enrollments without changing the total or marking it estimated; the text must name that Self Only maximum). enrollments (optional): the enrollments the entry applies to, all when absent. applies_when (optional): the care that can trigger a cost gap (hospital: a hospital stay or a maternity line; outpatient_surgery; imaging: MRI/CT; brand_drugs: a drug above the generic tier); the note and the 'estimated' mark then appear only when someone's year includes it, every year when absent. pipeline/build_data.py attaches each entry to data/benefits.json under benefits[year][plan_code]['known_gaps'] and checks that each quote occurs on the named brochure page (pipeline/raw/brochures_txt/<year>/<brochure>.txt, whitespace-insensitive). amounts: {self, self_plus_one, family} or null where the brochure gives no amounts by enrollment. text is the sentence shown to users in 'See the math', after 'Not included in this estimate:' for a cost term and on its own for a conflict.",
   "gaps": [
     {
       "year": 2027,
@@ -11,6 +11,7 @@
       "brochure": "73-009",
       "page": 25,
       "quote": "The calendar year deductible is $500, which applies to inpatient and outpatient hospital services",
+      "applies_when": ["hospital", "outpatient_surgery", "imaging"],
       "reason": "OPM's spreadsheet and the app carry no deductible. The brochure (p25, p26) has a $500 deductible limited to hospital services and MRI/CT; it gives no amounts per enrollment type and does not say per person or per family. Not modeled."
     },
     {
@@ -23,6 +24,7 @@
       "brochure": "73-718",
       "page": 29,
       "quote": "separate in-network and out-of-network $250 inpatient and outpatient hospital facility deductible",
+      "applies_when": ["hospital", "outpatient_surgery"],
       "reason": "The app's deductible is $0 / $0 / $0. The brochure has a hospital-facility-only deductible, in-network and out-of-network. Not modeled."
     },
     {
@@ -35,6 +37,7 @@
       "brochure": "73-718",
       "page": 29,
       "quote": "an in-network $250 inpatient and outpatient hospital facility deductible",
+      "applies_when": ["hospital", "outpatient_surgery"],
       "reason": "The app's deductible is $0 / $0 / $0. The brochure has an in-network hospital-facility-only deductible. Not modeled."
     },
     {
@@ -47,6 +50,7 @@
       "brochure": "73-718",
       "page": 29,
       "quote": "$100 deductible for Self and $200 for Self Plus One",
+      "applies_when": ["brand_drugs"],
       "reason": "The app has no drug deductible for this plan. The brochure has one for Tier 2-5 drugs under Blue Value Plus. Not modeled."
     },
     {

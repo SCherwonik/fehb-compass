@@ -603,13 +603,48 @@ function mergeServices(lists) {
  * the estimate does not include, or a brochure that contradicts itself about a figure the estimate uses, kind
  * 'conflict'), as [{ kind, text, brochure, page, amounts }]. They are not priced: the total stays as computed and is
  * marked 'estimated'. Entries with affects_cost false are data only and never listed here; an entry with an
- * `enrollments` list applies only to those enrollments (no enrollment given: every entry).
+ * `enrollments` list applies only to those enrollments (no enrollment given: every entry). `people` ([{usage, drugs}],
+ * one per covered person costed): an entry with `applies_when` is listed only when someone's care can trigger it (e.g.
+ * a hospital deductible in a year with no hospital care is left out); no `people` given: every entry.
  */
-export function costGaps(benefits, enrollment = null) {
+export function costGaps(benefits, enrollment = null, people = null) {
   const list = Array.isArray(benefits?.known_gaps) ? benefits.known_gaps : [];
   return list.filter((g) => g && g.affects_cost === true
-    && (!enrollment || !Array.isArray(g.enrollments) || g.enrollments.includes(enrollment)))
+    && (!enrollment || !Array.isArray(g.enrollments) || g.enrollments.includes(enrollment))
+    && gapCanApply(g, people))
     .map(({ kind, text, brochure, page, amounts }) => ({ kind, text, brochure, page, amounts: amounts ?? null }));
+}
+
+const used = (n) => typeof n === 'number' && n > 0;
+const lineUsed = (l, kinds) => kinds.includes(l?.kind) && used(l.perYear);
+/**
+ * What in one person's year can trigger a brochure deductible the estimate leaves out (a known gap's `applies_when`):
+ *   hospital            a hospital stay (scenario or own line), or a "Having a baby" line (it includes the birth stay)
+ *   outpatient_surgery  an own outpatient surgery line
+ *   imaging             MRI or CT imaging (scenario or own line)
+ *   brand_drugs         a drug above the generic tier: an own drug line on tier 2 or higher (or no tier chosen), or any
+ *                       medication from the list (its tier number is not known here); monthly generics do not count
+ * (person: { usage, drugs })
+ */
+const TRIGGERS = {
+  hospital: ({ usage: u }) => used(u?.hospitalStays) || (u?.custom ?? []).some((l) => lineUsed(l, ['hospital_stay', 'maternity'])),
+  outpatient_surgery: ({ usage: u }) => (u?.custom ?? []).some((l) => lineUsed(l, ['surgery_outpatient'])),
+  imaging: ({ usage: u }) => used(u?.imaging) || (u?.custom ?? []).some((l) => lineUsed(l, ['imaging'])),
+  brand_drugs: ({ usage: u, drugs }) => (drugs ?? []).some((d) => d && typeof d === 'object' && used(d.fillsPerYear)
+      && (d.share && typeof d.share === 'object' ? true : !(Number.isInteger(d.tier) && d.tier <= 1)))
+    || (u?.custom ?? []).some((l) => CUSTOM_KINDS[l?.kind]?.rx === true && used(l.perYear) && !(Number.isInteger(l.tier) && l.tier <= 1)),
+};
+/** The `applies_when` words a known gap may use (pipeline/build_data.py checks the data against the same list). */
+export const APPLIES_WHEN = Object.freeze(Object.keys(TRIGGERS));
+
+/**
+ * Can this gap apply to the people's year? A gap without `applies_when`, a call without `people` ([{usage, drugs}]),
+ * or a word not in APPLIES_WHEN: yes (never hide a gap by mistake). Otherwise only when some person's care triggers it.
+ */
+function gapCanApply(g, people) {
+  if (!Array.isArray(g.applies_when) || !Array.isArray(people)) return true;
+  if (g.applies_when.some((w) => !TRIGGERS[w])) return true;
+  return people.some((p) => g.applies_when.some((w) => TRIGGERS[w](p ?? {})));
 }
 
 /**
@@ -642,7 +677,7 @@ export function planTotal(plan, inputs) {
   const hra = isHra(plan);
   const cap = Math.max(0, deposit || 0);
   const hsaOffset = hra ? cents(Math.min(cap, o.total)) : cap;
-  const gaps = costGaps(plan.benefits, enrollment);
+  const gaps = costGaps(plan.benefits, enrollment, [{ usage, drugs }]);
   const firmness = o.warnings.length === 0 && o.flat && gaps.length === 0 ? 'fixed' : 'estimated';
   return {
     premium,
@@ -722,7 +757,7 @@ function familyTotal(plan, inputs, members) {
   const hsaOffset = hra ? cents(Math.min(cap, oop)) : cap;
   const warnings = [...new Set(rows.flatMap((r) => r.warnings))];
   const union = (k) => [...new Set(rows.flatMap((r) => r[k]))];
-  const gaps = costGaps(plan.benefits, enrollment);
+  const gaps = costGaps(plan.benefits, enrollment, members.map((m) => ({ usage: m.usage ?? {}, drugs: m.drugs ?? [] })));
   return {
     premium,
     oop,

@@ -1,4 +1,5 @@
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -842,6 +843,28 @@ def test_known_gap_may_name_the_enrollments_it_applies_to(tmp_path):
     for bad in ([], ["self", "other"], "family"):
         with pytest.raises(ValueError, match="enrollments"):
             _apply_gaps(tmp_path, [{**GAP, "enrollments": bad}])
+
+
+def test_known_gap_may_say_what_care_triggers_it(tmp_path):
+    n, b = _apply_gaps(tmp_path, [{**GAP, "applies_when": ["hospital", "outpatient_surgery"]}, GAP])
+    assert b["2027"]["X1"]["known_gaps"][0]["applies_when"] == ["hospital", "outpatient_surgery"]
+    assert "applies_when" not in b["2027"]["X1"]["known_gaps"][1]
+    for bad in ([], ["hospital", "moon"], "hospital"):
+        with pytest.raises(ValueError, match="applies_when"):
+            _apply_gaps(tmp_path, [{**GAP, "applies_when": bad}])
+
+
+def test_tracked_hospital_and_drug_deductibles_say_what_triggers_them():
+    spec = json.loads((PIPELINE / "known_gaps.json").read_text(encoding="utf-8"))["gaps"]
+    got = {(g["plan_code"], g["kind"]): g.get("applies_when") for g in spec if g["affects_cost"] and g["kind"] != "conflict"}
+    assert got == {("V31", "facility_deductible"): ["hospital", "outpatient_surgery", "imaging"],
+                   ("2G4", "facility_deductible"): ["hospital", "outpatient_surgery"],
+                   ("B64", "facility_deductible"): ["hospital", "outpatient_surgery"],
+                   ("B64", "drug_deductible"): ["brand_drugs"]}
+    # the same words as the engine's APPLIES_WHEN (src/engine/cost.js TRIGGERS)
+    js = (ROOT / "src" / "engine" / "cost.js").read_text(encoding="utf-8")
+    block = js[js.index("const TRIGGERS = {"):js.index("export const APPLIES_WHEN")]
+    assert set(re.findall(r"^  (\w+): ", block, re.M)) == set(build_data.APPLIES_WHEN)
 
 
 CAP = {**GAP, "kind": "cap_not_stated", "affects_cost": False, "amounts": None, "enrollments": ["self_plus_one", "family"],
