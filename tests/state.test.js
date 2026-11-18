@@ -30,6 +30,8 @@ const FULL = {
   currentPlan2026: '2X1',
   scenario: 'worst',
   overrides: { hospitalStays: 4, erVisits: 3 },
+  familySize: 4,
+  others: [],
   droppedCustom: 0,
   tab: 'dental',
   dentalUse: 'braces',

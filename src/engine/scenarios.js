@@ -105,7 +105,7 @@ export function cleanLabel(v) {
 
 /**
  * One validated line, or null when it cannot be priced.
- * -> {label, kind, price, perYear, tier?, outOfNetwork?}  (optional keys present only when set)
+ * -> {label, kind, price, perYear, tier?, outOfNetwork?, member?}  (member: 1..7 = another family member; 0/absent = you)  (optional keys present only when set)
  */
 export function sanitizeLine(v) {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
@@ -125,6 +125,10 @@ export function sanitizeLine(v) {
     if (Number.isInteger(t) && RX_TIERS.includes(t)) out.tier = t;
   }
   if (own(v, 'outOfNetwork') && v.outOfNetwork === true) out.outOfNetwork = true;
+  if (own(v, 'member')) {
+    const m = toNum(v.member);
+    if (Number.isInteger(m) && m >= 1 && m <= 7) out.member = m;
+  }
   return out;
 }
 

@@ -15,6 +15,9 @@
 //                    layered on the scenario (ranges: engine OVERRIDE_FIELDS)
 //   custom:          line[] (max 25)                      { label, kind, price, perYear, tier?, outOfNetwork? }
 //                    validated by engine/scenarios.js sanitizeLine
+//   familySize:      integer 3..8 (default 4)             people on a family enrollment (memberCount)
+//   others:          { name, scenario, overrides }[] (max 7)   the other people, costed one at a time (name: plain text,
+//                    max 20 chars); member 1 (you) is scenario/overrides above; custom lines may carry member 1..7
 //   dental:          boolean                              add FEDVIP dental/vision to the medical totals
 //   tab:             'medical' | 'dental' | 'vision'      results tab (Dental & Vision has the two sub-tabs)
 //   dentalUse:       'cleanings' | 'typical' | 'major' | 'braces'   dental usage preset (engine/dental.js)
@@ -39,7 +42,9 @@
 //   #s=r&e=f&st=VA&a=h&n=Aetna&n=Kaiser+Permanente&c=104&sc=w&d=1&p=104,224&v=b&g=c
 // Every field is validated independently; a malformed or unknown value falls back to its default.
 // Fine-tune overrides: o=h3.e2 (field letter + count). Custom lines go last, one `l` param each:
-//   l=<kind letter><price>_<perYear><flags>_<label>   flags: 'o' out-of-network, 't<n>' drug tier
+//   l=<kind letter><price>_<perYear><flags>_<label>   flags: 'o' out-of-network, 't<n>' drug tier, 'm<n>' member
+// Family: fs=<n> (family size, only when family and not 4); one mb=<scenario letter>_<overrides>_<name> per entry of
+//   `others` (name = everything after the second '_'); entries equal to the default are still written to keep positions.
 //   (links made before this format used cl=<kind>_<price>_<perYear>_<flags>_<label>; still decoded)
 // When the lines would push the hash past HASH_BUDGET chars, the ones that do not fit are saved in localStorage
 // (OVERFLOW_KEY, keyed by a signature of the inline lines) and `cx=N` records how many; the same browser restores
@@ -48,12 +53,16 @@
 // droppedCustom: integer 0..25, a notice only (never encoded): how many custom lines a pasted link announced
 // with cx=N that this browser could not restore. The UI shows it until dismissed (set back to 0).
 
+import { plainText } from './text.js';
 import { SCENARIOS, sanitizeLines, sanitizeOverrides, MAX_CUSTOM_LINES } from './engine/scenarios.js';
 
 export const STORAGE_KEY = 'fehb-compass:state:v1';
 export const OVERFLOW_KEY = 'fehb-compass:custom-overflow:v1';
 /** Longest hash (characters, without '#') written before custom lines spill to localStorage. */
 export const HASH_BUDGET = 1500;
+/** Most people on one enrollment (you plus up to 7 others). */
+export const MAX_MEMBERS = 8;
+const MAX_NAME = 20;
 
 export const DEFAULT_STATE = Object.freeze({
   status: 'active',
@@ -64,6 +73,8 @@ export const DEFAULT_STATE = Object.freeze({
   currentPlan2026: null,
   scenario: 'typical',
   overrides: Object.freeze({}),
+  familySize: 4,
+  others: Object.freeze([]),
   custom: Object.freeze([]),
   dental: false,
   selectedPlans: Object.freeze([]),
@@ -90,6 +101,7 @@ export function defaultState() {
     location: { ...DEFAULT_STATE.location },
     networks: [],
     overrides: {},
+    others: [],
     custom: [],
     selectedPlans: [],
   };
@@ -165,6 +177,26 @@ function validNetworks(v) {
   return out;
 }
 
+/** People on the enrollment: 1, 2, or familySize. */
+export function memberCount(state) {
+  if (state.enrollment === 'self') return 1;
+  if (state.enrollment === 'self_plus_one') return 2;
+  return state.familySize;
+}
+
+function validOthers(v) {
+  if (!Array.isArray(v)) return [];
+  return v.slice(0, MAX_MEMBERS - 1).map((x) => {
+    const o = x && typeof x === 'object' ? x : {};
+    const scenario = pickEnum(o.scenario, SCENARIOS, DEFAULT_STATE.scenario);
+    return {
+      name: plainText(o.name, MAX_NAME),
+      scenario,
+      overrides: pruneOverrides(sanitizeOverrides(o.overrides), SCENARIOS[scenario]),
+    };
+  });
+}
+
 /** Validate a (possibly partial or hostile) object into a complete, valid State. */
 export function sanitizeState(input) {
   const s = input && typeof input === 'object' ? input : {};
@@ -179,6 +211,8 @@ export function sanitizeState(input) {
     currentPlan2026: validPlan(s.currentPlan2026),
     scenario,
     overrides: pruneOverrides(sanitizeOverrides(s.overrides), SCENARIOS[scenario]),
+    familySize: Number.isFinite(s.familySize) ? Math.min(MAX_MEMBERS, Math.max(3, Math.round(s.familySize))) : DEFAULT_STATE.familySize,
+    others: validOthers(s.others),
     custom: sanitizeLines(s.custom),
     dental: s.dental === true,
     selectedPlans: validPlanList(s.selectedPlans),
@@ -240,7 +274,7 @@ export function sanitizeAgainstData(state, vocab) {
 
 /** One custom line -> '<kind><price>_<perYear><flags>_<label>' (the label may contain anything, including '_'). */
 function encodeLine(l) {
-  const flags = `${l.outOfNetwork ? 'o' : ''}${Number.isInteger(l.tier) ? `t${l.tier}` : ''}`;
+  const flags = `${l.outOfNetwork ? 'o' : ''}${Number.isInteger(l.tier) ? `t${l.tier}` : ''}${Number.isInteger(l.member) && l.member > 0 ? `m${l.member}` : ''}`;
   return `${KIND[l.kind]}${l.price}_${l.perYear}${flags}_${l.label}`;
 }
 
@@ -249,11 +283,12 @@ function decodeLine(str) {
   const parts = str.split('_');
   if (parts.length < 3) return null;
   const head = parts[0].match(/^([a-z])(\d+(?:\.\d+)?)$/);
-  const mid = parts[1].match(/^(\d+)(o?)(?:t(\d))?$/);
+  const mid = parts[1].match(/^(\d+)(o?)(?:t(\d))?(?:m(\d))?$/);
   if (!head || !mid || !has(KIND_IN, head[1])) return null;
   const line = { label: parts.slice(2).join('_'), kind: KIND_IN[head[1]], price: Number(head[2]), perYear: Number(mid[1]) };
   if (mid[2]) line.outOfNetwork = true;
   if (mid[3] !== undefined) line.tier = Number(mid[3]);
+  if (mid[4] !== undefined) line.member = Number(mid[4]);
   return line;
 }
 
@@ -275,6 +310,13 @@ function decodeLegacyLine(str) {
 
 function encodeOverrides(o) {
   return Object.entries(OVERRIDE).filter(([k]) => has(o, k)).map(([k, c]) => `${c}${o[k]}`).join('.');
+}
+
+function decodeMember(str) {
+  if (typeof str !== 'string' || str.length > 400) return null;
+  const parts = str.split('_');
+  if (parts.length < 3 || !has(SCENARIO_IN, parts[0])) return null;
+  return { name: parts.slice(2).join('_'), scenario: SCENARIO_IN[parts[0]], overrides: decodeOverrides(parts[1]) };
 }
 
 function decodeOverrides(str) {
@@ -307,6 +349,8 @@ export function encodeHash(state) {
   if (s.scenario !== DEFAULT_STATE.scenario) p.set('sc', SCENARIO[s.scenario]);
   const ov = encodeOverrides(s.overrides);
   if (ov) p.set('o', ov);
+  if (s.enrollment === 'family' && s.familySize !== DEFAULT_STATE.familySize) p.set('fs', String(s.familySize));
+  for (const o of s.others) p.append('mb', `${SCENARIO[o.scenario]}_${encodeOverrides(o.overrides)}_${o.name}`);
   if (s.dental) p.set('d', '1');
   if (s.selectedPlans.length) p.set('p', s.selectedPlans.join(','));
   if (s.view !== DEFAULT_STATE.view) p.set('v', VIEW[s.view]);
@@ -411,6 +455,8 @@ export function decodeState(hash, opts = {}) {
     currentPlan2026: one('c'),
     scenario: has(SCENARIO_IN, one('sc')) ? SCENARIO_IN[one('sc')] : undefined,
     overrides: decodeOverrides(one('o')),
+    familySize: /^\d$/.test(one('fs') ?? '') ? Number(one('fs')) : undefined,
+    others: p.getAll('mb').slice(0, MAX_MEMBERS - 1).map(decodeMember).filter(Boolean),
     custom,
     dental: one('d') === '1',
     selectedPlans: (one('p') ?? '').split(',').filter(Boolean),
