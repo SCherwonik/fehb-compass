@@ -295,6 +295,25 @@
   color: var(--text-muted);
   cursor: default;
 }
+/* a tag that explains itself: the whole pill is the button that shows its .tag-tip below the chips */
+.tag.has-tip { padding: 0; }
+.tag-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  padding: 2px var(--space-3);
+  border: 0;
+  border-radius: inherit;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: help;
+}
+.tag-btn[aria-expanded="true"] { text-decoration: underline; text-underline-offset: 3px; }
+.tag-tips:empty { display: none; }
+.tag-tip { margin: var(--space-2) 0 0; font-size: var(--text-sm); line-height: var(--leading-snug); color: var(--text-muted); }
+.tag-tip[hidden] { display: none; }
 .tag-fixed { color: var(--accent-2); border-color: color-mix(in srgb, var(--accent-2) 30%, transparent); background: color-mix(in srgb, var(--accent-2) 10%, transparent); }
 .tag-new { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 30%, transparent); background: var(--accent-soft); }
 .tag-mine { color: #fff; border-color: transparent; background: var(--accent-gradient); box-shadow: var(--accent-glow); }

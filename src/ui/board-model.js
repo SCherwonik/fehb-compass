@@ -441,6 +441,33 @@ export function scopeText(mode, group) {
 }
 
 /**
+ * Why a card's warning tag (engine/diff.js FLAG_TEXT) is shown, from the 2026 and 2027 figures the flag was computed
+ * from (row.facts2026, row.facts, row.diff: the user's enrollment and status). null when a figure is missing or the flag
+ * is not one of these: no reason is given that the data does not show.
+ */
+export function flagTip(flag, row) {
+  const b = row?.facts2026;
+  const a = row?.facts;
+  const ok = (...v) => v.every((n) => typeof n === 'number' && Number.isFinite(n));
+  if (!b || !a) return null;
+  switch (flag) {
+    case 'premium_up_10':
+      if (!ok(b.premium, a.premium, row.diff?.premiumPct)) return null;
+      return `Your yearly premium goes from ${usd(b.premium)} in 2026 to ${usd(a.premium)} in 2027 (${signedPct(row.diff.premiumPct)}), from OPM’s rate files.`;
+    case 'oop_up_no_premium_cut':
+      if (!ok(b.oopMax, a.oopMax, b.premium, a.premium)) return null;
+      return `The out-of-pocket max goes from ${usd(b.oopMax)} in 2026 to ${usd(a.oopMax)} in 2027, and the yearly premium did not go down (${usd(b.premium)} in 2026, ${usd(a.premium)} in 2027).`;
+    case 'deductible_up':
+      if (!ok(b.deductible, a.deductible)) return null;
+      return `The deductible goes from ${usd(b.deductible)} in 2026 to ${usd(a.deductible)} in 2027.`;
+    case 'coinsurance_up':
+      if (!ok(b.coinsurance, a.coinsurance)) return null;
+      return `Coinsurance goes from ${b.coinsurance}% in 2026 to ${a.coinsurance}% in 2027.`;
+    default: return null;
+  }
+}
+
+/**
  * 'per year, estimated' | 'per year' | 'per year, incl. dental/vision' | '..., excl. meds' | '..., excl. meds and maternity'
  * (the ranking basis, I3: medications and maternity are in the total only when priced on every plan). "estimated"
  * follows the total's firmness, like the card's tag: a 'fixed' total ("Fixed cost") is plain "per year".

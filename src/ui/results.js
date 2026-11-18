@@ -6,7 +6,7 @@ import { assumptionChips, careCaption } from './assumptions.js';
 import { computeRows, savingsVsCurrent, availablePlans, servesState, SORTS, rankWithMine, baseTotal, dvCost, dvLabel, basisOf, basisNote, basisParts, anyMeds, anyDv, anyMaternity, anyMatEstimated, areaChip, rankTotal, planMeta } from './model.js';
 import { GROUP_LABELS, GROUP_MODES } from './grouping.js';
 import { createResultsBoard, mineNoteText } from './results-board.js';
-import { totalLabelOf, endedTotalLabel, ENDED_NOTE } from './board-model.js';
+import { totalLabelOf, endedTotalLabel, ENDED_NOTE, flagTip } from './board-model.js';
 import { networkLabel } from './network.js';
 import { renderCompare, revealCompare } from './compare.js';
 import { FLAG_TEXT } from '../engine/diff.js';
@@ -138,6 +138,7 @@ export function createResults(main, { store, onRanked }) {
     if (!rec) return;
     if (btn.classList.contains('math-toggle')) toggleMath(rec);
     else if (btn.classList.contains('cmp-toggle')) toggleCompare(rec, btn);
+    else if (btn.classList.contains('tag-btn')) toggleTip(rec, btn);
   });
   trayOpen.addEventListener('click', () => openCompare());
   trayClear.addEventListener('click', () => store.set({ selectedPlans: [] }));
@@ -239,6 +240,8 @@ export function createResults(main, { store, onRanked }) {
     // the user's 2026 plan with no 2027 version (row.isEnded): one line saying these are 2026 numbers
     r.endedNote = h('p', { class: 'card-ended-note', hidden: true }, `${ENDED_NOTE}. Shown for comparison, not ranked.`);
     r.chips = h('ul', { class: 'card-chips', 'aria-label': 'Notes' });
+    // what a tag means, shown below the chips by the tag's own button (see tipTag)
+    r.tips = h('div', { class: 'tag-tips' });
     const mathId = `math-${code}`;
     r.mathBtn = h('button', { type: 'button', class: 'btn btn-quiet math-toggle', 'aria-expanded': 'false', 'aria-controls': mathId },
       h('span', { class: 'btn-text' }, 'See the math'), svg(ICON_CHEV));
@@ -257,6 +260,7 @@ export function createResults(main, { store, onRanked }) {
       r.facts,
       r.share,
       r.chips,
+      r.tips,
       r.rx.medsBox,
       h('div', { class: 'card-actions' }, r.mathBtn, r.rx.button, r.cmpBtn),
       r.math,
@@ -273,6 +277,30 @@ export function createResults(main, { store, onRanked }) {
     const tone = deltaTone(change);
     setClass(slot, `fact-d delta delta-${tone}`);
     setText(slot, tone === 'flat' ? 'Same as 2026' : `${signedUsd(change)}${suffix} vs 2026`);
+  }
+
+  /**
+   * A tag that explains itself: its label is a button that shows the explanation below the chips (keyboard and touch
+   * alike); the explanation is also the button's accessible description (no title: one source for the text). No
+   * `tip`: a plain tag. The tip paragraphs are collected in `tips` for the card's r.tips.
+   */
+  function tipTag(rec, tips, cls, tip, ...kids) {
+    if (!tip) return h('li', { class: cls }, ...kids);
+    const id = `tip-${rec.code}-${tips.length}`;
+    tips.push(h('p', { class: 'tag-tip', id, hidden: true }, tip));
+    return h('li', { class: `${cls} has-tip` },
+      h('button', { type: 'button', class: 'tag-btn', 'aria-expanded': 'false', 'aria-controls': id, 'aria-describedby': id }, ...kids));
+  }
+
+  /** Show one tag's explanation (closing the card's others), or hide it when it is already showing. */
+  function toggleTip(rec, btn) {
+    const open = btn.getAttribute('aria-expanded') !== 'true';
+    for (const b of rec.r.chips.querySelectorAll('.tag-btn')) {
+      const on = open && b === btn;
+      b.setAttribute('aria-expanded', String(on));
+      const tip = document.getElementById(b.getAttribute('aria-controls'));
+      if (tip) tip.hidden = !on;
+    }
   }
 
   function updateCard(rec, row, rank, scale, state, animateNums) {
@@ -365,7 +393,9 @@ export function createResults(main, { store, onRanked }) {
     // the reason is a gap in the plan's published information (model maternityPart -> engine maternityGap)
     const unpriced = (row.cost.breakdown.unpriced ?? []).length > 0;
     const gapText = row.maternity?.gap?.text ?? MATERNITY_UNPRICED;
-    const unpricedTag = unpriced && h('li', { class: 'tag tag-warn', title: `${gapText} See the math.` },
+    const tips = [];
+    const tag = (cls, tip, ...kids) => tipTag(rec, tips, cls, tip, ...kids);
+    const unpricedTag = () => unpriced && tag('tag tag-warn', `${gapText} See the math.`,
       svg(ICON_WARN), ended ? 'Maternity not priced for 2026 plans' : MATERNITY_UNPRICED);
     // a priced plan: what one pregnancy adds, in the headline total or shown apart from it
     // an estimated amount (MATERNITY_ASSUMPTIONS) says so on the tag, and its title says what is assumed and why
@@ -374,44 +404,44 @@ export function createResults(main, { store, onRanked }) {
     const matWhere = matInRank
       ? 'Included in this total: every shown plan is priced.'
       : 'Left out of the ranked total because some shown plans’ brochures give no maternity total.';
-    const matTag = matCost != null && h('li', {
-      class: `tag${matEst ? ' tag-est' : ''}`,
-      title: matEst ? `${row.maternity.estimate} ${matWhere}` : `What one pregnancy adds on this plan, from its 2027 brochure’s maternity terms. ${matWhere}`,
-    }, `${matCost > 0 ? '+ ' : ''}${usd(matCost)} maternity${matEst ? ' (estimated)' : ''}${matInRank ? ', in total' : ''}`);
+    const matTag = () => matCost != null && tag(`tag${matEst ? ' tag-est' : ''}`,
+      matEst ? `${row.maternity.estimate} ${matWhere}` : `What one pregnancy adds on this plan, from its 2027 brochure’s maternity terms. ${matWhere}`,
+      `${matCost > 0 ? '+ ' : ''}${usd(matCost)} maternity${matEst ? ' (estimated)' : ''}${matInRank ? ', in total' : ''}`);
+    // the warning flags (2026 -> 2027) say why from the figures they were computed from; none when a figure is missing
+    const flagTips = row.diff.flags.map((f) => flagTip(f, row));
+    const firmTag = () => (row.cost.firmness === 'fixed'
+      ? tag('tag tag-fixed', 'Every service in this scenario is a flat copay, so this total does not depend on assumed prices.', 'Fixed cost')
+      : tag('tag tag-est', estimatedTitle(row.cost.breakdown), 'Estimated'));
+    const oonTag = () => oon && tag('tag tag-warn', 'Out-of-network lines are counted at full cost: OPM publishes no out-of-network cost sharing. See the math.',
+      svg(ICON_WARN), 'Out-of-network estimate');
     const st = state.location.state;
     const area = areaChip(row, st ? STATE_NAMES[st] ?? st : null, st ? state.location.zip : null, data.zipCounty ?? null);
-    const key = `${ended ? 'ended' : ''}${row.isMine ? `mine:${mineWhere}:${rankTag}` : ''}|${vsMine}:${vsExcl}|${row.cost.firmness}:${row.cost.firmness === 'fixed' ? '' : estimatedTitle(row.cost.breakdown)}|${row.diff.status}|${row.diff.flags.join(',')}|${oon}:${unpriced}:${gapText}:${matCost}:${matEst}:${matInRank}|${area?.title ?? ''}`;
+    const key = `${ended ? 'ended' : ''}${row.isMine ? `mine:${mineWhere}:${rankTag}` : ''}|${vsMine}:${vsExcl}|${row.cost.firmness}:${row.cost.firmness === 'fixed' ? '' : estimatedTitle(row.cost.breakdown)}|${row.diff.status}|${row.diff.flags.join(',')}:${flagTips.join('|')}|${oon}:${unpriced}:${gapText}:${matCost}:${matEst}:${matInRank}|${area?.title ?? ''}`;
     if (key !== rec.chipsKey) {
       rec.chipsKey = key;
       const items = ended ? [
         h('li', { class: 'tag tag-ended' }, 'Your 2026 plan'),
         h('li', { class: 'tag tag-ended' }, 'Ended in 2027'),
-        h('li', { class: 'tag', title: 'Premium and benefits from OPM’s 2026 files: this plan has no 2027 version.' }, '2026 rates'),
-        row.cost.firmness === 'fixed'
-          ? h('li', { class: 'tag tag-fixed', title: 'Every service in this scenario is a flat copay, so this total does not depend on assumed prices.' }, 'Fixed cost')
-          : h('li', { class: 'tag tag-est', title: estimatedTitle(row.cost.breakdown) }, 'Estimated'),
-        oon && h('li', { class: 'tag tag-warn', title: 'Out-of-network lines are counted at full cost: OPM publishes no out-of-network cost sharing. See the math.' },
-          svg(ICON_WARN), 'Out-of-network estimate'),
-        unpricedTag,
+        tag('tag', 'Premium and benefits from OPM’s 2026 files: this plan has no 2027 version.', '2026 rates'),
+        firmTag(),
+        oonTag(),
+        unpricedTag(),
       ] : [
         row.isMine && h('li', { class: 'tag tag-mine' }, 'Your plan · 2027'),
         rankTag && h('li', { class: 'tag' }, rankTag),
-        area && h('li', { class: 'tag tag-warn tag-area', title: area.title }, svg(ICON_WARN), area.text,
-          h('span', { class: 'sr-only' }, `. ${area.title}`)),
+        area && tag('tag tag-warn tag-area', area.title, svg(ICON_WARN), area.text),
         row.isMine && mineWhere && h('li', { class: 'tag' }, `Not listed for ${mineWhere}`),
-        vsMine != null && h('li', { class: `tag tag-vs tag-vs-${deltaTone(vsMine)}`, title: vsExcl ? `Estimated yearly totals compared ${vsExcl}: the same on both sides or not priced on every plan` : 'Estimated yearly total compared with your plan in 2027' },
+        vsMine != null && tag(`tag tag-vs tag-vs-${deltaTone(vsMine)}`, vsExcl ? `Estimated yearly totals compared ${vsExcl}: the same on both sides or not priced on every plan` : 'Estimated yearly total compared with your plan in 2027',
           deltaTone(vsMine) === 'flat' ? `Same as your plan${vsExcl ? ` (${vsExcl})` : ''}` : `${signedUsd(vsMine)} vs your plan${vsExcl ? ` (${vsExcl})` : ''}`),
-        row.cost.firmness === 'fixed'
-          ? h('li', { class: 'tag tag-fixed', title: 'Every service in this scenario is a flat copay, so this total does not depend on assumed prices.' }, 'Fixed cost')
-          : h('li', { class: 'tag tag-est', title: estimatedTitle(row.cost.breakdown) }, 'Estimated'),
-        oon && h('li', { class: 'tag tag-warn', title: 'Out-of-network lines are counted at full cost: OPM publishes no out-of-network cost sharing. See the math.' },
-          svg(ICON_WARN), 'Out-of-network estimate'),
-        unpricedTag,
-        matTag,
+        firmTag(),
+        oonTag(),
+        unpricedTag(),
+        matTag(),
         row.diff.status === 'new' && h('li', { class: 'tag tag-new' }, 'New for 2027'),
-        ...row.diff.flags.map((f) => h('li', { class: 'tag tag-warn' }, svg(ICON_WARN), FLAG_TEXT[f] ?? f)),
+        ...row.diff.flags.map((f, i) => tag('tag tag-warn', flagTips[i], svg(ICON_WARN), FLAG_TEXT[f] ?? f)),
       ];
       r.chips.replaceChildren(...items.filter(Boolean));
+      r.tips.replaceChildren(...tips);
     }
 
     // compare and the brochure parts are about 2027 plans: the ended reference card has neither
