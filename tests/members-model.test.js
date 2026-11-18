@@ -52,19 +52,28 @@ test('self enrollment totals do not depend on others', () => {
   assert.deepEqual(b, a);
 });
 
-test('family of two worst others costs more than self, never more than N times the self-limits cost', () => {
-  const others = [{ name: '', scenario: 'worst', overrides: {} }, { name: '', scenario: 'worst', overrides: {} }];
-  const selfRows = new Map(computeRows(DATA, VA).map((r) => [r.code, r]));
-  const famRows = computeRows(DATA, { ...VA, enrollment: 'family', familySize: 3, others });
+test('family of three: worst others cost at least as much as no care for them, more on some plan, at most 3 times one member', () => {
+  const worst = Array.from({ length: 2 }, () => ({ name: '', scenario: 'worst', overrides: {} }));
+  const none = worst.map((o) => ({ ...o, scenario: 'nothing' }));
+  const base = { ...VA, scenario: 'worst', enrollment: 'family', familySize: 3 };
+  const selfRows = new Map(computeRows(DATA, { ...VA, scenario: 'worst' }).map((r) => [r.code, r]));
+  const withWorst = computeRows(DATA, { ...base, others: worst });
+  const without = new Map(computeRows(DATA, { ...base, others: none }).map((r) => [r.code, r]));
   let checked = 0;
-  for (const r of famRows) {
-    const s = selfRows.get(r.code);
-    if (!s) continue;
-    const base = computeRows(DATA, { ...VA, enrollment: 'family', familySize: 3, others: [] }).find((x) => x.code === r.code);
-    assert.ok(r.cost.oop >= base.cost.oop - 0.01, r.code);
+  let strictly = 0;
+  for (const r of withWorst) {
+    const famMax = r.cost.breakdown.familyOopMax;
+    const n = without.get(r.code);
+    const one = selfRows.get(r.code);
+    if (!Number.isFinite(famMax) || !n || !one) continue;
+    assert.ok(r.cost.oop >= n.cost.oop - 0.01, `${r.code}: worst others ${r.cost.oop} vs none ${n.cost.oop}`);
+    assert.ok(r.cost.oop <= 3 * one.cost.oop + 0.01, `${r.code}: ${r.cost.oop} vs 3 x ${one.cost.oop}`);
+    if (r.cost.oop > n.cost.oop + 0.01) strictly++;
     checked++;
   }
-  assert.ok(checked > 10);
+  assert.ok(checked > 10, `checked ${checked} plans`);
+  assert.ok(strictly >= 1, 'worst others add cost on at least one plan');
+  assert.ok(SCENARIOS.worst.hospitalStays > SCENARIOS.nothing.hospitalStays);
 });
 
 test('withDrugs splits entries by member and drops those beyond the count', () => {
