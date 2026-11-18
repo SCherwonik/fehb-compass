@@ -1,6 +1,7 @@
 // Pure pieces of the family "See the math" blocks (DOM-free, node tested). `b` is planTotal's breakdown for 2+ members.
 import { effectiveUsage, describeUsage, overrideChanges, YEAR_TEXT } from './assumptions.js';
 import { memberView, memberLabel, memberOfItem } from './members-model.js';
+import { usd } from './format.js';
 
 /** True when the plan's deductible is one pot for the whole enrollment (aggregate, or unknown and treated so). */
 export const sharedDeductible = (b) => b.deductibleType !== 'embedded';
@@ -13,16 +14,50 @@ export const familyInNetwork = (b) => b.members.reduce((a, m) => a + memberInNet
 
 /**
  * What the deductible / out-of-pocket max lines need for member i: `b` (the member's own breakdown plus the plan's
- * per-person limits), `before` (deductible earlier members already used, in member order; 0 unless shared) and `shared`.
+ * per-person limits), `before` (deductible earlier members already used, in member order; 0 unless shared), `shared`,
+ * `familyDedMet` (embedded: the family deductible was reached by now, so no more deductible applies to anyone) and
+ * `familyCapped` (the family's out-of-pocket max stopped this person's in-network care before their own max did).
  */
 export function memberBlockInput(b, i) {
   const shared = sharedDeductible(b);
-  const before = shared ? b.members.slice(0, i).reduce((a, m) => a + m.deductiblePaid, 0) : 0;
+  const dedBefore = b.members.slice(0, i).reduce((a, m) => a + m.deductiblePaid, 0);
+  const before = shared ? dedBefore : 0;
   const m = b.members[i];
+  const famDed = Number.isFinite(b.familyDeductible) ? b.familyDeductible : null;
+  const familyDedMet = !shared && famDed !== null && dedBefore + m.deductiblePaid >= famDed - 0.5;
+  const famMax = Number.isFinite(b.familyOopMax) ? b.familyOopMax : null;
+  const inNetBefore = b.members.slice(0, i).reduce((a, x) => a + memberInNetwork(x), 0);
+  const own = Number.isFinite(b.oopMax) ? b.oopMax : Infinity;
+  const familyCapped = famMax !== null && inNetBefore + memberInNetwork(m) >= famMax - 0.5 && memberInNetwork(m) < own - 0.5;
   return {
-    shared, before,
+    shared, before, familyDedMet, familyDeductible: famDed, familyCapped, familyOopMax: famMax,
     b: { ...m, deductible: b.deductible, oopMax: b.oopMax, deductibleType: b.deductibleType, onePerson: false },
   };
+}
+
+/**
+ * The family's deductible use for the "Whole family" block: { used, limit } (embedded: everyone's deductible spending
+ * against the family deductible; shared: the one pot), or null when the plan has no such deductible.
+ */
+export function familyDeductibleUse(b) {
+  const limit = sharedDeductible(b) ? b.deductible : b.familyDeductible;
+  if (!Number.isFinite(limit) || !(limit > 0)) return null;
+  return { used: b.members.reduce((a, m) => a + m.deductiblePaid, 0), limit };
+}
+
+const money = usd;
+
+/**
+ * The note under an out-of-pocket max bar. `used`: in-network care toward `b.oopMax`. `ctx.familyCapped` (a household
+ * member whose care the family's max stopped first; ctx.familyOopMax) replaces "below the max", which would be false.
+ */
+export function oopNote(b, used, hitMax, ctx = {}) {
+  const limit = b.oopMax;
+  if (hitMax) return `Capped: the plan pays everything in-network after this, so care costs stop at ${money(limit)}.`;
+  if (ctx.familyCapped) {
+    return `Stopped by the family’s out-of-pocket max: the family reached ${money(ctx.familyOopMax)}, so the plan pays everything in-network after this.`;
+  }
+  return `${money(limit - used)} below the max. If this year went worse, in-network care would stop at ${money(limit)}.`;
 }
 
 // ---------- the notes below the numbers, for a household ----------
@@ -41,7 +76,7 @@ export function memberAssumed(state, i) {
 
 /** What the services list's note says about the deductible, for a household (embedded: each person's own; else shared). */
 export const householdDeductibleNote = (b) => (b.deductibleType === 'embedded'
-  ? 'These services are everyone’s added together. Each person has their own deductible, which their own first services billed use up (see each person above).'
+  ? 'These services are everyone’s added together. Each person has their own deductible, which their own first services billed use up, until everyone’s deductible spending together reaches the family deductible (see each person above).'
   : 'These services are everyone’s added together. The family shares one deductible, used up by care in the order the people are listed above.');
 
 /** The member name for each entry of a merged list (drug rows, own costs): [{ item, who }] from per-member lists. */

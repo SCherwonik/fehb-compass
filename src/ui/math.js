@@ -4,7 +4,7 @@ import { h, svg } from './dom.js';
 import { effectiveUsage, describeUsage, overrideChanges, inNetworkAtMax } from './assumptions.js';
 import { personLimitsNote, rankTotal } from './model.js';
 import { memberLabel } from './members-model.js';
-import { memberBlockInput, familyInNetwork, assumedHeading, memberAssumed, householdDeductibleNote, labelledByMember, itemWho } from './math-family.js';
+import { memberBlockInput, familyInNetwork, assumedHeading, memberAssumed, householdDeductibleNote, labelledByMember, itemWho, familyDeductibleUse, sharedDeductible, oopNote } from './math-family.js';
 import { dvMathLines } from './dental-board.js';
 import { ASSUMED_PRICES, ASSUMPTIONS_NOTE } from '../engine/assumptions.js';
 import { usd, usdExact } from './format.js';
@@ -80,12 +80,14 @@ function deductibleLines(b, drugsDed, ctx = {}) {
     }, h('i', { style: `width:${pct.toFixed(1)}%` })),
     h('p', { class: 'math-how math-meter-note' },
       (ctx.shared ? `The bar is the shared deductible used so far, in the order people are listed${before > 0 ? `: ${usd(before)} by those before them` : ''}. ` : '')
-      + (used >= limit - 0.5 ? 'Deductible fully met this year.' : `${usd(limit - used)} of the deductible is left unused${drugsDed > 0 ? `; medications used ${usd(drugsDed)} of it` : ''}.`)),
+      + (used >= limit - 0.5 ? 'Deductible fully met this year.'
+        : ctx.familyDedMet ? `The family’s ${usd(ctx.familyDeductible)} deductible is met, so no more deductible applies to anyone this year.`
+          : `${usd(limit - used)} of the deductible is left unused${drugsDed > 0 ? `; medications used ${usd(drugsDed)} of it` : ''}.`)),
   ];
 }
 
 /** "Toward the out-of-pocket max: $890 of $6,000" with a bar; in-network care only (out-of-network has its own limit). */
-function oopMaxLines(b, cost, hitMax, label = 'Toward the out-of-pocket max') {
+function oopMaxLines(b, cost, hitMax, label = 'Toward the out-of-pocket max', ctx = {}) {
   const limit = Number.isFinite(b.oopMax) ? b.oopMax : null;
   if (!limit) return [mathLine('This plan lists no out-of-pocket max.', '', 'math-sub math-note')];
   const used = Math.max(0, cost.oop - (b.oonPaid || 0) - (b.notCoveredPaid || 0));
@@ -93,9 +95,7 @@ function oopMaxLines(b, cost, hitMax, label = 'Toward the out-of-pocket max') {
   return [
     mathLine(h('span', {}, `${label} `, h('span', { class: 'math-how' }, `of ${usd(limit)}${b.onePerson ? ' (one person)' : ''}`)), usd(used), 'math-sub'),
     h('div', { class: 'math-meter', role: 'img', 'aria-label': `${usd(used)} of the ${usd(limit)} out-of-pocket max reached` }, h('i', { style: `width:${pct.toFixed(1)}%` })),
-    h('p', { class: 'math-how math-meter-note' }, hitMax
-      ? `Capped: the plan pays everything in-network after this, so care costs stop at ${usd(limit)}.`
-      : `${usd(limit - used)} below the max. If this year went worse, in-network care would stop at ${usd(limit)}.`),
+    h('p', { class: 'math-how math-meter-note' }, oopNote(b, used, hitMax, ctx)),
   ];
 }
 
@@ -134,7 +134,7 @@ function paidLines(b, cost, hitMax, ctx) {
     ...deductibleLines(b, b.drugsDeductible || 0, ctx),
     mathLine('Coinsurance', usd(b.coinsurancePaid), 'math-sub'),
     mathLine('Copays', usd(b.copays), 'math-sub'),
-    ...oopMaxLines(b, cost, hitMax),
+    ...oopMaxLines(b, cost, hitMax, undefined, ctx),
     b.oonPaid > 0 && mathLine('Out of network, at full cost', usd(b.oonPaid), 'math-sub'),
   ];
 }
@@ -143,18 +143,36 @@ const roundingLine = (b, oop) => Math.abs(careSumOf(b) - oop) > 1 && mathLine('R
 
 /** One covered person's block: their name, their care lines, and how it was paid (the deductible bar is shared on HDHPs). */
 function memberBlock(state, b, i) {
-  const { b: mb, before, shared } = memberBlockInput(b, i);
+  const { b: mb, ...ctx } = memberBlockInput(b, i);
   const cost = { oop: mb.oop, breakdown: mb };
   const hasDrugs = (mb.drugs ?? []).length > 0 || (mb.drugsPaid || 0) > 0;
   return h('div', { class: 'math-member' },
     h('p', { class: 'math-h math-member-title' }, memberLabel(state, i)),
     mathLine(h('span', {}, h('i', { class: 'dot dot-oop' }), 'Expected care costs'), `+ ${usd(mb.oop)}`),
     ...itemLines(mb, hasDrugs && 'Medications'),
-    ...paidLines(mb, cost, inNetworkAtMax(cost), { before, shared }),
+    ...paidLines(mb, cost, inNetworkAtMax(cost), ctx),
     roundingLine(mb, mb.oop));
 }
 
-/** The "Whole family" block: the care sum, the family out-of-pocket max bar, and what limits each person. */
+/** "Toward the family deductible: $X of $Y" with a bar: everyone's deductible spending (embedded) or the one shared pot. */
+function familyDeductibleLines(b) {
+  const use = familyDeductibleUse(b);
+  if (!use) return [];
+  const { used, limit } = use;
+  const pct = Math.max(0, Math.min(100, (used / limit) * 100));
+  const met = used >= limit - 0.5;
+  return [
+    mathLine(h('span', {}, 'Toward the family deductible ', h('span', { class: 'math-how' }, `of ${usd(limit)}`)), usd(used), 'math-sub'),
+    h('div', { class: 'math-meter', role: 'img', 'aria-label': `${usd(used)} of the family’s ${usd(limit)} deductible used` }, h('i', { style: `width:${pct.toFixed(1)}%` })),
+    h('p', { class: 'math-how math-meter-note' }, `${usd(used)} of the family’s ${usd(limit)} deductible. `
+      + (sharedDeductible(b)
+        ? (met ? 'Met: no more deductible applies to anyone this year.' : `${usd(limit - used)} of it is left unused.`)
+        : `Each person meets their own ${usd(b.deductible)} deductible until everyone’s deductible spending together reaches ${usd(limit)}`
+          + (met ? ', which it did (in the order people are listed), so no more deductible applies to anyone this year.' : `; ${usd(limit - used)} of it is left unused.`))),
+  ];
+}
+
+/** The "Whole family" block: the care sum, the family deductible and out-of-pocket max bars, and what limits each person. */
 function familyBlock(b, cost) {
   const inNet = familyInNetwork(b);
   const famMax = b.familyOopMax;
@@ -165,6 +183,7 @@ function familyBlock(b, cost) {
   return h('div', { class: 'math-member math-family' },
     h('p', { class: 'math-h math-member-title' }, 'Whole family'),
     mathLine(h('span', {}, h('i', { class: 'dot dot-oop' }), 'Expected care costs, everyone'), `+ ${usd(cost.oop)}`),
+    ...familyDeductibleLines(b),
     ...(famMax == null
       ? [mathLine('This plan’s data lists no family out-of-pocket max, so each person is capped at the self-only max and no family cap is applied.', '', 'math-sub math-note')]
       : oopMaxLines({ oopMax: famMax, onePerson: false }, { oop: inNet }, inNet >= famMax - 0.5, 'Toward the family out-of-pocket max')),

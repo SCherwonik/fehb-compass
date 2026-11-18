@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { defaultState } from '../src/state.js';
 import { computeRows } from '../src/ui/model.js';
-import { memberBlockInput, memberInNetwork, familyInNetwork, sharedDeductible, assumedHeading, memberAssumed, householdDeductibleNote, labelledByMember, itemWho } from '../src/ui/math-family.js';
+import { memberBlockInput, memberInNetwork, familyInNetwork, sharedDeductible, assumedHeading, memberAssumed, householdDeductibleNote, labelledByMember, itemWho, familyDeductibleUse, oopNote } from '../src/ui/math-family.js';
 
 const read = (f) => JSON.parse(fs.readFileSync(new URL(`../data/${f}`, import.meta.url), 'utf8'));
 const DATA = { plans: read('plans.json'), rates: read('rates.json'), benefits: read('benefits.json'), serviceArea: read('service_area.json') };
@@ -106,4 +106,35 @@ test('no generated scenario sentence reads "a managing"', async () => {
   }
   assert.equal(assumedHeading('condition', false, 'Jo'), 'Care assumed for Jo: a year managing a condition');
   assert.equal(YEAR_TEXT.healthy, 'healthy year');
+});
+
+test('memberBlockInput: embedded member after the family deductible was met says so', () => {
+  const b = { ...B('embedded'), familyDeductible: 1000 };
+  assert.equal(memberBlockInput(b, 0).familyDedMet, false);
+  // 600 + 400 = the family's $1,000 after member 2
+  assert.equal(memberBlockInput(b, 1).familyDedMet, true);
+  assert.equal(memberBlockInput(b, 2).familyDedMet, true);
+  assert.equal(memberBlockInput(B('embedded'), 2).familyDedMet, false); // no family deductible given
+  assert.equal(memberBlockInput({ ...B('aggregate'), familyDeductible: 1000 }, 2).familyDedMet, false); // shared: its own bar says it
+});
+
+test('familyDeductibleUse: embedded counts everyone against the family deductible; shared uses the one pot', () => {
+  assert.deepEqual(familyDeductibleUse({ ...B('embedded'), familyDeductible: 2000 }), { used: 1000, limit: 2000 });
+  assert.deepEqual(familyDeductibleUse({ ...B('aggregate') }), { used: 1000, limit: 1000 });
+  assert.equal(familyDeductibleUse(B('embedded')), null);
+});
+
+test('memberBlockInput: a member stopped by the family out-of-pocket max (plan 104, three worst-case people)', () => {
+  const s = { ...VA, enrollment: 'family', familySize: 3, scenario: 'worst', others: [
+    { name: '', scenario: 'worst', overrides: {} }, { name: '', scenario: 'worst', overrides: {} }] };
+  const row = computeRows(DATA, s).find((r) => r.code === '104');
+  const b = row.cost.breakdown;
+  assert.ok(b.familyOopMax > 0);
+  assert.ok(Math.abs(familyInNetwork(b) - b.familyOopMax) < 0.5, `${familyInNetwork(b)} vs ${b.familyOopMax}`);
+  const third = memberBlockInput(b, 2);
+  assert.ok(memberInNetwork(b.members[2]) < b.oopMax - 0.5);
+  assert.equal(third.familyCapped, true);
+  assert.equal(memberBlockInput(b, 0).familyCapped, false);
+  assert.match(oopNote({ ...third.b }, memberInNetwork(b.members[2]), false, third), /^Stopped by the family’s out-of-pocket max: the family reached \$14,000/);
+  assert.match(oopNote({ ...memberBlockInput(b, 0).b }, memberInNetwork(b.members[0]), true, {}), /^Capped/);
 });
