@@ -33,3 +33,51 @@ test('no tip when a figure is missing or the flag is unknown (never an invented 
   assert.equal(flagTip('something_else', r), null);
   assert.equal(flagTip('deductible_up', { ...r, facts: { ...r.facts, deductible: null } }), null);
 });
+
+// ---------- showing the explanation: click / tap / keyboard keeps it open; a mouse hover shows it too ----------
+import { toggleTip, hoverTip } from '../src/ui/tag-tips.js';
+
+const fakeTip = () => {
+  const cls = new Set();
+  return { hidden: true, classList: { toggle: (c, on) => (on ? cls.add(c) : cls.delete(c)), contains: (c) => cls.has(c) } };
+};
+const fakeBtn = (id) => {
+  const attrs = { 'aria-controls': id, 'aria-expanded': 'false' };
+  const btn = {
+    getAttribute: (k) => attrs[k], setAttribute: (k, v) => { attrs[k] = v; },
+    closest: (sel) => (sel === '.tag-btn' ? btn : null), contains: (n) => n === btn || n === btn.child,
+  };
+  btn.child = { closest: (sel) => (sel === '.tag-btn' ? btn : null) };
+  return btn;
+};
+const page = () => {
+  const tips = { a: fakeTip(), b: fakeTip() };
+  return { tips, doc: { getElementById: (id) => tips[id] ?? null }, a: fakeBtn('a'), b: fakeBtn('b') };
+};
+
+test('toggleTip: opens one tip, closes the others, closes it again', () => {
+  const { tips, doc, a, b } = page();
+  assert.equal(toggleTip([a, b], a, doc), true);
+  assert.equal(a.getAttribute('aria-expanded'), 'true');
+  assert.equal(tips.a.hidden, false);
+  assert.equal(tips.b.hidden, true);
+  toggleTip([a, b], b, doc);
+  assert.equal(tips.a.hidden, true);
+  assert.equal(a.getAttribute('aria-expanded'), 'false');
+  assert.equal(tips.b.hidden, false);
+  assert.equal(toggleTip([a, b], b, doc), false);
+  assert.equal(tips.b.hidden, true);
+});
+
+test('hoverTip: a mouse over the tag shows its tip, leaving hides it; moving inside the tag or touch does nothing', () => {
+  const { tips, doc, a } = page();
+  assert.equal(hoverTip({ pointerType: 'mouse', target: a.child }, true, doc), true);
+  assert.equal(tips.a.classList.contains('is-hover'), true);
+  assert.equal(hoverTip({ pointerType: 'mouse', target: a.child, relatedTarget: a }, false, doc), false);
+  assert.equal(tips.a.classList.contains('is-hover'), true);
+  hoverTip({ pointerType: 'mouse', target: a, relatedTarget: null }, false, doc);
+  assert.equal(tips.a.classList.contains('is-hover'), false);
+  assert.equal(hoverTip({ pointerType: 'touch', target: a }, true, doc), false);
+  assert.equal(tips.a.classList.contains('is-hover'), false);
+  assert.equal(hoverTip({ pointerType: 'mouse', target: { closest: () => null } }, true, doc), false);
+});

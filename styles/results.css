@@ -314,6 +314,8 @@
 .tag-tips:empty { display: none; }
 .tag-tip { margin: var(--space-2) 0 0; font-size: var(--text-sm); line-height: var(--leading-snug); color: var(--text-muted); }
 .tag-tip[hidden] { display: none; }
+/* a mouse hovering the tag shows its tip (tag-tips.js hoverTip), like a title tooltip */
+.tag-tip.is-hover[hidden] { display: block !important; } /* beats the global [hidden] rule */
 .tag-fixed { color: var(--accent-2); border-color: color-mix(in srgb, var(--accent-2) 30%, transparent); background: color-mix(in srgb, var(--accent-2) 10%, transparent); }
 .tag-new { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 30%, transparent); background: var(--accent-soft); }
 .tag-mine { color: #fff; border-color: transparent; background: var(--accent-gradient); box-shadow: var(--accent-glow); }

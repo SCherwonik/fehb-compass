@@ -20,6 +20,7 @@ import { badgeEl } from './rx-render.js';
 import { overrideBadge } from './matrix-model.js';
 import { mathContent, ICON_WARN } from './math.js';
 import { estimatedTitle } from './math-family.js';
+import { toggleTip, hoverTip } from './tag-tips.js';
 
 const UI_KEY = 'fehb-compass:results-ui:v1';
 const ENROLLMENT_TEXT = { self: 'self only', self_plus_one: 'self plus one', family: 'family' };
@@ -138,8 +139,11 @@ export function createResults(main, { store, onRanked }) {
     if (!rec) return;
     if (btn.classList.contains('math-toggle')) toggleMath(rec);
     else if (btn.classList.contains('cmp-toggle')) toggleCompare(rec, btn);
-    else if (btn.classList.contains('tag-btn')) toggleTip(rec, btn);
+    else if (btn.classList.contains('tag-btn')) toggleTip(rec.r.chips.querySelectorAll('.tag-btn'), btn);
   });
+  // a mouse hover over a tag shows its explanation too, like a title tooltip (tag-tips.js)
+  list.addEventListener('pointerover', (e) => hoverTip(e, true));
+  list.addEventListener('pointerout', (e) => hoverTip(e, false));
   trayOpen.addEventListener('click', () => openCompare());
   trayClear.addEventListener('click', () => store.set({ selectedPlans: [] }));
   empty.addEventListener('click', (e) => {
@@ -280,8 +284,9 @@ export function createResults(main, { store, onRanked }) {
   }
 
   /**
-   * A tag that explains itself: its label is a button that shows the explanation below the chips (keyboard and touch
-   * alike); the explanation is also the button's accessible description (no title: one source for the text). No
+   * A tag that explains itself: its label is a button that shows the explanation below the chips (click, tap or
+   * keyboard keeps it open; a mouse hover shows it while over the tag: tag-tips.js); the explanation is also the
+   * button's accessible description (no title: one source for the text). No
    * `tip`: a plain tag. The tip paragraphs are collected in `tips` for the card's r.tips.
    */
   function tipTag(rec, tips, cls, tip, ...kids) {
@@ -290,17 +295,6 @@ export function createResults(main, { store, onRanked }) {
     tips.push(h('p', { class: 'tag-tip', id, hidden: true }, tip));
     return h('li', { class: `${cls} has-tip` },
       h('button', { type: 'button', class: 'tag-btn', 'aria-expanded': 'false', 'aria-controls': id, 'aria-describedby': id }, ...kids));
-  }
-
-  /** Show one tag's explanation (closing the card's others), or hide it when it is already showing. */
-  function toggleTip(rec, btn) {
-    const open = btn.getAttribute('aria-expanded') !== 'true';
-    for (const b of rec.r.chips.querySelectorAll('.tag-btn')) {
-      const on = open && b === btn;
-      b.setAttribute('aria-expanded', String(on));
-      const tip = document.getElementById(b.getAttribute('aria-controls'));
-      if (tip) tip.hidden = !on;
-    }
   }
 
   function updateCard(rec, row, rank, scale, state, animateNums) {
