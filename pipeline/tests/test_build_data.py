@@ -861,8 +861,8 @@ def test_tracked_hospital_and_drug_deductibles_say_what_triggers_them():
            if g["kind"] in ("facility_deductible", "drug_deductible")}
     assert got == {("V31", "facility_deductible"): ["hospital", "outpatient_surgery", "imaging"],
                    # 73-718 p74-75: also outpatient-hospital clinic visits and diagnostic services
-                   ("2G4", "facility_deductible"): ["any_care"],
-                   ("B64", "facility_deductible"): ["any_care"],
+                   ("2G4", "facility_deductible"): ["medical_care"],
+                   ("B64", "facility_deductible"): ["medical_care"],
                    ("B64", "drug_deductible"): ["brand_drugs"]}
     # the same words as the engine's APPLIES_WHEN (src/engine/cost.js TRIGGERS)
     js = (ROOT / "src" / "engine" / "cost.js").read_text(encoding="utf-8")
@@ -976,13 +976,17 @@ def test_embedded_deductible_validation(tmp_path):
         _apply_emb(tmp_path, [{**EMB, "quote": "$200 per person"}])
 
 
-def test_tracked_embedded_deductibles_are_the_61_confirmed_plans():
+def test_tracked_embedded_deductibles_are_the_60_confirmed_plans():
     spec = json.loads((PIPELINE / "embedded_deductibles.json").read_text(encoding="utf-8"))["plans"]
     doc = (ROOT / "docs" / "research" / "2027-family-rules-from-brochures.md").read_text(encoding="utf-8")
-    m = re.search(r"\| Brochure confirms per-person \(embedded\), and the app assumes embedded \| 61 \| ([^|]+)\|", doc)
+    m = re.search(r"\| Brochure confirms per-person \(embedded\), and the app assumes embedded \| 60 \| ([^|]+)\|", doc)
     confirmed = {c.strip() for c in m.group(1).split(",")}
-    assert len(spec) == 61 and {e["plan_code"] for e in spec} == confirmed
-    assert not {"WJ4", "AS1"} & confirmed  # 'not stated' in the research: stay assumed
+    assert len(spec) == 60 and {e["plan_code"] for e in spec} == confirmed
+    # 'not stated' in the research: stay assumed (GG4, 73-849 p24: "$350 per person under self only enrollment" only)
+    assert not {"WJ4", "AS1", "GG4"} & confirmed
+    assert re.search(r"\| Not stated: [^|]+\| 3 \| WJ4, AS1, GG4 \|", doc)
+    counts = [int(c) for c in re.findall(r"^\| [^|]+ \| (\d+) \| [^|]*\|$", doc.split("### Out-of-pocket")[0], re.M)]
+    assert sum(counts) == 118, counts
     benefits = json.loads((ROOT / "data" / "benefits.json").read_text(encoding="utf-8"))["2027"]
     assert {c for c, e in benefits.items() if "deductible_rule_source" in e} == confirmed
     for e in spec:  # each brochure number matches the research table row for that code

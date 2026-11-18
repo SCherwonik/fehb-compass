@@ -19,11 +19,11 @@ Quotes are kept under 15 words, with at most one per cell. "p" means the page in
 
 | Verdict | Plans | Codes |
 |---|---:|---|
-| Brochure confirms per-person (embedded), and the app assumes embedded | 61 | 471, 474, 104, 311, 314, 454, 441, 444, 131, 251, 254, 421, 424, 401, 431, 594, KC1, 574, AM1, 634, V34, 874, PT4, GY4, UX1, 654, N41, T71, L11, QQ4, LA1, PS1, PS4, 9K1, DK4, UW4, FL1, N61, GG4, DH1, SF4, EP1, EP4, F51, F54, G51, G54, H41, H44, JS1, JS4, A81, A84, P81, P84, RE1, YZ1, YV1, YF1, Z24, YJ1 |
+| Brochure confirms per-person (embedded), and the app assumes embedded | 60 | 471, 474, 104, 311, 314, 454, 441, 444, 131, 251, 254, 421, 424, 401, 431, 594, KC1, 574, AM1, 634, V34, 874, PT4, GY4, UX1, 654, N41, T71, L11, QQ4, LA1, PS1, PS4, 9K1, DK4, UW4, FL1, N61, DH1, SF4, EP1, EP4, F51, F54, G51, G54, H41, H44, JS1, JS4, A81, A84, P81, P84, RE1, YZ1, YV1, YF1, Z24, YJ1 |
 | Brochure confirms one shared family deductible, and the app assumes aggregate or unknown | 5 | 341, B61, V41, WX1, 8W4 |
 | Brochure contradicts the app | 3 | 224, 9K4, KX1 |
 | Unclear: the brochure contradicts itself, or has a deductible that is missing from the app data and whose family rule is unclear | 4 | L14, V31, 2G4, B64 |
-| Not stated: the plan has a deductible but the brochure gives no per-person or family rule | 2 | WJ4, AS1 |
+| Not stated: the plan has a deductible but the brochure gives no per-person or family rule | 3 | WJ4, AS1, GG4 |
 | No in-network calendar-year deductible, so there is nothing to test (the app's $0 is consistent) | 43 | 111, 591, 571, 631, 871, 541, 544, 521, 891, 644, 651, E31, E34, JN1, JN4, WJ1, JP1, NM1, EA1, F81, F84, P21, JK1, JK4, 2X1, 621, 624, AJ1, JC1, JC4, JR1, JR4, P31, P34, DH4, B41, B44, B31, NZ1, NZ4, LR1, W51, YJ4 |
 | **Total** | **118** | |
 
@@ -107,7 +107,7 @@ Key to "App assumes": **E** = embedded, **A** = aggregate (shared), **U** = unkn
 | 73-828 | 224 (HDHP) | A $4,000; OOP self $7,500 | "Once an individual meets a $3,500 deductible under the Self Plus One" (p35; same on p15 and p26) | "Once an individual meets the Self Only out-of-pocket maximum" (p16) | **Contradicts** (embedded at $3,500) / confirms |
 | 73-828 | N61 (Aetna Direct) | E $2,000; OOP self $8,000 | "Once an individual meets the Self Only deductible under the Self Plus One" (p17). This applies after the medical fund is used up. | Same out-of-pocket sentence (p17) | Confirms / confirms |
 | 73-849 | AJ1 (Basic) | No deductible; OOP self $8,550 | No deductible | "any remaining qualified medical expenses for that individual will be covered fully" (p25) | n/a / confirms |
-| 73-849 | GG4 (Standard) | E $350; OOP self $5,000 | "$350 per person under self only enrollment in our Standard Option" (p24) | Same kind of example (p25) | Confirms / confirms |
+| 73-849 | GG4 (Standard) | E $350; OOP self $5,000 | "$350 per person under self only enrollment in our Standard Option" (p24). For Self Plus One and Self and Family the paragraph gives only the combined amount ($700); it states no per-person rule within a family enrollment (corrected 2026-11-18, batch review). | Same kind of example (p25) | Not stated / confirms |
 | 73-851 | JC1, JC4, JR1, JR4, P31, P34 | No deductible; OOP self $5,000 / $7,000 | No deductible | "Once an individual meets the Self Only out-of-pocket maximum" (p28) | n/a / confirms |
 | 73-860 | DH1 (High) | E $500; OOP self $5,000 | "the calendar year deductible for In-Network Providers is $500 per person" (p23) | "Self Only of $5,000 applies to each individual" (p24) | Confirms / confirms |
 | 73-860 | DH4 (Standard) | No deductible; OOP self $5,500 | "Under Standard Option, there is no calendar year deductible" (p23) | "Self Only of $5,500 applies to each individual" (p24) | n/a / confirms |

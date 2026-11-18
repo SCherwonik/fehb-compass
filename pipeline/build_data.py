@@ -775,7 +775,7 @@ GAP_KINDS = {"facility_deductible": (True,), "drug_deductible": (True,), "confli
              "cap_not_stated": (False,), "rule_differs": (True,)}
 # a gap's optional "applies_when": the care that can trigger it (the engine's TRIGGERS in src/engine/cost.js); without it
 # the gap applies to every year
-APPLIES_WHEN = ("hospital", "outpatient_surgery", "imaging", "brand_drugs", "any_care")
+APPLIES_WHEN = ("hospital", "outpatient_surgery", "imaging", "brand_drugs", "medical_care", "any_care")
 
 
 def brochure_page_text(year, brochure: str, page: int, root: Path = BROCHURE_TXT_DIR) -> str | None:

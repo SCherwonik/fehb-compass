@@ -624,12 +624,14 @@ const lineUsed = (l, kinds) => kinds.includes(l?.kind) && used(l.perYear);
  *   imaging             MRI or CT imaging (scenario or own line)
  *   brand_drugs         a drug above the generic tier: an own drug line on tier 2 or higher (or no tier chosen), or any
  *                       medication from the list (its tier number is not known here); monthly generics do not count
- *   any_care            any care at all: a scenario service, an own line or a medication (e.g. 2G4/B64's facility
- *                       deductible also applies to clinic visits and tests at an outpatient hospital, and the app does
- *                       not know where care is received)
+ *   medical_care        any care other than pharmacy: a scenario visit, test, scan or stay, or an own line that is not a
+ *                       drug (2G4/B64's facility deductible also applies to clinic visits and tests at an outpatient
+ *                       hospital, and the app does not know where care is received; pharmacy fills are not hospital care)
+ *   any_care            any care at all, medications included (474: drug costs are paid from the account, then the net
+ *                       deductible, brochure 71-004 p89)
  * (person: { usage, drugs })
  */
-const SCENARIO_CARE = ['pcpVisits', 'specialistVisits', 'erVisits', 'hospitalStays', 'labs', 'imaging', 'rxMonthly'];
+const SCENARIO_MEDICAL = ['pcpVisits', 'specialistVisits', 'erVisits', 'hospitalStays', 'labs', 'imaging'];
 const TRIGGERS = {
   hospital: ({ usage: u }) => used(u?.hospitalStays) || (u?.custom ?? []).some((l) => lineUsed(l, ['hospital_stay', 'maternity'])),
   outpatient_surgery: ({ usage: u }) => (u?.custom ?? []).some((l) => lineUsed(l, ['surgery_outpatient'])),
@@ -637,9 +639,11 @@ const TRIGGERS = {
   brand_drugs: ({ usage: u, drugs }) => (drugs ?? []).some((d) => d && typeof d === 'object' && used(d.fillsPerYear)
       && (d.share && typeof d.share === 'object' ? true : !(Number.isInteger(d.tier) && d.tier <= 1)))
     || (u?.custom ?? []).some((l) => CUSTOM_KINDS[l?.kind]?.rx === true && used(l.perYear) && !(Number.isInteger(l.tier) && l.tier <= 1)),
-  any_care: ({ usage: u, drugs }) => SCENARIO_CARE.some((k) => used(u?.[k]))
-    || (u?.custom ?? []).some((l) => l && CUSTOM_KINDS[l.kind] && used(l.perYear))
-    || (drugs ?? []).some((d) => d && typeof d === 'object' && used(d.fillsPerYear)),
+  medical_care: ({ usage: u }) => SCENARIO_MEDICAL.some((k) => used(u?.[k]))
+    || (u?.custom ?? []).some((l) => l && CUSTOM_KINDS[l.kind] && CUSTOM_KINDS[l.kind].rx !== true && used(l.perYear)),
+  any_care: (p) => TRIGGERS.medical_care(p) || used(p.usage?.rxMonthly)
+    || (p.usage?.custom ?? []).some((l) => l && CUSTOM_KINDS[l.kind]?.rx === true && used(l.perYear))
+    || (p.drugs ?? []).some((d) => d && typeof d === 'object' && used(d.fillsPerYear)),
 };
 /** The `applies_when` words a known gap may use (pipeline/build_data.py checks the data against the same list). */
 export const APPLIES_WHEN = Object.freeze(Object.keys(TRIGGERS));

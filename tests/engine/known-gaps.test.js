@@ -91,7 +91,17 @@ test('what triggers each gap: V31 hospital care and MRI/CT; 2G4/B64 facility any
     assert.ok(kinds('B64', line(k)).includes('facility_deductible'), `B64 ${k}`);
   }
   assert.deepEqual(kinds('2G4', line('lab', { perYear: 0 })), [], 'a line used 0 times');
-  assert.deepEqual(kinds('B64', line('rx_brand', { tier: 2 })), ['facility_deductible', 'drug_deductible']);
+  assert.deepEqual(kinds('B64', line('rx_brand', { tier: 2 })), ['drug_deductible'], 'a pharmacy fill: drug deductible only');
+  // a year whose only care is pharmacy: no hospital facility deductible (no brochure basis on pharmacy fills)
+  const med0 = { label: 'a drug', fillsPerYear: 12, price: 300, share: { kind: 'usd', value: 50 }, deductibleApplies: null };
+  for (const code of ['2G4', 'B64']) {
+    assert.ok(!kinds(code, line('rx_generic', { tier: 1 })).includes('facility_deductible'), `${code} generic line`);
+    assert.ok(!kinds(code, line('rx_specialty', { tier: 4 })).includes('facility_deductible'), `${code} specialty line`);
+    assert.ok(!kinds(code, { ...SCENARIOS.nothing, rxMonthly: 3, custom: [] }).includes('facility_deductible'), `${code} monthly generics`);
+    assert.ok(!kinds(code, U('nothing'), [med0]).includes('facility_deductible'), `${code} medication list`);
+    assert.ok(kinds(code, { ...SCENARIOS.nothing, labs: 1, custom: [] }).includes('facility_deductible'), `${code} a lab`);
+    assert.ok(kinds(code, { ...SCENARIOS.nothing, pcpVisits: 1, custom: [] }).includes('facility_deductible'), `${code} a visit`);
+  }
   assert.ok(!kinds('B64', line('rx_generic', { tier: 1 })).includes('drug_deductible'), 'tier 1 is outside the Tier 2-5 deductible');
   assert.ok(!kinds('B64', { ...SCENARIOS.typical, imaging: 0, custom: [] }).includes('drug_deductible'), 'monthly generics only');
   const med = { label: 'a drug', fillsPerYear: 12, price: 300, share: { kind: 'usd', value: 50 }, deductibleApplies: null };
@@ -237,6 +247,9 @@ test('474: the account-first deductible is a cost-affecting note for Self Plus O
       assert.equal(t.total, before.total, 'total unchanged');
       if (scenario === 'nothing') {
         assert.equal(t.breakdown.gaps, undefined, 'no care: no note');
+        // 71-004 p89: drug costs are paid from the account, then the net deductible: pharmacy alone counts for 474
+        const rxOnly = run('474', BENEFITS['474'], { enrollment, usage: { ...SCENARIOS.nothing, rxMonthly: 1, custom: [] } });
+        assert.equal(rxOnly.breakdown.gaps[0].kind, 'rule_differs');
         assert.equal(t.firmness, before.firmness);
         continue;
       }
