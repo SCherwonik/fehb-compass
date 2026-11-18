@@ -8,6 +8,10 @@ export const SCENARIO_LABELS = {
   healthy: 'Healthy', typical: 'Typical', condition: 'Managing a condition', worst: 'Worst case', nothing: 'Start from nothing',
 };
 
+/** How each scenario reads as "a ___" in a sentence (the whole phrase, so each one is grammatical on its own). */
+export const YEAR_TEXT = { healthy: 'healthy year', typical: 'typical year', condition: 'year managing a condition', worst: 'worst-case year' };
+const cap = (t) => t[0].toUpperCase() + t.slice(1);
+
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const money = (n) => `$${Math.round(n).toLocaleString('en-US')}`;
 
@@ -54,7 +58,7 @@ export function changeText(c) {
   return `${c.to} ${c.to === 1 ? noun[0] : noun[1]}`;
 }
 
-const yearText = (scenario) => (scenario === 'nothing' ? 'Only your own costs' : `${SCENARIO_LABELS[scenario] ?? 'Typical'} year`);
+const yearText = (scenario) => (scenario === 'nothing' ? 'Only your own costs' : cap(YEAR_TEXT[scenario] ?? YEAR_TEXT.typical));
 
 /** The scenario chip for a household: one shared scenario, or a short "mixed" note with each person in the title. */
 function householdScenarioChip(state, count) {
@@ -64,7 +68,7 @@ function householdScenarioChip(state, count) {
   const title = views.map((v, i) => `${memberLabel(state, i)}: ${yearText(keys[i])}. ${describeUsage(effectiveUsage(v))}`).join(' ');
   return {
     id: 'scenario',
-    text: same ? `${count} people, ${yearText(keys[0])} each` : `${count} people, mixed scenarios`,
+    text: same ? `${count} people, ${keys[0] === 'nothing' ? yearText(keys[0]) : yearText(keys[0]).toLowerCase()} each` : `${count} people, mixed scenarios`,
     tone: 'plain',
     title,
   };

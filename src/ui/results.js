@@ -18,14 +18,15 @@ import { measure, reorder, tweenNumber, pop, nudge, reduceMotion, EASE_OUT } fro
 import { createRxCard, updateRxCard } from './rx-card.js';
 import { badgeEl } from './rx-render.js';
 import { overrideBadge } from './matrix-model.js';
-import { mathContent, SCENARIO_TEXT, ICON_WARN } from './math.js';
+import { mathContent, ICON_WARN } from './math.js';
+import { YEAR_TEXT } from './assumptions.js';
 
 const UI_KEY = 'fehb-compass:results-ui:v1';
 const ENROLLMENT_TEXT = { self: 'self only', self_plus_one: 'self plus one', family: 'family' };
 /** "typical year", or "your own year" once overrides or custom lines change the scenario. */
 const yearText = (state) => (state.custom.length || overrideChanges(state).length
-  ? (state.scenario === 'nothing' ? 'your own costs' : `${SCENARIO_TEXT[state.scenario]} year, adjusted`)
-  : `${SCENARIO_TEXT[state.scenario]} year`);
+  ? (state.scenario === 'nothing' ? 'your own costs' : `${YEAR_TEXT[state.scenario] ?? YEAR_TEXT.typical}, adjusted`)
+  : (YEAR_TEXT[state.scenario] ?? YEAR_TEXT.typical));
 const TYPES = [['all', 'All'], ['FFS', 'FFS'], ['HMO', 'HMO'], ['HDHP', 'HDHP']];
 
 const ICON_CHEV = '<svg viewBox="0 0 16 16" aria-hidden="true" class="icon-chev"><path d="M4 6l4 4 4-4"/></svg>';

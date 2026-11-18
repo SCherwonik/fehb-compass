@@ -69,12 +69,12 @@ test('a family state: member oops sum to the card oop, in-network never over a l
 test('assumedHeading: the one-person text is unchanged', () => {
   assert.equal(assumedHeading('nothing', false), 'Care assumed: none beyond your own costs');
   assert.equal(assumedHeading('typical', false), 'Care assumed for a typical year');
-  assert.equal(assumedHeading('condition', true), 'Care assumed for a managing a condition year, fine-tuned');
+  assert.equal(assumedHeading('condition', true), 'Care assumed for a year managing a condition, fine-tuned');
 });
 
 test('memberAssumed: each member gets their own scenario, text and name', () => {
   const s = { ...fam, others: [{ name: 'Jordan', scenario: 'healthy', overrides: {} }, { name: '', scenario: 'nothing', overrides: {} }, { name: 'C', scenario: 'typical', overrides: { pcpVisits: 9 } }] };
-  assert.equal(memberAssumed(s, 0).title, 'Care assumed for you: a worst case year');
+  assert.equal(memberAssumed(s, 0).title, 'Care assumed for you: a worst-case year');
   assert.equal(memberAssumed(s, 1).title, 'Care assumed for Jordan: a healthy year');
   assert.equal(memberAssumed(s, 2).title, 'Care assumed for Person 3: none beyond their own costs');
   assert.equal(memberAssumed(s, 3).title, 'Care assumed for C: a typical year, fine-tuned');
@@ -93,4 +93,17 @@ test('householdDeductibleNote: embedded is per person, the others shared in memb
   assert.match(householdDeductibleNote({ deductibleType: 'embedded' }), /own deductible/);
   assert.match(householdDeductibleNote({ deductibleType: 'aggregate' }), /shares one deductible/);
   assert.match(householdDeductibleNote({ deductibleType: 'unknown' }), /shares one deductible/);
+});
+
+test('no generated scenario sentence reads "a managing"', async () => {
+  const { YEAR_TEXT, SCENARIO_LABELS, assumptionChips } = await import('../src/ui/assumptions.js');
+  const { defaultState } = await import('../src/state.js');
+  for (const k of Object.keys(SCENARIO_LABELS)) {
+    const texts = [assumedHeading(k, false), assumedHeading(k, true), assumedHeading(k, false, 'Jo'), assumedHeading(k, true, 'you'),
+      ...assumptionChips({ ...defaultState(), scenario: k }).map((c) => c.text),
+      ...assumptionChips({ ...defaultState(), enrollment: 'self_plus_one', scenario: k, others: [{ name: '', scenario: k, overrides: {} }] }).map((c) => c.text)];
+    for (const t of texts) assert.doesNotMatch(t, /a managing|managing a condition year|worst case year/i, `${k}: ${t}`);
+  }
+  assert.equal(assumedHeading('condition', false, 'Jo'), 'Care assumed for Jo: a year managing a condition');
+  assert.equal(YEAR_TEXT.healthy, 'healthy year');
 });

@@ -12,13 +12,13 @@
 import { usd, signedUsd, signedPct, deltaTone, DASH } from './format.js';
 import { FLAG_TEXT } from '../engine/diff.js';
 import { networkLabel } from './network.js';
+import { YEAR_TEXT } from './assumptions.js';
 import { baseTotal, medsCost, anyMeds, anyDv, dvCost, dvLabel, basisOf, basisNote, medsRanked, rankTotal, anyMaternity, maternityRanked, anyMatEstimated } from './model.js';
 import { MATERNITY_UNPRICED } from '../engine/cost.js';
 
 const fin = (n) => typeof n === 'number' && Number.isFinite(n);
 const cents = (n) => Math.round(n * 100) / 100;
 
-const SCENARIO_TEXT = { healthy: 'healthy', typical: 'typical', condition: 'managing a condition', worst: 'worst case' };
 const TYPE_TEXT = { FFS: 'PPO / FFS', HMO: 'HMO', HDHP: 'HDHP' };
 
 /** Account money the plan puts in for this enrollment (0 when the plan has no HSA/HRA). */
@@ -274,7 +274,7 @@ export const MEDICAL_SECTIONS = [
         // the board turns this cell into the number plus a "See the math" button (results-board.js hooks.math)
         cell: (r, ctx) => ({
           ...money(r.cost.oop, {
-            sub: ctx.scenario === 'nothing' ? 'your own costs' : `${SCENARIO_TEXT[ctx.scenario] ?? 'typical'} year${ctx.adjusted ? ', adjusted' : ''}`,
+            sub: ctx.scenario === 'nothing' ? 'your own costs' : `${YEAR_TEXT[ctx.scenario] ?? YEAR_TEXT.typical}${ctx.adjusted ? ', adjusted' : ''}`,
           }),
           hook: 'math',
         }),

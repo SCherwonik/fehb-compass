@@ -70,13 +70,13 @@ test('assumptionChips: a household says who, mixes are noted, and only covered l
   const fam = (extra) => ({ ...defaultState(), enrollment: 'family', familySize: 3, ...extra });
   const t = { name: '', scenario: 'typical', overrides: {} };
   const same = assumptionChips(fam({ others: [t, t] }));
-  assert.equal(same[0].text, '3 people, Typical year each');
+  assert.equal(same[0].text, '3 people, typical year each');
   const mixed = assumptionChips(fam({ others: [{ ...t, name: 'Sam', scenario: 'worst' }, t] }));
   assert.equal(mixed[0].text, '3 people, mixed scenarios');
   assert.match(mixed[0].title, /You: Typical year\./);
-  assert.match(mixed[0].title, /Sam: Worst case year\./);
+  assert.match(mixed[0].title, /Sam: Worst-case year\./);
   const adj = assumptionChips(fam({ others: [{ ...t, name: 'Sam', overrides: { erVisits: 2 } }, t] }));
-  assert.deepEqual(adj.map((c) => c.text), ['3 people, Typical year each', '2 ER visits (Sam)']);
+  assert.deepEqual(adj.map((c) => c.text), ['3 people, typical year each', '2 ER visits (Sam)']);
   const line = (member) => ({ label: 'x', kind: 'lab', price: 100, perYear: 2, member });
   const custom = [line(0), line(2), line(5)];
   const c = assumptionChips(fam({ others: [t, t], custom })).find((x) => x.id === 'custom');
