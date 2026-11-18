@@ -23,8 +23,11 @@ const TRIGGERED_BY = {
   B64: ['healthy', 'typical', 'condition', 'worst'],
 };
 // the brochure describes a Self Plus One / Self and Family rule the estimate does not model (474: account first, then
-// the net deductible); it applies once the year has any care
-const RULE_DIFFERS_PLANS = ['474'];
+// the net deductible; N61 and the Aetna HealthFund CDHPs: the Medical Fund first, then the whole deductible); it
+// applies once the year has any care
+const FUND_FIRST = { N61: { brochure: '73-828', page: 17, fund: '$1,800', ded: '$4,000', own: '$2,000' },
+  ...Object.fromEntries(['EP1', 'F51', 'G51', 'H41', 'JS1'].map((c) => [c, { brochure: '73-879', page: 15, fund: '$2,000', ded: '$2,000', own: '$1,000' }])) };
+const RULE_DIFFERS_PLANS = ['474', ...Object.keys(FUND_FIRST)];
 const ANY_CARE = ['healthy', 'typical', 'condition', 'worst'];
 const affected = (code, enrollment, scenarios) => scenarios.some((s) => TRIGGERED_BY[code]?.includes(s))
   || (COST_CONFLICT_PLANS.includes(code) && FAMILY.includes(enrollment))
@@ -262,4 +265,42 @@ test('474: the account-first deductible is a cost-affecting note for Self Plus O
   }
   assert.match(gapFirmness([{ kind: 'rule_differs' }]), /brochure describes .* this estimate does not model/);
   assert.doesNotMatch(gapFirmness([{ kind: 'rule_differs' }]), /leaves out|contradicts/);
+});
+
+// Aetna Direct N61 (brochure 73-828 p17, p115) and the Aetna HealthFund CDHPs EP1, F51, G51, H41 and JS1 (73-879 p15,
+// p49): the Medical Fund is used first, then the whole deductible applies, and the fund does not reduce the deductible
+// or the out-of-pocket maximum. The app subtracts the fund (HRA offset) from costs that already include the deductible.
+// Not modeled: a cost-affecting note for Self Plus One and Self and Family only; Self is untouched (owner rule).
+test('N61 and the Aetna HealthFund CDHPs: fund-first note for Self Plus One and Family only; totals and Self untouched', () => {
+  for (const [code, f] of Object.entries(FUND_FIRST)) {
+    const gs = BENEFITS[code].known_gaps.filter((x) => x.kind === 'rule_differs');
+    assert.equal(gs.length, 1, code);
+    assert.deepEqual(gs[0].enrollments, FAMILY, code);
+    assert.deepEqual(gs[0].applies_when, ['any_care'], code);
+    assert.deepEqual(costGaps(BENEFITS[code], 'self'), [], code);
+    for (const scenario of Object.keys(SCENARIOS)) {
+      const self = run(code, BENEFITS[code], { enrollment: 'self', usage: U(scenario) });
+      assert.deepEqual(self, run(code, without(BENEFITS[code]), { enrollment: 'self', usage: U(scenario) }), `${code} ${scenario}`);
+      for (const enrollment of FAMILY) {
+        const t = run(code, BENEFITS[code], { enrollment, usage: U(scenario) });
+        const before = run(code, without(BENEFITS[code]), { enrollment, usage: U(scenario) });
+        assert.equal(t.total, before.total, `${code} ${scenario} ${enrollment}: total unchanged`);
+        if (scenario === 'nothing') {
+          assert.equal(t.breakdown.gaps, undefined, `${code}: no care, no note`);
+          assert.equal(t.firmness, before.firmness);
+          // the fund pays prescriptions first too (73-879 p89, 73-828 p161): pharmacy alone counts
+          const rxOnly = run(code, BENEFITS[code], { enrollment, usage: { ...SCENARIOS.nothing, rxMonthly: 1, custom: [] } });
+          assert.equal(rxOnly.breakdown.gaps[0].kind, 'rule_differs', code);
+          continue;
+        }
+        assert.equal(t.firmness, 'estimated', `${code} ${scenario} ${enrollment}`);
+        const note = gapNote(t.breakdown.gaps[0]);
+        assert.ok(note.startsWith(`The brochure says the plan’s ${f.fund} Medical Fund is used first, and only then does the ${f.ded} deductible apply`), `${code}: ${note}`);
+        assert.ok(note.includes(`once one person meets the ${f.own} Self Only deductible`), code);
+        assert.ok(note.includes('the fund does not reduce the deductible or the out-of-pocket maximum'), code);
+        assert.ok(note.endsWith(`(Brochure ${f.brochure}, page ${f.page}.)`), code);
+        assert.doesNotMatch(note, /Not included/);
+      }
+    }
+  }
 });

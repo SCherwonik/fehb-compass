@@ -692,6 +692,7 @@ def test_tracked_known_gaps_land_on_the_right_plans():
         "V31": ["facility_deductible"], "2G4": ["facility_deductible"],
         "B64": ["drug_deductible", "facility_deductible"], "B41": ["conflict"], "B44": ["conflict"],
         "KX1": ["conflict"], "L14": ["conflict"], "474": ["rule_differs"],
+        **{c: ["rule_differs"] for c in FUND_FIRST},
         **{c: ["cap_not_stated"] for c in CAP_NOT_STATED}}
     assert all(g["affects_cost"] is True for g in spec if g["kind"] not in ("conflict", "cap_not_stated"))
     # a conflict over an out-of-network figure is data only; one over the deductible the estimate uses affects cost
@@ -918,8 +919,8 @@ def test_tracked_deductible_conflicts_apply_to_family_enrollments_only():
 
 def test_tracked_474_account_first_deductible_is_a_family_rule_note(tmp_path):
     spec = json.loads((PIPELINE / "known_gaps.json").read_text(encoding="utf-8"))["gaps"]
-    g = [x for x in spec if x["kind"] == "rule_differs"]
-    assert [x["plan_code"] for x in g] == ["474"]
+    g = [x for x in spec if x["kind"] == "rule_differs" and x["plan_code"] == "474"]
+    assert len(g) == 1
     assert g[0]["affects_cost"] is True and g[0]["enrollments"] == ["self_plus_one", "family"]
     assert g[0]["applies_when"] == ["any_care"]
     # 71-004 p28: one individual meets $1,000; the other members together meet an additional $1,000
@@ -927,6 +928,33 @@ def test_tracked_474_account_first_deductible_is_a_family_rule_note(tmp_path):
     assert "each person pays their own" not in g[0]["text"]
     with pytest.raises(ValueError, match="affects_cost"):
         _apply_gaps(tmp_path, [{**GAP, "kind": "rule_differs", "affects_cost": False}])
+
+
+# Medical Fund first, then the whole deductible (the fund does not reduce the deductible or the out-of-pocket maximum):
+# Aetna Direct N61 (73-828 p17) and the Aetna HealthFund CDHPs (73-879 p15). Self Plus One and Self and Family only.
+FUND_FIRST = {"N61": "73-828", "EP1": "73-879", "F51": "73-879", "G51": "73-879", "H41": "73-879", "JS1": "73-879"}
+
+
+def test_tracked_fund_first_plans_are_family_rule_notes_with_figures_from_data():
+    spec = json.loads((PIPELINE / "known_gaps.json").read_text(encoding="utf-8"))["gaps"]
+    benefits = json.loads((ROOT / "data" / "benefits.json").read_text(encoding="utf-8"))["2027"]
+    got = {x["plan_code"]: x for x in spec if x["kind"] == "rule_differs" and x["plan_code"] != "474"}
+    assert set(got) == set(FUND_FIRST)
+    for code, brochure in FUND_FIRST.items():
+        g, b = got[code], benefits[code]
+        assert g["brochure"] == brochure and g["affects_cost"] is True and g["amounts"] is None, code
+        assert g["enrollments"] == ["self_plus_one", "family"] and g["applies_when"] == ["any_care"], code
+        assert len(g["quote"].split()) < 15, code
+        assert "exhausted your medical fund" in g["quote"], code
+        usd = lambda v: f"${v:,.0f}"
+        fund, ded = b["account_contribution"], b["deductible"]
+        assert fund["self_plus_one"] == fund["family"] and ded["self_plus_one"] == ded["family"], code
+        assert g["text"].startswith(f"The brochure says the plan’s {usd(fund['family'])} Medical Fund is used first, "
+                                    f"and only then does the {usd(ded['family'])} deductible apply"), code
+        assert f"once one person meets the {usd(ded['self'])} Self Only deductible" in g["text"], code
+        assert f"by up to the fund’s {usd(fund['family'])}" in g["text"], code
+        assert [x["kind"] for x in b["known_gaps"]] == ["rule_differs"], code
+        assert b["known_gaps"][0]["enrollments"] == ["self_plus_one", "family"], code
 
 
 # --------------------------------------------------------------------------- embedded deductibles stated by the brochure
