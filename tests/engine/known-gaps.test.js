@@ -25,13 +25,15 @@ const TRIGGERED_BY = {
 // the brochure describes a Self Plus One / Self and Family rule the estimate does not model (474: account first, then
 // the net deductible; N61 and the Aetna HealthFund CDHPs: the Medical Fund first, then the whole deductible); it
 // applies once the year has any care
-const FUND_FIRST = { N61: { brochure: '73-828', page: 17, fund: '$1,800', ded: '$4,000', own: '$2,000' },
-  ...Object.fromEntries(['EP1', 'F51', 'G51', 'H41', 'JS1'].map((c) => [c, { brochure: '73-879', page: 15, fund: '$2,000', ded: '$2,000', own: '$1,000' }])) };
+// (fund and deductible: Self Only, then Self Plus One / Self and Family; the fund-first rule applies to every enrollment)
+const FUND_FIRST = { N61: { brochure: '73-828', page: 17, fund: ['$900', '$1,800'], ded: ['$2,000', '$4,000'] },
+  ...Object.fromEntries(['EP1', 'F51', 'G51', 'H41', 'JS1'].map((c) => [c, { brochure: '73-879', page: 15, fund: ['$1,000', '$2,000'], ded: ['$1,000', '$2,000'] }])) };
 const RULE_DIFFERS_PLANS = ['474', ...Object.keys(FUND_FIRST)];
 const ANY_CARE = ['healthy', 'typical', 'condition', 'worst'];
 const affected = (code, enrollment, scenarios) => scenarios.some((s) => TRIGGERED_BY[code]?.includes(s))
   || (COST_CONFLICT_PLANS.includes(code) && FAMILY.includes(enrollment))
-  || (RULE_DIFFERS_PLANS.includes(code) && FAMILY.includes(enrollment) && scenarios.some((s) => ANY_CARE.includes(s)));
+  || (RULE_DIFFERS_PLANS.includes(code) && (FAMILY.includes(enrollment) || code in FUND_FIRST)
+    && scenarios.some((s) => ANY_CARE.includes(s)));
 const codes = Object.keys(BENEFITS).filter((c) => RATES[c]);
 const U = (name) => ({ ...SCENARIOS[name], custom: [] });
 const without = (b) => { const { known_gaps, ...rest } = b; return rest; };
@@ -270,18 +272,17 @@ test('474: the account-first deductible is a cost-affecting note for Self Plus O
 // Aetna Direct N61 (brochure 73-828 p17, p115) and the Aetna HealthFund CDHPs EP1, F51, G51, H41 and JS1 (73-879 p15,
 // p49): the Medical Fund is used first, then the whole deductible applies, and the fund does not reduce the deductible
 // or the out-of-pocket maximum. The app subtracts the fund (HRA offset) from costs that already include the deductible.
-// Not modeled: a cost-affecting note for Self Plus One and Self and Family only; Self is untouched (owner rule).
-test('N61 and the Aetna HealthFund CDHPs: fund-first note for Self Plus One and Family only; totals and Self untouched', () => {
+// The rule is the same for every enrollment (Self Only too). Not modeled: a cost-affecting note for all enrollments;
+// it changes no total, only the firmness and the note.
+test('N61 and the Aetna HealthFund CDHPs: fund-first note for every enrollment, Self included; totals unchanged', () => {
   for (const [code, f] of Object.entries(FUND_FIRST)) {
     const gs = BENEFITS[code].known_gaps.filter((x) => x.kind === 'rule_differs');
     assert.equal(gs.length, 1, code);
-    assert.deepEqual(gs[0].enrollments, FAMILY, code);
+    assert.deepEqual(gs[0].enrollments, ['self', ...FAMILY], code);
     assert.deepEqual(gs[0].applies_when, ['any_care'], code);
-    assert.deepEqual(costGaps(BENEFITS[code], 'self'), [], code);
+    assert.equal(costGaps(BENEFITS[code], 'self')[0].kind, 'rule_differs', code);
     for (const scenario of Object.keys(SCENARIOS)) {
-      const self = run(code, BENEFITS[code], { enrollment: 'self', usage: U(scenario) });
-      assert.deepEqual(self, run(code, without(BENEFITS[code]), { enrollment: 'self', usage: U(scenario) }), `${code} ${scenario}`);
-      for (const enrollment of FAMILY) {
+      for (const enrollment of ['self', ...FAMILY]) {
         const t = run(code, BENEFITS[code], { enrollment, usage: U(scenario) });
         const before = run(code, without(BENEFITS[code]), { enrollment, usage: U(scenario) });
         assert.equal(t.total, before.total, `${code} ${scenario} ${enrollment}: total unchanged`);
@@ -295,8 +296,9 @@ test('N61 and the Aetna HealthFund CDHPs: fund-first note for Self Plus One and 
         }
         assert.equal(t.firmness, 'estimated', `${code} ${scenario} ${enrollment}`);
         const note = gapNote(t.breakdown.gaps[0]);
-        assert.ok(note.startsWith(`The brochure says the plan’s ${f.fund} Medical Fund is used first, and only then does the ${f.ded} deductible apply`), `${code}: ${note}`);
-        assert.ok(note.includes(`once one person meets the ${f.own} Self Only deductible`), code);
+        assert.ok(note.startsWith(`The brochure says the plan’s Medical Fund (${f.fund[0]} for Self Only, ${f.fund[1]} for Self Plus One or Self and Family) is used first, and only then does the whole deductible apply (${f.ded[0]} for Self Only, ${f.ded[1]} for Self Plus One or Self and Family`), `${code}: ${note}`);
+        assert.ok(note.includes(`once one person meets the ${f.ded[0]} Self Only deductible`), code);
+        assert.ok(note.includes('it leaves out the deductible paid after the fund is used up and may be too low, by up to the fund amount'), code);
         assert.ok(note.includes('the fund does not reduce the deductible or the out-of-pocket maximum'), code);
         assert.ok(note.endsWith(`(Brochure ${f.brochure}, page ${f.page}.)`), code);
         assert.doesNotMatch(note, /Not included/);

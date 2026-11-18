@@ -935,7 +935,7 @@ def test_tracked_474_account_first_deductible_is_a_family_rule_note(tmp_path):
 FUND_FIRST = {"N61": "73-828", "EP1": "73-879", "F51": "73-879", "G51": "73-879", "H41": "73-879", "JS1": "73-879"}
 
 
-def test_tracked_fund_first_plans_are_family_rule_notes_with_figures_from_data():
+def test_tracked_fund_first_plans_are_rule_notes_for_every_enrollment_with_figures_from_data():
     spec = json.loads((PIPELINE / "known_gaps.json").read_text(encoding="utf-8"))["gaps"]
     benefits = json.loads((ROOT / "data" / "benefits.json").read_text(encoding="utf-8"))["2027"]
     got = {x["plan_code"]: x for x in spec if x["kind"] == "rule_differs" and x["plan_code"] != "474"}
@@ -943,18 +943,21 @@ def test_tracked_fund_first_plans_are_family_rule_notes_with_figures_from_data()
     for code, brochure in FUND_FIRST.items():
         g, b = got[code], benefits[code]
         assert g["brochure"] == brochure and g["affects_cost"] is True and g["amounts"] is None, code
-        assert g["enrollments"] == ["self_plus_one", "family"] and g["applies_when"] == ["any_care"], code
+        assert g["enrollments"] == ["self", "self_plus_one", "family"] and g["applies_when"] == ["any_care"], code
         assert len(g["quote"].split()) < 15, code
         assert "exhausted your medical fund" in g["quote"], code
         usd = lambda v: f"${v:,.0f}"
         fund, ded = b["account_contribution"], b["deductible"]
         assert fund["self_plus_one"] == fund["family"] and ded["self_plus_one"] == ded["family"], code
-        assert g["text"].startswith(f"The brochure says the plan’s {usd(fund['family'])} Medical Fund is used first, "
-                                    f"and only then does the {usd(ded['family'])} deductible apply"), code
+        assert g["text"].startswith(
+            f"The brochure says the plan’s Medical Fund ({usd(fund['self'])} for Self Only, {usd(fund['family'])} for Self "
+            f"Plus One or Self and Family) is used first, and only then does the whole deductible apply ({usd(ded['self'])} "
+            f"for Self Only, {usd(ded['family'])} for Self Plus One or Self and Family"), code
         assert f"once one person meets the {usd(ded['self'])} Self Only deductible" in g["text"], code
-        assert f"by up to the fund’s {usd(fund['family'])}" in g["text"], code
+        assert "by up to the fund amount" in g["text"], code
+        assert "Self is not flagged" not in g["reason"], code
         assert [x["kind"] for x in b["known_gaps"]] == ["rule_differs"], code
-        assert b["known_gaps"][0]["enrollments"] == ["self_plus_one", "family"], code
+        assert b["known_gaps"][0]["enrollments"] == ["self", "self_plus_one", "family"], code
 
 
 # --------------------------------------------------------------------------- embedded deductibles stated by the brochure
