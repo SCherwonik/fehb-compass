@@ -778,6 +778,33 @@ def brochure_page_text(year, brochure: str, page: int, root: Path = BROCHURE_TXT
     return re.sub(r"\s+", " ", pages.get(page, ""))
 
 
+def _check_entry_types(name: str, code, g: dict) -> None:
+    """A clear error (not an AttributeError further on) when an entry's year is not an integer or its quote not a string."""
+    if isinstance(g["year"], bool) or not isinstance(g["year"], int):
+        raise ValueError(f"{name}: {code!r}: year must be an integer, not {g['year']!r}")
+    if not isinstance(g["quote"], str):
+        raise ValueError(f"{name}: {code!r}: quote must be a string, not {g['quote']!r}")
+
+
+def _check_quote(name: str, code, g: dict, root: Path) -> bool:
+    """Stop the build when the quote is not on the named brochure page. False when the brochure text is not on this
+    machine (the check is skipped; the caller says so)."""
+    if len(g["quote"].split()) >= 15:
+        raise ValueError(f"{name}: {code}: the quote must be under 15 words")
+    txt = brochure_page_text(g["year"], g["brochure"], g["page"], root)
+    if txt is None:
+        return False
+    if re.sub(r"\s+", " ", g["quote"]) not in txt:
+        raise ValueError(f"{name}: {code}: the quote is not on page {g['page']} of brochure {g['brochure']}")
+    return True
+
+
+def _say_skipped(name: str, codes: list, root: Path) -> None:
+    if codes:
+        print(f"  {name}: quote check skipped for {len(codes)} entries ({', '.join(map(str, codes))}): "
+              f"no brochure text under {root}")
+
+
 def apply_known_gaps(benefits: dict, path: Path = KNOWN_GAPS_PATH, brochure_root: Path = BROCHURE_TXT_DIR) -> int:
     """Attach pipeline/known_gaps.json entries to benefits[year][plan_code]["known_gaps"] (a list, in file order).
 
@@ -787,18 +814,21 @@ def apply_known_gaps(benefits: dict, path: Path = KNOWN_GAPS_PATH, brochure_root
     else about the plan changes. An optional "enrollments" list limits a gap to those enrollments (e.g. a conflict
     about the family deductible does not touch Self Only). An entry for a plan that is not in the benefits, a
     missing key, an unknown kind, an affects_cost that does not fit the kind, an enrollments list that is empty or names
-    an unknown enrollment, a quote of 15 words or more, or (when the brochure text is on this machine) a quote that is
-    not on the named page stops the build. Returns entries attached.
+    an unknown enrollment, a year that is not an integer, a quote that is not a string or has 15 words or more, or (when
+    the brochure text is on this machine) a quote that is not on the named page stops the build. Without the brochure
+    text the quote check is skipped and the build prints so. Returns entries attached.
     """
     if not Path(path).exists():
         return 0
     name = Path(path).name
     n = 0
+    skipped = []
     for g in json.loads(Path(path).read_text(encoding="utf-8")).get("gaps", []):
         code = g.get("plan_code")
         missing = [k for k in GAP_KEYS if k not in g]
         if missing:
             raise ValueError(f"{name}: {code!r} lacks {missing}")
+        _check_entry_types(name, code, g)
         e = benefits.get(str(g["year"]), {}).get(code)
         if e is None:
             raise ValueError(f"{name}: plan {code!r} is not in the {g['year']} benefits")
@@ -806,11 +836,8 @@ def apply_known_gaps(benefits: dict, path: Path = KNOWN_GAPS_PATH, brochure_root
             raise ValueError(f"{name}: {code}: kind {g['kind']!r} with affects_cost {g['affects_cost']!r} is not allowed")
         if g["amounts"] is not None and set(g["amounts"]) != {"self", "self_plus_one", "family"}:
             raise ValueError(f"{name}: {code}: amounts must be null or have self, self_plus_one and family")
-        if len(g["quote"].split()) >= 15:
-            raise ValueError(f"{name}: {code}: the quote must be under 15 words")
-        txt = brochure_page_text(g["year"], g["brochure"], g["page"], brochure_root)
-        if txt is not None and re.sub(r"\s+", " ", g["quote"]) not in txt:
-            raise ValueError(f"{name}: {code}: the quote is not on page {g['page']} of brochure {g['brochure']}")
+        if not _check_quote(name, code, g, brochure_root):
+            skipped.append(code)
         enr = g.get("enrollments")
         if "enrollments" in g and (not isinstance(enr, list) or not enr or not set(enr) <= set(ENROLLMENTS)):
             raise ValueError(f"{name}: {code}: enrollments must be a non-empty list of {ENROLLMENTS}")
@@ -819,6 +846,7 @@ def apply_known_gaps(benefits: dict, path: Path = KNOWN_GAPS_PATH, brochure_root
             entry["enrollments"] = enr
         e.setdefault("known_gaps", []).append(entry)
         n += 1
+    _say_skipped(name, skipped, brochure_root)
     return n
 
 
@@ -838,23 +866,34 @@ def apply_individual_deductibles(benefits: dict, path: Path = INDIVIDUAL_DEDUCTI
     quote and reason go to "deductible_individual_source". The plan's deductible itself is not changed. An entry for a
     plan that is not in the benefits, a missing key, amounts that are not finite numbers for exactly self_plus_one and
     family, an amount above that enrollment's deductible or below the Self Only deductible, a second entry for the same
-    plan, a quote of 15 words or more, or (when the brochure text is on this machine) a quote that is not on the named
-    page stops the build. Returns entries attached.
+    plan, a plan that is not a high-deductible plan (HSA or HDHP: other plans are modeled per person already), a year
+    that is not an integer, a quote that is not a string or has 15 words or more, or (when the brochure text is on this
+    machine) a quote that is not on the named page stops the build. Without the brochure text the quote check is
+    skipped and the build prints so. Returns entries attached.
     """
     if not Path(path).exists():
         return 0
     name = Path(path).name
     n = 0
+    skipped = []
     for g in json.loads(Path(path).read_text(encoding="utf-8")).get("plans", []):
         code = g.get("plan_code")
         missing = [k for k in INDIVIDUAL_KEYS if k not in g]
         if missing:
             raise ValueError(f"{name}: {code!r} lacks {missing}")
+        _check_entry_types(name, code, g)
         e = benefits.get(str(g["year"]), {}).get(code)
         if e is None:
             raise ValueError(f"{name}: plan {code!r} is not in the {g['year']} benefits")
         if "deductible_individual" in e:
             raise ValueError(f"{name}: {code}: listed twice")
+        # the engine (src/engine/cost.js deductibleType) models every plan that is not an HSA plan or an HDHP as
+        # 'embedded' (a per-person deductible already); a threshold belongs on a high-deductible plan's shared deductible
+        hdhp = re.search(r"savings", str(e.get("account_type") or ""), re.I) \
+            or re.search(r"hdhp", str((e.get("raw") or {}).get("Plan Option Type") or ""), re.I)
+        if not hdhp:
+            raise ValueError(f"{name}: {code}: an individual threshold needs a high-deductible plan (an HSA plan or an "
+                             f"HDHP); this plan's deductible is already modeled per person")
         a = g["amounts"]
         if not isinstance(a, dict) or set(a) != {"self_plus_one", "family"}:
             raise ValueError(f"{name}: {code}: amounts must have exactly self_plus_one and family")
@@ -871,14 +910,12 @@ def apply_individual_deductibles(benefits: dict, path: Path = INDIVIDUAL_DEDUCTI
             if v < own:
                 raise ValueError(f"{name}: {code}: {k} {v} is less than the Self Only deductible {own}")
             out[k] = float(v)
-        if len(g["quote"].split()) >= 15:
-            raise ValueError(f"{name}: {code}: the quote must be under 15 words")
-        txt = brochure_page_text(g["year"], g["brochure"], g["page"], brochure_root)
-        if txt is not None and re.sub(r"\s+", " ", g["quote"]) not in txt:
-            raise ValueError(f"{name}: {code}: the quote is not on page {g['page']} of brochure {g['brochure']}")
+        if not _check_quote(name, code, g, brochure_root):
+            skipped.append(code)
         e["deductible_individual"] = out
         e["deductible_individual_source"] = {k: g[k] for k in ("brochure", "page", "quote", "reason")}
         n += 1
+    _say_skipped(name, skipped, brochure_root)
     return n
 
 

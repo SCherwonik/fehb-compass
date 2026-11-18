@@ -709,7 +709,8 @@ def test_tracked_known_gaps_land_on_the_right_plans():
 
 IND = {"year": 2027, "plan_code": "X1", "amounts": {"self_plus_one": 3500, "family": 3500}, "brochure": "73-828",
        "page": 15, "quote": "q", "reason": "r"}
-IND_PLAN = {"deductible": {"self": 2000.0, "self_plus_one": 4000.0, "family": 4000.0}}
+IND_PLAN = {"deductible": {"self": 2000.0, "self_plus_one": 4000.0, "family": 4000.0},
+            "account_type": "Health Savings Account", "raw": {"Plan Option Type": "HDHP"}}
 
 
 def _apply_ind(tmp_path, entries, b=None):
@@ -750,6 +751,52 @@ def test_individual_deductible_validation(tmp_path):
         _apply_ind(tmp_path, [{**IND, "quote": " ".join(["w"] * 15)}])
     with pytest.raises(ValueError, match="twice"):
         _apply_ind(tmp_path, [IND, IND])
+
+
+def test_individual_deductible_types_are_checked_with_a_clear_error(tmp_path):
+    for year in ("2027", 2027.0, True):
+        with pytest.raises(ValueError, match="year must be an integer"):
+            _apply_ind(tmp_path, [{**IND, "year": year}])
+    for quote in (None, 15, ["q"]):
+        with pytest.raises(ValueError, match="quote must be a string"):
+            _apply_ind(tmp_path, [{**IND, "quote": quote}])
+
+
+def test_individual_deductible_needs_a_high_deductible_plan(tmp_path):
+    # a threshold only makes sense on a plan whose deductible is otherwise one shared family amount (an HDHP); a regular
+    # plan's deductible is already modeled per person (embedded)
+    regular = {**json.loads(json.dumps(IND_PLAN)), "account_type": "Not Applicable", "raw": {"Plan Option Type": "Traditional"}}
+    with pytest.raises(ValueError, match="high-deductible"):
+        _apply_ind(tmp_path, [IND], {"2027": {"X1": regular}})
+    hra_hdhp = {**json.loads(json.dumps(IND_PLAN)), "account_type": "Health Reimbursement Arrangement"}
+    assert _apply_ind(tmp_path, [IND], {"2027": {"X1": hra_hdhp}})[0] == 1  # an HDHP with an HRA
+    hsa_only = {**json.loads(json.dumps(IND_PLAN)), "raw": {}}
+    assert _apply_ind(tmp_path, [IND], {"2027": {"X1": hsa_only}})[0] == 1  # an HSA plan
+
+
+def test_known_gap_types_are_checked_with_a_clear_error(tmp_path):
+    with pytest.raises(ValueError, match="year must be an integer"):
+        _apply_gaps(tmp_path, [{**GAP, "year": "2027"}])
+    with pytest.raises(ValueError, match="quote must be a string"):
+        _apply_gaps(tmp_path, [{**GAP, "quote": 7}])
+
+
+def test_quote_check_says_when_it_is_skipped(tmp_path, capsys):
+    # tmp_path has no brochure text: the build still runs, but says the quotes were not checked
+    _apply_gaps(tmp_path, [GAP])
+    out = capsys.readouterr().out
+    assert "skipped" in out and "kg.json" in out
+    _apply_ind(tmp_path, [IND])
+    out = capsys.readouterr().out
+    assert "skipped" in out and "ind.json" in out
+
+
+def test_quote_check_is_quiet_when_the_brochure_text_is_there(tmp_path, capsys):
+    d = tmp_path / "2027"
+    d.mkdir()
+    (d / "73-718.txt").write_text("=== PAGE 29 ===\nthe $250 inpatient\n", encoding="utf-8")
+    build_data.apply_known_gaps({"2027": {"X1": {}}}, _gaps(tmp_path, [{**GAP, "quote": "$250 inpatient"}]), tmp_path)
+    assert "skipped" not in capsys.readouterr().out
 
 
 def test_individual_deductible_quote_must_be_on_the_named_brochure_page(tmp_path):
