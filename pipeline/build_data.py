@@ -758,6 +758,57 @@ def apply_benefit_overrides(benefits: dict, path: Path = OVERRIDES_PATH) -> int:
     return n
 
 
+KNOWN_GAPS_PATH = Path(__file__).resolve().parent / "known_gaps.json"
+BROCHURE_TXT_DIR = Path(__file__).resolve().parent / "raw" / "brochures_txt"
+GAP_KEYS = ("year", "plan_code", "kind", "affects_cost", "amounts", "text", "brochure", "page", "quote", "reason")
+GAP_KINDS = {"facility_deductible": True, "drug_deductible": True, "conflict": False}  # kind -> affects_cost it must have
+
+
+def brochure_page_text(year, brochure: str, page: int, root: Path = BROCHURE_TXT_DIR) -> str | None:
+    """One page of a brochure's text (whitespace collapsed), or None when the text file is not on this machine."""
+    f = Path(root) / str(year) / f"{brochure}.txt"
+    if not f.exists():
+        return None
+    parts = re.split(r"=== PAGE (\d+) ===", f.read_text(encoding="utf-8"))
+    pages = {int(parts[i]): parts[i + 1] for i in range(1, len(parts) - 1, 2)}
+    return re.sub(r"\s+", " ", pages.get(page, ""))
+
+
+def apply_known_gaps(benefits: dict, path: Path = KNOWN_GAPS_PATH, brochure_root: Path = BROCHURE_TXT_DIR) -> int:
+    """Attach pipeline/known_gaps.json entries to benefits[year][plan_code]["known_gaps"] (a list, in file order).
+
+    A known gap is a brochure cost term the app's estimate leaves out (affects_cost true: the engine marks the plan's
+    total 'estimated' and the math panel says so) or a brochure contradiction kept as data (kind 'conflict',
+    affects_cost false). Nothing else about the plan changes. An entry for a plan that is not in the benefits, a
+    missing key, an unknown kind, an affects_cost that does not fit the kind, a quote of 15 words or more, or (when the
+    brochure text is on this machine) a quote that is not on the named page stops the build. Returns entries attached.
+    """
+    if not Path(path).exists():
+        return 0
+    name = Path(path).name
+    n = 0
+    for g in json.loads(Path(path).read_text(encoding="utf-8")).get("gaps", []):
+        code = g.get("plan_code")
+        missing = [k for k in GAP_KEYS if k not in g]
+        if missing:
+            raise ValueError(f"{name}: {code!r} lacks {missing}")
+        e = benefits.get(str(g["year"]), {}).get(code)
+        if e is None:
+            raise ValueError(f"{name}: plan {code!r} is not in the {g['year']} benefits")
+        if g["kind"] not in GAP_KINDS or g["affects_cost"] is not GAP_KINDS[g["kind"]]:
+            raise ValueError(f"{name}: {code}: kind {g['kind']!r} with affects_cost {g['affects_cost']!r} is not allowed")
+        if g["amounts"] is not None and set(g["amounts"]) != {"self", "self_plus_one", "family"}:
+            raise ValueError(f"{name}: {code}: amounts must be null or have self, self_plus_one and family")
+        if len(g["quote"].split()) >= 15:
+            raise ValueError(f"{name}: {code}: the quote must be under 15 words")
+        txt = brochure_page_text(g["year"], g["brochure"], g["page"], brochure_root)
+        if txt is not None and re.sub(r"\s+", " ", g["quote"]) not in txt:
+            raise ValueError(f"{name}: {code}: the quote is not on page {g['page']} of brochure {g['brochure']}")
+        e.setdefault("known_gaps", []).append({k: g[k] for k in GAP_KEYS if k not in ("year", "plan_code")})
+        n += 1
+    return n
+
+
 # --------------------------------------------------------------------------- maternity
 
 MATERNITY_TERMS_PATH = Path(__file__).resolve().parent / "maternity_terms.json"
@@ -935,6 +986,7 @@ def main() -> None:
     plans, rates, benefits, service, warnings = build_fehb(paths)
     apply_text_fixes(plans, benefits)
     print(f"  {apply_benefit_overrides(benefits)} brochure overrides applied ({OVERRIDES_PATH.name})")
+    print(f"  {apply_known_gaps(benefits)} known gaps attached ({KNOWN_GAPS_PATH.name})")
     reviewed, priced = apply_maternity_terms(benefits)
     print(f"  maternity: {priced} plans priced in 2027, {reviewed} brochure-reviewed ({MATERNITY_TERMS_PATH.name})")
     write_json("plans.json", plans)

@@ -620,3 +620,84 @@ def test_not_applicable_in_network_deductible_is_zero_and_raw_kept():
         assert e["deductible"] == {"self": 0.0, "self_plus_one": 0.0, "family": 0.0}, (y, code)
         assert e["raw"]["Annual deductible (Self)"] == "Not applicable"
         assert e["out_of_network"]["deductible"]["self"] is None  # no out-of-network benefit: stays "not listed"
+
+
+# --------------------------------------------------------------------------- known gaps
+
+GAP = {"year": 2027, "plan_code": "X1", "kind": "facility_deductible", "affects_cost": True,
+       "amounts": {"self": 250, "self_plus_one": 500, "family": 500}, "text": "t", "brochure": "73-718", "page": 29,
+       "quote": "q", "reason": "r"}
+
+
+def _gaps(tmp_path, gaps):
+    p = tmp_path / "kg.json"
+    p.write_text(json.dumps({"gaps": gaps}), encoding="utf-8")
+    return p
+
+
+def _apply_gaps(tmp_path, gaps, b=None):
+    b = b if b is not None else {"2027": {"X1": {"deductible": {}}, "X2": {}}}
+    n = build_data.apply_known_gaps(b, _gaps(tmp_path, gaps), tmp_path)  # tmp_path has no brochure text: quotes not checked
+    return n, b
+
+
+def test_known_gaps_attach_only_to_the_named_plan(tmp_path):
+    n, b = _apply_gaps(tmp_path, [GAP, {**GAP, "kind": "drug_deductible", "text": "t2"}])
+    assert n == 2
+    assert [g["kind"] for g in b["2027"]["X1"]["known_gaps"]] == ["facility_deductible", "drug_deductible"]
+    assert "known_gaps" not in b["2027"]["X2"]
+    assert b["2027"]["X1"]["deductible"] == {}
+    assert "plan_code" not in b["2027"]["X1"]["known_gaps"][0] and b["2027"]["X1"]["known_gaps"][0]["page"] == 29
+
+
+def test_known_gap_for_an_unknown_plan_or_year_fails(tmp_path):
+    with pytest.raises(ValueError, match="Z9"):
+        _apply_gaps(tmp_path, [{**GAP, "plan_code": "Z9"}])
+    with pytest.raises(ValueError, match="X1"):
+        _apply_gaps(tmp_path, [{**GAP, "year": 2026}])
+
+
+def test_known_gap_requires_every_key_and_a_consistent_kind(tmp_path):
+    for k in ("kind", "affects_cost", "amounts", "text", "brochure", "page", "quote", "reason"):
+        with pytest.raises(ValueError, match=k):
+            _apply_gaps(tmp_path, [{kk: v for kk, v in GAP.items() if kk != k}])
+    with pytest.raises(ValueError, match="kind"):
+        _apply_gaps(tmp_path, [{**GAP, "kind": "other"}])
+    with pytest.raises(ValueError, match="affects_cost"):
+        _apply_gaps(tmp_path, [{**GAP, "kind": "conflict", "affects_cost": True}])
+    with pytest.raises(ValueError, match="affects_cost"):
+        _apply_gaps(tmp_path, [{**GAP, "affects_cost": False}])
+    with pytest.raises(ValueError, match="amounts"):
+        _apply_gaps(tmp_path, [{**GAP, "amounts": {"self": 1}}])
+    with pytest.raises(ValueError, match="15 words"):
+        _apply_gaps(tmp_path, [{**GAP, "quote": " ".join(["w"] * 15)}])
+
+
+def test_known_gap_quote_must_be_on_the_named_brochure_page(tmp_path):
+    d = tmp_path / "2027"
+    d.mkdir()
+    (d / "73-718.txt").write_text("=== PAGE 1 ===\nnothing\n=== PAGE 29 ===\nthe $250 inpatient\nand outpatient fee\n", encoding="utf-8")
+    ok = {**GAP, "quote": "$250 inpatient and outpatient"}
+    b = {"2027": {"X1": {}}}
+    assert build_data.apply_known_gaps(b, _gaps(tmp_path, [ok]), tmp_path) == 1
+    with pytest.raises(ValueError, match="not on page 1"):
+        build_data.apply_known_gaps({"2027": {"X1": {}}}, _gaps(tmp_path, [{**ok, "page": 1}]), tmp_path)
+
+
+def test_tracked_known_gaps_land_on_the_right_plans():
+    spec = json.loads((PIPELINE / "known_gaps.json").read_text(encoding="utf-8"))["gaps"]
+    by = {}
+    for g in spec:
+        by.setdefault(g["plan_code"], []).append(g)
+    assert {c: sorted(g["kind"] for g in gs) for c, gs in by.items()} == {
+        "V31": ["facility_deductible"], "2G4": ["facility_deductible"],
+        "B64": ["drug_deductible", "facility_deductible"], "B41": ["conflict"], "B44": ["conflict"]}
+    assert all(g["affects_cost"] is (g["kind"] != "conflict") for g in spec)
+    benefits = json.loads((ROOT / "data" / "benefits.json").read_text(encoding="utf-8"))["2027"]
+    for code, gs in by.items():
+        assert [g["kind"] for g in benefits[code]["known_gaps"]] == [g["kind"] for g in gs]
+    assert {c for c, e in benefits.items() if e.get("known_gaps")} == set(by)
+    for g in spec:  # the quote is on the cited page, when the brochure text is on this machine
+        txt = build_data.brochure_page_text(g["year"], g["brochure"], g["page"])
+        if txt is not None:
+            assert " ".join(g["quote"].split()) in txt, g["plan_code"]

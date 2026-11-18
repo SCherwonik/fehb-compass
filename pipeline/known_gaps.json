@@ -1,0 +1,77 @@
+{
+  "about": "Known gaps: brochure cost terms the app's estimate does not include (affects_cost true), and brochure contradictions kept as data only (kind 'conflict', affects_cost false). pipeline/build_data.py attaches each entry to data/benefits.json under benefits[year][plan_code]['known_gaps'] and checks that each quote occurs on the named brochure page (pipeline/raw/brochures_txt/<year>/<brochure>.txt, whitespace-insensitive). amounts: {self, self_plus_one, family} or null where the brochure gives no amounts by enrollment. text is the sentence shown to users in 'See the math' after 'Not included in this estimate:'.",
+  "gaps": [
+    {
+      "year": 2027,
+      "plan_code": "V31",
+      "kind": "facility_deductible",
+      "affects_cost": true,
+      "amounts": null,
+      "text": "a $500 calendar-year deductible that applies to inpatient and outpatient hospital services and MRI/CT scans. The brochure does not say whether it is per person or per family, so the estimate may be low by $500 for each person or each family.",
+      "brochure": "73-009",
+      "page": 25,
+      "quote": "The calendar year deductible is $500, which applies to inpatient and outpatient hospital services",
+      "reason": "OPM's spreadsheet and the app carry no deductible. The brochure (p25, p26) has a $500 deductible limited to hospital services and MRI/CT; it gives no amounts per enrollment type and does not say per person or per family. Not modeled."
+    },
+    {
+      "year": 2027,
+      "plan_code": "2G4",
+      "kind": "facility_deductible",
+      "affects_cost": true,
+      "amounts": {"self": 250, "self_plus_one": 500, "family": 500},
+      "text": "a hospital facility deductible on inpatient and outpatient hospital charges: $250 for Self Only, $500 for Self Plus One and for Self and Family. The estimate may be low by up to that amount.",
+      "brochure": "73-718",
+      "page": 29,
+      "quote": "separate in-network and out-of-network $250 inpatient and outpatient hospital facility deductible",
+      "reason": "The app's deductible is $0 / $0 / $0. The brochure has a hospital-facility-only deductible, in-network and out-of-network. Not modeled."
+    },
+    {
+      "year": 2027,
+      "plan_code": "B64",
+      "kind": "facility_deductible",
+      "affects_cost": true,
+      "amounts": {"self": 250, "self_plus_one": 500, "family": 500},
+      "text": "a hospital facility deductible on inpatient and outpatient hospital charges: $250 for Self Only, $500 for Self Plus One and for Self and Family. The estimate may be low by up to that amount.",
+      "brochure": "73-718",
+      "page": 29,
+      "quote": "an in-network $250 inpatient and outpatient hospital facility deductible",
+      "reason": "The app's deductible is $0 / $0 / $0. The brochure has an in-network hospital-facility-only deductible. Not modeled."
+    },
+    {
+      "year": 2027,
+      "plan_code": "B64",
+      "kind": "drug_deductible",
+      "affects_cost": true,
+      "amounts": {"self": 100, "self_plus_one": 200, "family": 200},
+      "text": "a separate deductible for Tier 2-5 prescription drugs: $100 for Self Only, $200 for Self Plus One and for Self and Family. The estimate may be low by up to that amount.",
+      "brochure": "73-718",
+      "page": 29,
+      "quote": "$100 deductible for Self and $200 for Self Plus One",
+      "reason": "The app has no drug deductible for this plan. The brochure has one for Tier 2-5 drugs under Blue Value Plus. Not modeled."
+    },
+    {
+      "year": 2027,
+      "plan_code": "B41",
+      "kind": "conflict",
+      "affects_cost": false,
+      "amounts": null,
+      "text": "The brochure gives the out-of-network Self Plus One deductible as $1,000 in Section 4 and $1,500 in Section 5. The app shows $1,500. Out-of-network deductibles are not part of the cost estimate.",
+      "brochure": "73-874",
+      "page": 27,
+      "quote": "for your enrollment reach $1,000 under High and Standard Option",
+      "reason": "Section 4 (p27) says $1,000 for Self Plus One; every Section 5 page (p35, p56, p65, p69, p72, p76, p81) says $1,500. The app keeps $1,500."
+    },
+    {
+      "year": 2027,
+      "plan_code": "B44",
+      "kind": "conflict",
+      "affects_cost": false,
+      "amounts": null,
+      "text": "The brochure gives the out-of-network Self Plus One deductible as $1,000 in Section 4 and $1,500 in Section 5. The app shows $1,500. Out-of-network deductibles are not part of the cost estimate.",
+      "brochure": "73-874",
+      "page": 27,
+      "quote": "for your enrollment reach $1,000 under High and Standard Option",
+      "reason": "Same brochure and conflict as B41: Section 4 (p27) says $1,000, Section 5 (p35 and others) says $1,500. The app keeps $1,500."
+    }
+  ]
+}
