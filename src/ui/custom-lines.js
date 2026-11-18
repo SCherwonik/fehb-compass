@@ -7,7 +7,7 @@ import {
   sanitizeLine, lineSpend,
 } from '../engine/scenarios.js';
 import { encodeHash, memberCount } from '../state.js';
-import { memberLabel, memberOptions, memberKey, focusedMember } from './members-model.js';
+import { memberLabel, memberOptions, memberKey, focusedMember, memberOfItem, isUncovered } from './members-model.js';
 import { customSummary, droppedText } from './assumptions.js';
 import { reduceMotion, EASE_OUT, tweenNumber } from './motion.js';
 
@@ -61,8 +61,8 @@ export function createCustomLines({ store }) {
   // who is covered: a "For" selector shows only with more than one person (state.enrollment), lines for a person
   // beyond the count are shown dimmed and left out of the footer total
   let people = { count: 1, key: '' };
-  const memberOf = (l) => (Number.isInteger(l?.member) && l.member > 0 ? l.member : 0);
-  const covered = (l) => memberOf(l) < people.count;
+  const memberOf = memberOfItem;
+  const covered = (l) => !isUncovered(l, people.count);
 
   const lines = () => rows.map((r) => r.line);
   function commit() {
@@ -159,7 +159,7 @@ export function createCustomLines({ store }) {
     if (m >= people.count) opts.push([String(m), `${memberLabel(state, m)} (not covered)`]);
     f.memberSel.replaceChildren(...opts.map(([v, t]) => h('option', { value: v }, t)));
     f.memberSel.value = String(m);
-    const off = people.count > 1 && m >= people.count;
+    const off = isUncovered(row.line, people.count); // also in Self: the line is out of the total, say so
     f.uncovered.hidden = !off;
     row.el.classList.toggle('is-uncovered', off);
   }

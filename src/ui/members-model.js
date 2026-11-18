@@ -52,6 +52,11 @@ export function nextOverrides(scenarioKey, overrides, key, value, field) {
   return next;
 }
 
+/** The person a custom line or medication is for (absent = you, member 0). */
+export const memberOfItem = (x) => (Number.isInteger(x?.member) && x.member > 0 ? x.member : 0);
+/** True when the item is tied to a person beyond the `count` people on the enrollment (in every enrollment, Self too). */
+export const isUncovered = (x, count) => memberOfItem(x) >= count;
+
 /** The member the "For" selectors start on: the open row of "Covered people" (set by members.js), clamped to the count. */
 const focus = { index: 0 };
 export const setFocusedMember = (i) => { focus.index = Number.isInteger(i) && i >= 0 ? i : 0; };

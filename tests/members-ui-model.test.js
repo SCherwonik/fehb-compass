@@ -64,3 +64,13 @@ test('focused member is clamped to the household', () => {
   assert.equal(focusedMember(defaultState()), 0);
   setFocusedMember(0);
 });
+
+test('isUncovered: a member beyond the count is uncovered in every enrollment', async () => {
+  const { isUncovered, memberOfItem } = await import('../src/ui/members-model.js');
+  assert.equal(memberOfItem({}), 0);
+  assert.equal(isUncovered({}, 1), false, 'you are always covered');
+  assert.equal(isUncovered({ member: 3 }, 4), false);
+  assert.equal(isUncovered({ member: 3 }, 3), true);
+  assert.equal(isUncovered({ member: 1 }, 1), true, 'Self: a line for another person is out');
+  assert.equal(isUncovered({ member: 1 }, 2), false);
+});

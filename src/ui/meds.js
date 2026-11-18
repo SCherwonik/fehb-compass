@@ -8,7 +8,7 @@ import { zipCountyHub } from '../data.js';
 import { usdExact } from './format.js';
 import { lookupButton, tierSelect, channelLabel, wireBadges } from './rx-render.js';
 import { memberCount } from '../state.js';
-import { memberLabel, memberOptions, memberKey, focusedMember } from './members-model.js';
+import { memberLabel, memberOptions, memberKey, focusedMember, memberOfItem, isUncovered } from './members-model.js';
 
 const ICON_PILL = '<svg viewBox="0 0 20 20" aria-hidden="true" class="md-icon"><rect x="2.6" y="7" width="14.8" height="6" rx="3" transform="rotate(-35 10 10)"/><path d="M8.3 6.4l3.4 7.2" transform="rotate(-35 10 10)"/></svg>';
 const ICON_LOCK = '<svg viewBox="0 0 16 16" aria-hidden="true" class="md-lock"><rect x="3.2" y="7" width="9.6" height="6.6" rx="1.6"/><path d="M5.4 7V5.2a2.6 2.6 0 0 1 5.2 0V7"/></svg>';
@@ -102,7 +102,7 @@ export function createMedsPanel({ meds, store }) {
   // who is covered: the "For" selector shows only with more than one person; a drug for a person beyond the count
   // is shown dimmed (its cost is left out of the plan totals by the model)
   let people = { count: 1, key: '' };
-  const memberOf = (d) => (Number.isInteger(d?.member) && d.member > 0 ? d.member : 0);
+  const memberOf = memberOfItem;
 
   const countEl = h('span', { class: 'md-count' });
   const toggle = h('button', { type: 'button', class: 'md-toggle', 'aria-expanded': String(open), 'aria-controls': 'md-body' },
@@ -294,11 +294,11 @@ export function createMedsPanel({ meds, store }) {
 
   function drugRow(d) {
     const m = memberOf(d);
-    const off = people.count > 1 && m >= people.count;
+    const off = isUncovered(d, people.count); // also in Self: the drug is out of the totals, say so
     return h('li', { class: `md-drug${off ? ' is-uncovered' : ''}`, 'data-id': d.id },
       h('div', { class: 'md-drug-main' },
         h('span', { class: 'md-drug-name' }, d.name),
-        people.count > 1 && h('span', { class: 'md-drug-for' }, off ? `For ${memberLabel(store.get(), m)}. Not covered at this enrollment` : `For ${memberLabel(store.get(), m)}`),
+        (people.count > 1 || off) && h('span', { class: 'md-drug-for' }, off ? `For ${memberLabel(store.get(), m)}. Not covered at this enrollment` : `For ${memberLabel(store.get(), m)}`),
         h('span', { class: 'md-drug-meta' }, [
           d.monthlyCost != null ? `${usdExact(fillPriceOf(d))} for ${daysOf(d.channel)} days` : 'no price',
           `${d.fillsPerYear} ${d.fillsPerYear === 1 ? 'fill' : 'fills'} a year${NINETY.has(d.channel) && d.fillsPerYear > 4 ? ' (over a year of 90-day fills?)' : ''}`,
