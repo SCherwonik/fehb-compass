@@ -1,6 +1,8 @@
 // "What you're assuming": plain-language summaries of the scenario, fine-tune overrides and custom lines.
 // DOM-free (shared by the input panel and the results header; unit tested under node).
 import { SCENARIOS, OVERRIDE_FIELDS, MAX_CUSTOM_LINES, applyOverrides, lineSpend } from '../engine/scenarios.js';
+import { memberCount } from '../state.js';
+import { memberView, memberLabel, isUncovered } from './members-model.js';
 
 export const SCENARIO_LABELS = {
   healthy: 'Healthy', typical: 'Typical', condition: 'Managing a condition', worst: 'Worst case', nothing: 'Start from nothing',
@@ -52,25 +54,48 @@ export function changeText(c) {
   return `${c.to} ${c.to === 1 ? noun[0] : noun[1]}`;
 }
 
+const yearText = (scenario) => (scenario === 'nothing' ? 'Only your own costs' : `${SCENARIO_LABELS[scenario] ?? 'Typical'} year`);
+
+/** The scenario chip for a household: one shared scenario, or a short "mixed" note with each person in the title. */
+function householdScenarioChip(state, count) {
+  const views = Array.from({ length: count }, (_, i) => memberView(state, i));
+  const keys = views.map((v) => (Object.prototype.hasOwnProperty.call(SCENARIOS, v.scenario) ? v.scenario : 'typical'));
+  const same = keys.every((k) => k === keys[0]);
+  const title = views.map((v, i) => `${memberLabel(state, i)}: ${yearText(keys[i])}. ${describeUsage(effectiveUsage(v))}`).join(' ');
+  return {
+    id: 'scenario',
+    text: same ? `${count} people, ${yearText(keys[0])} each` : `${count} people, mixed scenarios`,
+    tone: 'plain',
+    title,
+  };
+}
+
 /**
  * Chips for the results header: [{ id, text, tone: 'plain'|'accent'|'warn', title }].
  * Scenario first, then the fine-tune changes (folded into "N adjustments" past two), custom lines, OON flag.
+ * With several covered people the scenario and adjustments cover everyone; lines for people beyond the enrollment are not counted.
  */
 export function assumptionChips(state) {
-  const chips = [{
+  const count = memberCount(state);
+  const chips = [count > 1 ? householdScenarioChip(state, count) : {
     id: 'scenario',
-    text: state.scenario === 'nothing' ? 'Only your own costs' : `${SCENARIO_LABELS[state.scenario] ?? 'Typical'} year`,
+    text: yearText(state.scenario),
     tone: 'plain',
     title: describeUsage(effectiveUsage(state)),
   }];
-  const changes = overrideChanges(state);
+  const changes = [];
+  for (let i = 0; i < count; i++) {
+    const v = memberView(state, i);
+    for (const c of overrideChanges(i === 0 ? state : v)) changes.push({ ...c, who: count > 1 ? memberLabel(state, i) : '' });
+  }
+  const ctext = (c) => (c.who ? `${changeText(c)} (${c.who})` : changeText(c));
   if (changes.length > 2) {
     chips.push({ id: 'changes', text: `${changes.length} adjustments`, tone: 'accent',
-      title: changes.map((c) => `${c.label}: ${c.from} → ${c.to}`).join('; ') });
+      title: changes.map((c) => `${c.who ? `${c.who}: ` : ''}${c.label}: ${c.from} → ${c.to}`).join('; ') });
   } else {
-    for (const c of changes) chips.push({ id: `o-${c.key}`, text: changeText(c), tone: 'accent', title: `${c.label}: scenario has ${c.from}` });
+    for (const c of changes) chips.push({ id: `o-${c.who ? `${c.who}-` : ''}${c.key}`, text: ctext(c), tone: 'accent', title: `${c.who ? `${c.who}, ` : ''}${c.label}: scenario has ${c.from}` });
   }
-  const custom = state.custom ?? [];
+  const custom = (state.custom ?? []).filter((l) => !isUncovered(l, count));
   if (custom.length) {
     const spend = custom.reduce((a, l) => a + lineSpend(l), 0);
     chips.push({ id: 'custom', text: plural(custom.length, 'custom line'), tone: 'accent',

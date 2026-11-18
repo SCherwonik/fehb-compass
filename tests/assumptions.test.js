@@ -65,3 +65,25 @@ test('inNetworkAtMax compares only the in-network part with the in-network OOP m
   assert.equal(inNetworkAtMax(cost(6000, 1000, 5000)), true);
   assert.equal(inNetworkAtMax(cost(100, 0, null)), false);
 });
+
+test('assumptionChips: a household says who, mixes are noted, and only covered lines are counted', () => {
+  const fam = (extra) => ({ ...defaultState(), enrollment: 'family', familySize: 3, ...extra });
+  const t = { name: '', scenario: 'typical', overrides: {} };
+  const same = assumptionChips(fam({ others: [t, t] }));
+  assert.equal(same[0].text, '3 people, Typical year each');
+  const mixed = assumptionChips(fam({ others: [{ ...t, name: 'Sam', scenario: 'worst' }, t] }));
+  assert.equal(mixed[0].text, '3 people, mixed scenarios');
+  assert.match(mixed[0].title, /You: Typical year\./);
+  assert.match(mixed[0].title, /Sam: Worst case year\./);
+  const adj = assumptionChips(fam({ others: [{ ...t, name: 'Sam', overrides: { erVisits: 2 } }, t] }));
+  assert.deepEqual(adj.map((c) => c.text), ['3 people, Typical year each', '2 ER visits (Sam)']);
+  const line = (member) => ({ label: 'x', kind: 'lab', price: 100, perYear: 2, member });
+  const custom = [line(0), line(2), line(5)];
+  const c = assumptionChips(fam({ others: [t, t], custom })).find((x) => x.id === 'custom');
+  assert.equal(c.text, '2 custom lines');
+  assert.match(c.title, /\$400/);
+  const selfChips = assumptionChips({ ...defaultState(), custom });
+  assert.equal(selfChips.find((x) => x.id === 'custom').text, '1 custom line', 'Self counts only your own lines');
+  const oon = [{ ...line(4), outOfNetwork: true }];
+  assert.equal(assumptionChips(fam({ others: [t, t], custom: oon })).some((x) => x.id === 'oon'), false);
+});
