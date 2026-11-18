@@ -138,3 +138,11 @@ test('memberBlockInput: a member stopped by the family out-of-pocket max (plan 1
   assert.match(oopNote({ ...third.b }, memberInNetwork(b.members[2]), false, third), /^Stopped by the family’s out-of-pocket max: the family reached \$14,000/);
   assert.match(oopNote({ ...memberBlockInput(b, 0).b }, memberInNetwork(b.members[0]), true, {}), /^Capped/);
 });
+
+test('gapNote: what the estimate leaves out, with the brochure number and page', async () => {
+  const { gapNote } = await import('../src/ui/math-family.js');
+  const b = read('benefits.json')['2027'];
+  const note = gapNote(b.V31.known_gaps[0]);
+  assert.equal(note, 'Not included in this estimate: a $500 calendar-year deductible that applies to inpatient and outpatient hospital services and MRI/CT scans. The brochure does not say whether it is per person or per family, so the estimate may be low by $500 for each person or each family. (Brochure 73-009, page 25.)');
+  assert.match(gapNote(b['2G4'].known_gaps[0]), /\$250 for Self Only, \$500 for Self Plus One and for Self and Family.*Brochure 73-718, page 29/);
+});

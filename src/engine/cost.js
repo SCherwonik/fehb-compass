@@ -579,6 +579,17 @@ function mergeServices(lists) {
   return [...m.values()];
 }
 
+/**
+ * The plan's known gaps that change what care costs (pipeline/known_gaps.json: a brochure deductible the estimate does
+ * not include), as [{ kind, text, brochure, page, amounts }]. They are not priced: the total stays as computed and
+ * is marked 'estimated'. Conflict entries (affects_cost false) are data only and never listed here.
+ */
+export function costGaps(benefits) {
+  const list = Array.isArray(benefits?.known_gaps) ? benefits.known_gaps : [];
+  return list.filter((g) => g && g.affects_cost === true)
+    .map(({ kind, text, brochure, page, amounts }) => ({ kind, text, brochure, page, amounts: amounts ?? null }));
+}
+
 export function planTotal(plan, inputs) {
   const members = Array.isArray(inputs.members) ? inputs.members : null;
   if (members && members.length >= 2) return familyTotal(plan, inputs, members);
@@ -595,7 +606,8 @@ export function planTotal(plan, inputs) {
   const hra = isHra(plan);
   const cap = Math.max(0, deposit || 0);
   const hsaOffset = hra ? cents(Math.min(cap, o.total)) : cap;
-  const firmness = o.warnings.length === 0 && o.flat ? 'fixed' : 'estimated';
+  const gaps = costGaps(plan.benefits);
+  const firmness = o.warnings.length === 0 && o.flat && gaps.length === 0 ? 'fixed' : 'estimated';
   return {
     premium,
     oop: o.total,
@@ -624,6 +636,7 @@ export function planTotal(plan, inputs) {
       unpriced: o.unpriced,
       estimated: o.estimated,
       warnings: o.warnings,
+      ...(gaps.length > 0 && { gaps }),
     },
     firmness,
   };
@@ -672,6 +685,7 @@ function familyTotal(plan, inputs, members) {
   const hsaOffset = hra ? cents(Math.min(cap, oop)) : cap;
   const warnings = [...new Set(rows.flatMap((r) => r.warnings))];
   const union = (k) => [...new Set(rows.flatMap((r) => r[k]))];
+  const gaps = costGaps(plan.benefits);
   return {
     premium,
     oop,
@@ -704,8 +718,9 @@ function familyTotal(plan, inputs, members) {
       unpriced: union('unpriced'),
       estimated: union('estimated'),
       warnings,
+      ...(gaps.length > 0 && { gaps }),
       members: rows.map(({ oonEstimate, ...r }) => r),
     },
-    firmness: warnings.length === 0 && flat ? 'fixed' : 'estimated',
+    firmness: warnings.length === 0 && flat && gaps.length === 0 ? 'fixed' : 'estimated',
   };
 }

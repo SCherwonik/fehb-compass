@@ -4,7 +4,7 @@ import { h, svg } from './dom.js';
 import { effectiveUsage, describeUsage, overrideChanges, inNetworkAtMax } from './assumptions.js';
 import { personLimitsNote, rankTotal } from './model.js';
 import { memberLabel } from './members-model.js';
-import { memberBlockInput, familyInNetwork, assumedHeading, memberAssumed, householdDeductibleNote, labelledByMember, itemWho, familyDeductibleUse, sharedDeductible, oopNote } from './math-family.js';
+import { memberBlockInput, familyInNetwork, assumedHeading, memberAssumed, householdDeductibleNote, labelledByMember, itemWho, familyDeductibleUse, sharedDeductible, oopNote, gapNote } from './math-family.js';
 import { dvMathLines } from './dental-board.js';
 import { ASSUMED_PRICES, ASSUMPTIONS_NOTE } from '../engine/assumptions.js';
 import { UNCLEAR_FAMILY_DEDUCTIBLE } from '../engine/cost.js';
@@ -284,9 +284,12 @@ export function mathContent(row, state, data, basis) {
   ];
 
   // the card tags explain themselves in a hover title; this repeats it for touch and keyboard users
+  const gaps = b.gaps ?? [];
   const firmness = cost.firmness === 'fixed'
     ? 'Fixed cost: every service in this scenario is a flat copay, so this total does not depend on assumed prices.'
-    : 'Estimated: part of this total depends on the assumed prices listed below.';
+    : gaps.length > 0
+      ? 'Estimated: this total leaves out a cost the plan’s brochure lists (see the note below), and part of it may depend on the assumed prices listed below.'
+      : 'Estimated: part of this total depends on the assumed prices listed below.';
   const oonNote = b.oonEstimate === true
     ? ' Out-of-network lines are counted at full cost: OPM publishes no out-of-network cost sharing.'
     : '';
@@ -294,6 +297,7 @@ export function mathContent(row, state, data, basis) {
     h('div', { class: 'math-sum' }, lines),
     h('div', { class: 'math-notes' },
       h('p', { class: 'math-p math-firm' }, firmness + oonNote),
+      ...gaps.map((g) => h('p', { class: 'mc-warn math-gap' }, svg(ICON_WARN), gapNote(g))),
       ...(family
         ? b.members.flatMap((_, i) => { const a = memberAssumed(state, i); return [h('p', { class: 'math-h' }, a.title), h('p', { class: 'math-p' }, a.text)]; })
         : [h('p', { class: 'math-h' }, assumedHeading(state.scenario, changes.length > 0)),

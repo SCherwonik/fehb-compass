@@ -84,3 +84,6 @@ export const labelledByMember = (state, lists) => lists.flatMap((list, i) => (li
 
 /** A medication that is not counted, with the person it is for (items beyond the count keep their own member index). */
 export const itemWho = (state, it) => memberLabel(state, memberOfItem(it));
+
+/** The note for one known gap (engine breakdown.gaps entry): what the estimate leaves out, and where the brochure says so. */
+export const gapNote = (g) => `Not included in this estimate: ${g.text} (Brochure ${g.brochure}, page ${g.page}.)`;
