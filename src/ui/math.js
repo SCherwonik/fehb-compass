@@ -4,13 +4,13 @@ import { h, svg } from './dom.js';
 import { effectiveUsage, describeUsage, overrideChanges, inNetworkAtMax } from './assumptions.js';
 import { personLimitsNote, rankTotal } from './model.js';
 import { memberLabel } from './members-model.js';
-import { memberBlockInput, familyInNetwork } from './math-family.js';
+import { memberBlockInput, familyInNetwork, SCENARIO_TEXT, assumedHeading, memberAssumed, householdDeductibleNote, labelledByMember, itemWho } from './math-family.js';
 import { dvMathLines } from './dental-board.js';
 import { ASSUMED_PRICES, ASSUMPTIONS_NOTE } from '../engine/assumptions.js';
 import { usd, usdExact } from './format.js';
 import { reduceMotion, EASE_OUT } from './motion.js';
 
-export const SCENARIO_TEXT = { healthy: 'healthy', typical: 'typical', condition: 'managing a condition', worst: 'worst case', nothing: 'start-from-nothing' };
+export { SCENARIO_TEXT };
 export const ICON_WARN = '<svg viewBox="0 0 16 16" aria-hidden="true" class="icon-warn"><path d="M8 2.2l6.2 11H1.8z"/><path d="M8 6.6v3.2M8 11.6v.1"/></svg>';
 
 const PRICE_LABELS = {
@@ -222,22 +222,24 @@ export function mathContent(row, state, data, basis) {
   // the scenario's own services, one by one: how many, what they bill, what you pay under the plan's rule
   const services = b.services ?? [];
   const serviceBlock = services.length > 0 && [
-    h('p', { class: 'math-h' }, 'What each part of the year costs you here'),
+    h('p', { class: 'math-h' }, family ? 'What each part of the year costs the family here' : 'What each part of the year costs you here'),
     h('ul', { class: 'math-custom math-svc' }, services.map((s) => serviceItem(s, hitMax))),
     h('p', { class: 'math-p math-fine' }, `Services add up to ${usd(services.reduce((a, s) => a + s.cost, 0))}`
       + `${(b.custom ?? []).length || row.meds ? ', before your own costs and medications below' : ''}. `
-      + 'The deductible is used up by the first services billed, in the order listed.'),
+      + (family ? householdDeductibleNote(b) : 'The deductible is used up by the first services billed, in the order listed.')),
   ];
 
   // custom lines: what each one adds to this plan's care costs, with its own notes and warnings
   const customs = b.custom ?? [];
+  // a household's merged list says whose each line is
+  const ownCosts = family ? labelledByMember(state, b.members.map((m) => m.custom)) : customs.map((item) => ({ item, who: null }));
   const lineMsgs = new Set(customs.flatMap((c) => c.warnings));
   const otherWarnings = b.warnings.filter((w) => !lineMsgs.has(w));
   const customBlock = customs.length > 0 && [
     h('p', { class: 'math-h' }, 'Your own costs'),
-    h('ul', { class: 'math-custom' }, customs.map((c) => h('li', { class: c.warnings.length ? 'has-warn' : '' },
+    h('ul', { class: 'math-custom' }, ownCosts.map(({ item: c, who }) => h('li', { class: c.warnings.length ? 'has-warn' : '' },
       h('div', { class: 'mc-row' },
-        h('span', { class: 'mc-name' }, c.label,
+        h('span', { class: 'mc-name' }, who ? `${who}: ${c.label}` : c.label,
           h('span', { class: 'math-how' }, `${c.perYear} × ${usdExact(c.price)}${c.outOfNetwork ? ', out of network' : ''}`)),
         h('span', { class: 'num mc-cost' }, c.unpriced ? 'not counted' : `+ ${usd(c.cost)}${c.estimated ? ' (estimated)' : ''}`)),
       [...c.warnings.map((w) => h('p', { class: 'mc-warn' }, svg(ICON_WARN), w)),
@@ -245,15 +247,16 @@ export function mathContent(row, state, data, basis) {
   ];
   const changes = overrideChanges(state);
   // medications: what each priced drug adds here (deductible and OOP max applied), and which ones are left out
+  const drugRows = family ? labelledByMember(state, b.members.map((m) => m.drugs)) : (b.drugs ?? []).map((item) => ({ item, who: null }));
   const medsBlock = row.meds && [
     h('p', { class: 'math-h' }, 'Your medications'),
     h('ul', { class: 'math-custom' },
-      (b.drugs ?? []).map((dl) => h('li', {},
+      drugRows.map(({ item: dl, who }) => h('li', {},
         h('div', { class: 'mc-row' },
-          h('span', { class: 'mc-name' }, dl.label, h('span', { class: 'math-how' }, `${dl.fillsPerYear} fills, from the brochure tier you recorded`)),
+          h('span', { class: 'mc-name' }, who ? `${who}: ${dl.label}` : dl.label, h('span', { class: 'math-how' }, `${dl.fillsPerYear} fills, from the brochure tier you recorded`)),
           h('span', { class: 'num mc-cost' }, `+ ${usd(dl.cost)}`)))),
       row.meds.items.filter((it) => !it.share || it.annual == null).map((it) => h('li', { class: 'has-warn' },
-        h('div', { class: 'mc-row' }, h('span', { class: 'mc-name' }, it.name), h('span', { class: 'num mc-cost' }, 'not counted')),
+        h('div', { class: 'mc-row' }, h('span', { class: 'mc-name' }, family ? `${itemWho(state, it)}: ${it.name}` : it.name), h('span', { class: 'num mc-cost' }, 'not counted')),
         h('p', { class: 'mc-warn' }, svg(ICON_WARN), it.status === 'lookup' ? 'Not looked up for this plan yet.' : it.missing ? `Missing ${it.missing}.` : it.text)))),
   ];
 
@@ -268,10 +271,10 @@ export function mathContent(row, state, data, basis) {
     h('div', { class: 'math-sum' }, lines),
     h('div', { class: 'math-notes' },
       h('p', { class: 'math-p math-firm' }, firmness + oonNote),
-      h('p', { class: 'math-h' }, state.scenario === 'nothing'
-        ? 'Care assumed: none beyond your own costs'
-        : `Care assumed for a ${SCENARIO_TEXT[state.scenario]} year${changes.length ? ', fine-tuned' : ''}`),
-      h('p', { class: 'math-p' }, describeUsage(effectiveUsage(state))),
+      ...(family
+        ? b.members.flatMap((_, i) => { const a = memberAssumed(state, i); return [h('p', { class: 'math-h' }, a.title), h('p', { class: 'math-p' }, a.text)]; })
+        : [h('p', { class: 'math-h' }, assumedHeading(state.scenario, changes.length > 0)),
+          h('p', { class: 'math-p' }, describeUsage(effectiveUsage(state)))]),
       serviceBlock,
       customBlock,
       medsBlock,
