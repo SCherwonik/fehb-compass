@@ -21,10 +21,10 @@ The estimate does something different. It gives each person the deductible and t
 
 **What I changed.**
 - Added six `rule_differs` entries to `pipeline/known_gaps.json`, in the same form as 474's:
-  - affects_cost is true and `enrollments` is Self Plus One and Self and Family.
+  - affects_cost is true and `enrollments` covers every enrollment, Self Only included (extended in the follow-up below).
   - `amounts` is null.
   - The figures in the text come from `data/benefits.json`, and a pytest checks them.
-- For the family enrollments, "See the math" shows the brochure's order and says the estimate "may be too low, by up to the fund's $2,000" ($1,800 for N61).
+- For every enrollment, "See the math" shows the brochure's order, with the Self Only and the family fund and deductible figures. It says the estimate "leaves out the deductible paid after the fund is used up and may be too low, by up to the fund amount".
 - The board's deductible-type note gains its existing exception automatically.
 - The cost engine is unchanged.
 
@@ -37,13 +37,13 @@ The estimate does something different. It gives each person the deductible and t
 | EP1/F51/G51/H41/JS1, **Self** | 0 | −$722.50 | −$850 | −$1,000 |
 | N61, **Self** | 0 | 0 | −$720 | −$900 |
 
-**Concern: Self Only has the same gap.** I did not flag Self, because the owner rule says Self results must not change. Flagging Self would add the note and the Estimated reason for Self. The owner needs to decide this.
+**Self Only has the same gap, and it is now flagged** (follow-up below). The flag changes no total, only the note and the firmness.
 
 **Regeneration.**
 - I ran `python pipeline/build_data.py`. Only `data/benefits.json` changed. Within it, only `known_gaps` changed, and only on N61, EP1, F51, G51, H41 and JS1.
 - I compared 8c315ec, extracted with `git archive` into the OS temp directory, against the final HEAD. The comparison covered every 2026 and 2027 plan, the 5 scenarios, active and retiree, the 3 enrollments, and household sizes 1–3 (Self: 1). That is 17,500 combinations.
 - **0 totals changed and 0 firmness values changed.** These plans' totals were already 'estimated' whenever there is care, because they use coinsurance. In 'nothing' the gap does not apply.
-- The new note does show for family enrollments in every scenario with care, and for a year with only pharmacy fills. For Self it never shows. Node tests check this.
+- The note shows for every enrollment, Self included, in every scenario with care and in a year with only pharmacy fills. Node tests check this.
 
 ## Job 2: three card defects
 
@@ -69,3 +69,42 @@ The estimate does something different. It gives each person the deductible and t
 - Node: 489 → 495 (new: six-plan gap test, `tests/tag-tips.test.js` ×4, caption test).
 - Pytest: 303 → 304.
 - Both suites passed before each commit.
+
+## Follow-up: the note now covers Self Only too, the 474 check, and the hover tip
+
+**1. The six fund-first entries now apply to every enrollment.**
+- The rule is the same for Self Only in both brochures: 73-828 p17 and 73-879 p15 state the fund first, then the whole deductible, for every enrollment.
+- The six entries now list all three enrollments, and `applies_when` stays `any_care`.
+- The text states the brochure's own figures for Self Only and for the family enrollments, and what the estimate leaves out. For example, EP1 reads: "Medical Fund ($1,000 for Self Only, $2,000 for Self Plus One or Self and Family) is used first, and only then does the whole deductible apply…". It then says the estimate "leaves out the deductible paid after the fund is used up and may be too low, by up to the fund amount". It states no other amount.
+- The "Self is not flagged" sentence is gone from each entry's `reason`.
+
+**Regeneration and comparison.**
+- Only `known_gaps` changed in `data/benefits.json`, and only on N61, EP1, F51, G51, H41 and JS1.
+- Compared again against 8c315ec (a fresh `git archive` in the OS temp directory) over the same grid of 17,500 combinations: **0 totals changed and 0 firmness values changed**. These plans' totals are already 'estimated' whenever a scenario has care, and in 'nothing' the gap does not apply.
+- An extra probe adds a pharmacy-only year (one monthly generic, nothing else). Over 21,000 combinations it still has 0 total changes. Firmness goes from fixed to estimated in exactly these cases:
+  - N61, EP1, F51, G51, H41 and JS1, Self (household 1);
+  - the same six, Self Plus One and Self and Family (households 1, 2 and 3).
+- Those firmness changes come only from the pharmacy-only year: the five standard scenarios show none.
+  - The family ones were already introduced by 6ec98ab.
+  - The Self ones are new in 2458558.
+
+**474 (APWU CDHP) for Self Only: not extended.**
+- 71-004 p28 for Self Only: the $2,200 plan deductible is reduced by the $1,200 PCA, and the net deductible is $1,000.
+- The estimate does the same thing: a $2,200 deductible, then the $1,200 account subtracted. That gives the same order for Self, so the first $1,200 of care costs nothing and the next $1,000 is the member's.
+- The rule the estimate does not model is family-only, and p28 states it only for "Self Plus One or Self and Family coverage": one person meets $1,000, and the other members meet an additional $1,000.
+- So the 474 entry stays Self Plus One and Self and Family.
+- One question remains open, and it is unchanged from the earlier report. The brochure does not say whether account payments count toward the out-of-pocket limit (p31: "If you have exceeded your Personal Care Account and met your Deductible"). This affects Self too: in a worst-case year the Self estimate could be $1,200 low under one reading. That is an unstated rule, not the p28 rule, so I did not flag it. The owner may decide.
+
+**2. Hover.**
+- Removing `title` had removed the mouse tooltip. A mouse pointer over a tag now shows the same tip paragraph (`hoverTip`, class `is-hover`, which beats the global `[hidden]` rule). Leaving the tag hides it, unless a click opened it.
+- Click, tap, Enter and Space toggle it as before, and only one tip is open per card.
+- The logic moved to `src/ui/tag-tips.js`. Tests drive `toggleTip` and `hoverTip` with fake elements.
+- Browser check (800 px, dark theme, local server stopped afterwards):
+  - hovering Estimated showed the tip;
+  - moving away hid it;
+  - a click kept it open after the pointer left;
+  - Enter on the focused tag closed it, and Space opened it again;
+  - `aria-describedby` points to the tip text.
+- Not checked: real touch hardware and a screen reader.
+
+**Tests:** node 497 (was 495; +2 tag-tips tests) and pytest 304 (the fund-first test was rewritten for every enrollment). Both suites passed before each commit.
