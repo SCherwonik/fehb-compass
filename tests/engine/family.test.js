@@ -206,3 +206,20 @@ test('family fallback: no enrollment out-of-pocket max falls back to self-only a
   assert.equal(t.breakdown.familyOopMax, null);
   assert.equal(t.breakdown.members.length, 2);
 });
+
+test('carry on an aggregate HSA plan: the shared deductible and the family out-of-pocket max cap a later member', () => {
+  const benefits = {
+    account_type: 'Health Savings Account',
+    deductible: { self: 1000, family: 2000 }, oop_max: { self: 3000, family: 4000 }, coinsurance: 50, copays: {},
+  };
+  assert.equal(deductibleType(benefits), 'aggregate');
+  const big = { custom: [{ label: 'Care', kind: 'other', price: 10000, perYear: 1 }] };
+  const t = planTotal({ rate: RATES[codes[0]], benefits }, { status: 'active', enrollment: 'family', members: [{ usage: big }, { usage: big }, { usage: big }] });
+  const [a, b2, c] = t.breakdown.members;
+  assert.equal(a.deductiblePaid, 2000); // one person meets the whole family deductible
+  assert.equal(a.oop, 3000); // then stops at the self-only max
+  assert.equal(b2.deductiblePaid, 0); // the shared deductible is already met
+  assert.equal(b2.oop, 1000); // the family's $4,000 leaves $1,000
+  assert.equal(c.oop, 0);
+  assert.equal(t.oop, 4000);
+});
