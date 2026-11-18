@@ -119,9 +119,12 @@ Everything else is external (`src/`, `styles/`, `assets/`): the page loads nothi
 - Retiree estimates assume Medicare is not primary (a dismissible note says so when Retiree is picked).
 - No provider networks: check that your doctors and hospitals are in network.
 - No formulary search: each plan has a drug lookup link; you record the tier you find.
-- Each scenario is one covered person's year of care. With Self Plus One or Self and Family coverage the premium is
-  the family one, but the self-only deductible and out-of-pocket max apply to that person (shared-deductible HSA
-  plans: the family deductible, capped at the self-only max). Households where several people use care can pay more.
+- Each scenario is one person's year of care. With Self Plus One or Self and Family coverage you set up each covered
+  person's year, and the household is costed one person after another: each has their own deductible and out-of-pocket
+  max, and the family out-of-pocket max caps the sum. Regular plans are assumed to give each person their own
+  deductible (OPM's data does not say); HSA plans whose family deductible is twice the self-only one, and other
+  high-deductible plans, share one family deductible (the cautious choice). Names are saved in the page link;
+  medications are not.
 - Service areas: OPM lists regional plans by county, so your ZIP is matched to its county with the Census 2020
   ZIP-to-county file (`zip_county.json`; Census ZIP areas only approximate postal ZIPs). Plans the match cannot
   confirm (no ZIP, a PO-box ZIP, a ZIP split across counties) are marked "confirm your county" or "confirm your

@@ -19,11 +19,11 @@
 import { usdExact } from './format.js';
 import { deductibleType } from '../engine/cost.js';
 
-/** The "Deductible type" row (engine deductibleType): how a family deductible is modeled for one person's care. */
+/** The "Deductible type" row (engine deductibleType): how a family deductible is modeled for each covered person's care. */
 export const DEDUCTIBLE_TYPE_TEXT = Object.freeze({
   embedded: { display: 'Embedded (assumed)', note: 'Each person has the self-only deductible and out-of-pocket max inside the family amounts. OPM’s data does not say; this tool assumes it for every plan that is not a high-deductible plan.' },
-  aggregate: { display: 'Aggregate (shared)', note: 'An HSA plan whose family deductible is twice the self-only one: the family deductible is shared, so one person may have to meet all of it. One person’s costs still stop at the self-only out-of-pocket max.' },
-  unknown: { display: 'Unknown (modeled as shared)', note: 'A high-deductible plan whose data does not say how its family deductible works: modeled as shared, the cautious choice.' },
+  aggregate: { display: 'Aggregate (shared)', note: 'An HSA plan whose family deductible is twice the self-only one: the family deductible is shared, so one person may have to meet all of it, and the people on the enrollment share one. Each person’s costs stop at the self-only out-of-pocket max, and the family out-of-pocket max caps the total.' },
+  unknown: { display: 'Unknown (modeled as shared)', note: 'A high-deductible plan whose data does not say how its family deductible works: modeled as shared by the family, the cautious choice.' },
 });
 
 /** OPM identity columns: shown in column headers or dropped, never matrix rows. */
@@ -387,10 +387,10 @@ export function buildMatrix(plans, { enrollment = 'self', status = 'active', ext
     }
   }
 
-  // how the engine models the family deductible for one person's care (an assumption, see About)
+  // how the engine models the family deductible for each covered person's care (an assumption, see About)
   if (list.length) {
     rowsBySection.get('account').push({
-      key: 'calc:deductibleType', label: 'Deductible type', hint: 'How this tool models a family deductible for one person’s care (not an OPM field)',
+      key: 'calc:deductibleType', label: 'Deductible type', hint: 'How this tool models a family deductible for each covered person’s care (not an OPM field)',
       fields: [], source: 'extra', dir: null, seq: Infinity,
       cells: list.map((p) => {
         const t = DEDUCTIBLE_TYPE_TEXT[deductibleType(p.benefits)];
