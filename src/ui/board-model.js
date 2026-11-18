@@ -441,11 +441,12 @@ export function scopeText(mode, group) {
 }
 
 /**
- * 'per year, estimated' | 'per year, incl. dental/vision' | '..., excl. meds' | '..., excl. meds and maternity'
- * (the ranking basis, I3: medications and maternity are in the total only when priced on every plan).
+ * 'per year, estimated' | 'per year' | 'per year, incl. dental/vision' | '..., excl. meds' | '..., excl. meds and maternity'
+ * (the ranking basis, I3: medications and maternity are in the total only when priced on every plan). "estimated"
+ * follows the total's firmness, like the card's tag: a 'fixed' total ("Fixed cost") is plain "per year".
  */
 export function totalLabelOf(row, withMeds = true, withMat = true, matEstimated = false) {
-  const parts = [dvCost(row) ? dvLabel(row) : 'estimated'];
+  const parts = [dvCost(row) ? dvLabel(row) : row?.cost?.firmness === 'fixed' ? null : 'estimated'].filter(Boolean);
   const incl = [];
   const excl = [];
   if (row?.meds?.entries?.length) (withMeds ? incl : excl).push('meds');
@@ -453,7 +454,7 @@ export function totalLabelOf(row, withMeds = true, withMat = true, matEstimated 
   if (row?.maternity) (withMat && row.maternity.priced ? incl : excl).push(withMat && matEstimated ? 'maternity (some estimated)' : 'maternity');
   if (incl.length) parts.push(`incl. ${incl.join(' and ')}`);
   if (excl.length) parts.push(`excl. ${excl.join(' and ')}`);
-  return `per year, ${parts.join(', ')}`;
+  return parts.length ? `per year, ${parts.join(', ')}` : 'per year';
 }
 
 // ---------- the user's 2026 plan when it has no 2027 version (model.endedRow: isEnded, never ranked) ----------

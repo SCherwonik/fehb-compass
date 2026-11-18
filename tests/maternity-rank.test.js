@@ -24,6 +24,8 @@ const DATA = {
 };
 const BABY = CUSTOM_PRESETS.find((p) => p.id === 'baby').lines;
 const VA = { ...defaultState(), location: { state: 'VA', zip: '22302' } };
+// the caption says "estimated" only for an estimated total (a 'fixed' one has the "Fixed cost" tag)
+const est = (r) => (r.cost.firmness === 'fixed' ? '' : 'estimated, ');
 const BABY_VA = { ...VA, custom: BABY };
 const codes = (rows) => rows.map((r) => r.code);
 const PRICED = new Set(Object.entries(DATA.benefits['2027']).filter(([, b]) => b.maternity?.priced === true).map(([c]) => c));
@@ -82,7 +84,7 @@ test('every shown plan maternity-priced: maternity joins the ranking', () => {
     const ctx = boardContext(sorted, BABY_VA);
     assert.equal(ctx.withMat, true);
     for (const r of rows) {
-      assert.equal(totalLabelOf(r, true, true), 'per year, estimated, incl. maternity');
+      assert.equal(totalLabelOf(r, true, true), `per year, ${est(r)}incl. maternity`);
       assert.equal(medicalHeader(r, sorted, ctx, '').total, r.cost.total);
     }
   }
@@ -97,12 +99,12 @@ test('labels say "excl. maternity" when it is left out, combined with the meds a
   const rows = computeRows(DATA, BABY_VA);
   const priced = rows.find((r) => r.maternity.priced && r.maternity.cost > 0);
   const unpriced = rows.find((r) => !r.maternity.priced);
-  assert.equal(totalLabelOf(priced, true, false), 'per year, estimated, excl. maternity');
-  assert.equal(totalLabelOf(unpriced, true, false), 'per year, estimated, excl. maternity');
+  assert.equal(totalLabelOf(priced, true, false), `per year, ${est(priced)}excl. maternity`);
+  assert.equal(totalLabelOf(unpriced, true, false), `per year, ${est(unpriced)}excl. maternity`);
   // combined with medications left out of the ranking
   const withMedsRow = { ...priced, meds: { entries: [{}], count: 1 } };
-  assert.equal(totalLabelOf(withMedsRow, false, false), 'per year, estimated, excl. meds and maternity');
-  assert.equal(totalLabelOf(withMedsRow, true, false), 'per year, estimated, incl. meds, excl. maternity');
+  assert.equal(totalLabelOf(withMedsRow, false, false), `per year, ${est(priced)}excl. meds and maternity`);
+  assert.equal(totalLabelOf(withMedsRow, true, false), `per year, ${est(priced)}incl. meds, excl. maternity`);
   assert.equal(basisNote('excl-mat'), 'excl. maternity');
   assert.equal(basisNote('excl-meds-mat'), 'excl. medications and maternity');
   assert.equal(basisNote('excl-meds-dv-mat'), 'excl. medications, dental/vision and maternity');
@@ -192,10 +194,25 @@ test('no maternity line: rows carry no maternity part and every total is as befo
     assert.equal(r.maternity, null);
     assert.equal(rankTotal(r, true, false), rankTotal(r, true, true));
     assert.equal(baseTotal(r, false), baseTotal(r));
-    assert.equal(totalLabelOf(r, true, false), 'per year, estimated');
+    assert.equal(totalLabelOf(r, true, false), r.cost.firmness === 'fixed' ? 'per year' : 'per year, estimated');
   }
   assert.equal(maternityRanked(rows), true);
   assert.equal(rankWithMine(DATA, VA, rows).matInRank, true);
   const v = savingsVsCurrent(DATA, { ...VA, currentPlan2026: '104' }, rows);
   assert.equal(v.basis, 'total');
+});
+
+// The caption beside the total follows the same firmness as the card's tag: a 'fixed' total (no care assumed, or every
+// service a flat copay) has the "Fixed cost" tag, so its caption does not say "estimated".
+test('the total caption says "estimated" only when the total is estimated, like the tag', () => {
+  const nothing = computeRows(DATA, { ...VA, scenario: 'nothing' });
+  assert.ok(nothing.length > 10 && nothing.every((r) => r.cost.firmness === 'fixed'));
+  for (const r of nothing) assert.equal(totalLabelOf(r, true, true), 'per year', r.code);
+  const est = computeRows(DATA, { ...VA, scenario: 'worst' }).filter((r) => r.cost.firmness === 'estimated');
+  assert.ok(est.length > 10);
+  for (const r of est) assert.equal(totalLabelOf(r, true, true), 'per year, estimated', r.code);
+  // other parts still follow, after the plain caption
+  const withMeds = { ...nothing[0], meds: { entries: [{}], count: 1 } };
+  assert.equal(totalLabelOf(withMeds, false, true), 'per year, excl. meds');
+  assert.equal(totalLabelOf(withMeds, true, true), 'per year, incl. meds');
 });
