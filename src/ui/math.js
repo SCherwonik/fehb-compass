@@ -3,6 +3,8 @@
 import { h, svg } from './dom.js';
 import { effectiveUsage, describeUsage, overrideChanges, inNetworkAtMax } from './assumptions.js';
 import { personLimitsNote, rankTotal } from './model.js';
+import { memberLabel } from './members-model.js';
+import { memberBlockInput, familyInNetwork } from './math-family.js';
 import { dvMathLines } from './dental-board.js';
 import { ASSUMED_PRICES, ASSUMPTIONS_NOTE } from '../engine/assumptions.js';
 import { usd, usdExact } from './format.js';
@@ -59,32 +61,38 @@ const serviceName = (s, n) => {
   return n === 1 ? (SERVICE_SINGULAR[s.service] ?? plural) : plural;
 };
 
-/** "Toward the deductible: $250 of $3,000" with a bar of how much of it this year uses (medications' share included). */
-function deductibleLines(b, drugsDed) {
+/**
+ * "Toward the deductible: $250 of $3,000" with a bar of how much of it this year uses (medications' share included).
+ * `ctx.before` (a shared family deductible): what earlier people already used, so the bar shows the use so far.
+ */
+function deductibleLines(b, drugsDed, ctx = {}) {
   const limit = Number.isFinite(b.deductible) ? b.deductible : null;
-  const used = b.deductiblePaid;
-  const shown = used - drugsDed;
+  const before = ctx.before ?? 0;
+  const used = before + b.deductiblePaid;
+  const shown = b.deductiblePaid - drugsDed;
+  const who = ctx.shared ? ' (shared by the family)' : b.onePerson ? ' (one person)' : '';
   if (!limit) return [mathLine('Toward the deductible', usd(shown), 'math-sub'), mathLine('This plan has no deductible to meet.', '', 'math-sub math-note')];
   const pct = Math.max(0, Math.min(100, (used / limit) * 100));
   return [
-    mathLine(h('span', {}, 'Toward the deductible ', h('span', { class: 'math-how' }, `of ${usd(limit)}${b.onePerson ? ' (one person)' : ''}`)), usd(shown), 'math-sub'),
+    mathLine(h('span', {}, 'Toward the deductible ', h('span', { class: 'math-how' }, `of ${usd(limit)}${who}`)), usd(shown), 'math-sub'),
     h('div', {
       class: 'math-meter', role: 'img',
       'aria-label': `${usd(used)} of the ${usd(limit)} deductible used${drugsDed > 0 ? `, ${usd(drugsDed)} of it by your medications` : ''}`,
     }, h('i', { style: `width:${pct.toFixed(1)}%` })),
     h('p', { class: 'math-how math-meter-note' },
-      used >= limit - 0.5 ? 'Deductible fully met this year.' : `${usd(limit - used)} of the deductible is left unused${drugsDed > 0 ? `; medications used ${usd(drugsDed)} of it` : ''}.`),
+      (ctx.shared ? `The bar is the shared deductible used so far, in the order people are listed${before > 0 ? `: ${usd(before)} by those before them` : ''}. ` : '')
+      + (used >= limit - 0.5 ? 'Deductible fully met this year.' : `${usd(limit - used)} of the deductible is left unused${drugsDed > 0 ? `; medications used ${usd(drugsDed)} of it` : ''}.`)),
   ];
 }
 
 /** "Toward the out-of-pocket max: $890 of $6,000" with a bar; in-network care only (out-of-network has its own limit). */
-function oopMaxLines(b, cost, hitMax) {
+function oopMaxLines(b, cost, hitMax, label = 'Toward the out-of-pocket max') {
   const limit = Number.isFinite(b.oopMax) ? b.oopMax : null;
   if (!limit) return [mathLine('This plan lists no out-of-pocket max.', '', 'math-sub math-note')];
   const used = Math.max(0, cost.oop - (b.oonPaid || 0) - (b.notCoveredPaid || 0));
   const pct = Math.max(0, Math.min(100, (used / limit) * 100));
   return [
-    mathLine(h('span', {}, 'Toward the out-of-pocket max ', h('span', { class: 'math-how' }, `of ${usd(limit)}${b.onePerson ? ' (one person)' : ''}`)), usd(used), 'math-sub'),
+    mathLine(h('span', {}, `${label} `, h('span', { class: 'math-how' }, `of ${usd(limit)}${b.onePerson ? ' (one person)' : ''}`)), usd(used), 'math-sub'),
     h('div', { class: 'math-meter', role: 'img', 'aria-label': `${usd(used)} of the ${usd(limit)} out-of-pocket max reached` }, h('i', { style: `width:${pct.toFixed(1)}%` })),
     h('p', { class: 'math-how math-meter-note' }, hitMax
       ? `Capped: the plan pays everything in-network after this, so care costs stop at ${usd(limit)}.`
@@ -104,6 +112,68 @@ function serviceItem(s, capped) {
     capped && free && s.spend > 0 && !s.rule ? h('p', { class: 'mc-note' }, 'Nothing more to pay: the out-of-pocket max was already reached.') : null);
 }
 
+// what a person's care adds up to, before any rounding line
+const careSumOf = (b) => b.deductiblePaid - (b.drugsDeductible || 0) + b.coinsurancePaid + b.copays + (b.oonPaid || 0) + (b.drugsPaid || 0);
+
+// the services, then the own lines, then medications, as they add up to care costs (one person's, or one member's)
+function itemLines(b, medsLabel) {
+  return [
+    ...(b.services ?? []).map((s) => mathLine(
+      h('span', {}, `${s.count} × ${serviceName(s, s.count)} `, h('span', { class: 'math-how' }, `${usdExact(s.price)} billed each`)),
+      s.cost < 0.005 ? '$0' : usd(s.cost), 'math-sub math-svc-line')),
+    ...(b.custom ?? []).map((c) => mathLine(
+      h('span', {}, `${c.perYear} × ${c.label} `, h('span', { class: 'math-how' }, `${usdExact(c.price)} each`)),
+      c.unpriced ? 'not counted' : usd(c.cost), 'math-sub math-svc-line')),
+    medsLabel && mathLine(medsLabel, usd(b.drugsPaid || 0), 'math-sub math-svc-line'),
+  ];
+}
+
+/** "How that was paid:" with the deductible and out-of-pocket max bars (`ctx`: a shared deductible's use so far). */
+function paidLines(b, cost, hitMax, ctx) {
+  return [
+    h('p', { class: 'math-how math-split-h' }, 'How that was paid:'),
+    ...deductibleLines(b, b.drugsDeductible || 0, ctx),
+    mathLine('Coinsurance', usd(b.coinsurancePaid), 'math-sub'),
+    mathLine('Copays', usd(b.copays), 'math-sub'),
+    ...oopMaxLines(b, cost, hitMax),
+    b.oonPaid > 0 && mathLine('Out of network, at full cost', usd(b.oonPaid), 'math-sub'),
+  ];
+}
+
+const roundingLine = (b, oop) => Math.abs(careSumOf(b) - oop) > 1 && mathLine('Rounding', usd(oop - careSumOf(b)), 'math-sub');
+
+/** One covered person's block: their name, their care lines, and how it was paid (the deductible bar is shared on HDHPs). */
+function memberBlock(state, b, i) {
+  const { b: mb, before, shared } = memberBlockInput(b, i);
+  const cost = { oop: mb.oop, breakdown: mb };
+  const hasDrugs = (mb.drugs ?? []).length > 0 || (mb.drugsPaid || 0) > 0;
+  return h('div', { class: 'math-member' },
+    h('p', { class: 'math-h math-member-title' }, memberLabel(state, i)),
+    mathLine(h('span', {}, h('i', { class: 'dot dot-oop' }), 'Expected care costs'), `+ ${usd(mb.oop)}`),
+    ...itemLines(mb, hasDrugs && 'Medications'),
+    ...paidLines(mb, cost, inNetworkAtMax(cost), { before, shared }),
+    roundingLine(mb, mb.oop));
+}
+
+/** The "Whole family" block: the care sum, the family out-of-pocket max bar, and what limits each person. */
+function familyBlock(b, cost) {
+  const inNet = familyInNetwork(b);
+  const famMax = b.familyOopMax;
+  const shared = b.deductibleType !== 'embedded';
+  const order = b.deductibleType === 'aggregate'
+    ? 'This plan’s family deductible is shared: the first person’s care listed uses it up first, then the next.'
+    : 'The data does not say how this plan’s family deductible works, so it is treated as shared (the cautious choice): the first person’s care listed uses it up first, then the next.';
+  return h('div', { class: 'math-member math-family' },
+    h('p', { class: 'math-h math-member-title' }, 'Whole family'),
+    mathLine(h('span', {}, h('i', { class: 'dot dot-oop' }), 'Expected care costs, everyone'), `+ ${usd(cost.oop)}`),
+    ...(famMax == null
+      ? [mathLine('This plan’s data lists no family out-of-pocket max, so each person is capped at the self-only max and no family cap is applied.', '', 'math-sub math-note')]
+      : oopMaxLines({ oopMax: famMax, onePerson: false }, { oop: inNet }, inNet >= famMax - 0.5, 'Toward the family out-of-pocket max')),
+    Number.isFinite(b.oopMax) && mathLine(`No one pays more than ${usd(b.oopMax)} in-network, the self-only out-of-pocket max.`, '', 'math-sub math-note'),
+    shared && mathLine(order, '', 'math-sub math-note'),
+    roundingLine(b, cost.oop));
+}
+
 /**
  * The panel's nodes: [summary lines, notes]. `basis` = { medsInRank, matInRank, matEstimated } as the results view
  * knows them (which extras are in the ranked totals).
@@ -116,31 +186,11 @@ export function mathContent(row, state, data, basis) {
   const premiumHow = state.status === 'retiree'
     ? `${usdExact(rate.monthly_retiree)} a month × 12`
     : `${usdExact(rate.biweekly_active)} per paycheck × 26`;
-  // medications are reported as their own line; the part of the deductible they used moves with them
-  const drugsDed = b.drugsDeductible || 0;
-  const careSum = b.deductiblePaid - drugsDed + b.coinsurancePaid + b.copays + (b.oonPaid || 0) + (b.drugsPaid || 0);
-  const hitMax = inNetworkAtMax(cost); // in-network part only: OON spend has its own limit
+  const family = b.memberCount > 1;
+  const hitMax = !family && inNetworkAtMax(cost); // in-network part only: OON spend has its own limit
   const raw = row.account ? row.benefits.account_contribution?.[state.enrollment] ?? 0 : 0;
-
-  const lines = [
-    mathLine(h('span', {}, h('i', { class: 'dot dot-prem' }), 'Premium ', h('span', { class: 'math-how' }, premiumHow)), usd(cost.premium)),
-    mathLine(h('span', {}, h('i', { class: 'dot dot-oop' }), 'Expected care costs'), `+ ${usd(cost.oop)}`),
-    // what makes up that figure: each service of the scenario, "1 × Primary care visit", then your own lines
-    ...(b.services ?? []).map((s) => mathLine(
-      h('span', {}, `${s.count} × ${serviceName(s, s.count)} `, h('span', { class: 'math-how' }, `${usdExact(s.price)} billed each`)),
-      s.cost < 0.005 ? '$0' : usd(s.cost), 'math-sub math-svc-line')),
-    ...(b.custom ?? []).map((c) => mathLine(
-      h('span', {}, `${c.perYear} × ${c.label} `, h('span', { class: 'math-how' }, `${usdExact(c.price)} each`)),
-      c.unpriced ? 'not counted' : usd(c.cost), 'math-sub math-svc-line')),
-    row.meds && mathLine('Your medications', usd(b.drugsPaid || 0), 'math-sub math-svc-line'),
-    h('p', { class: 'math-how math-split-h' }, 'How that was paid:'),
-    ...deductibleLines(b, drugsDed),
-    mathLine('Coinsurance', usd(b.coinsurancePaid), 'math-sub'),
-    mathLine('Copays', usd(b.copays), 'math-sub'),
-    ...oopMaxLines(b, cost, hitMax),
-    b.oonPaid > 0 && mathLine('Out of network, at full cost', usd(b.oonPaid), 'math-sub'),
-    b.onePerson && mathLine(personLimitsNote(b), '', 'math-sub math-note math-person'),
-    Math.abs(careSum - cost.oop) > 1 && mathLine('Rounding', usd(cost.oop - careSum), 'math-sub'),
+  const premiumLine = mathLine(h('span', {}, h('i', { class: 'dot dot-prem' }), 'Premium ', h('span', { class: 'math-how' }, premiumHow)), usd(cost.premium));
+  const tail = [
     row.account && mathLine(
       h('span', {}, h('i', { class: 'dot dot-dep' }), row.account === 'HRA' ? 'HRA credit used ' : 'HSA deposit ',
         h('span', { class: 'math-how' }, row.account === 'HRA'
@@ -150,7 +200,21 @@ export function mathContent(row, state, data, basis) {
     ...dvMathLines(row.dv, mathLine),
     mathLine('Estimated yearly total', usd(cost.total), 'math-total'),
     ...(matMathLine(row, basis) ?? []),
-  ].filter(Boolean);
+  ];
+
+  // 2+ covered people: a block each, then the whole family; one person: the plain list
+  const lines = (family
+    ? [premiumLine, ...b.members.map((_, i) => memberBlock(state, b, i)), familyBlock(b, cost), ...tail]
+    : [
+      premiumLine,
+      mathLine(h('span', {}, h('i', { class: 'dot dot-oop' }), 'Expected care costs'), `+ ${usd(cost.oop)}`),
+      // what makes up that figure: each service of the scenario, "1 × Primary care visit", then your own lines
+      ...itemLines(b, row.meds && 'Your medications'),
+      ...paidLines(b, cost, hitMax, {}),
+      b.onePerson && mathLine(personLimitsNote(b), '', 'math-sub math-note math-person'),
+      roundingLine(b, cost.oop),
+      ...tail,
+    ]).filter(Boolean);
 
   const prices = Object.entries(ASSUMED_PRICES).map(([k, v]) =>
     h('li', {}, h('span', {}, PRICE_LABELS[k] ?? k), h('span', { class: 'num' }, usd(v))));

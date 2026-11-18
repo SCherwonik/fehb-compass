@@ -565,6 +565,11 @@ body:has(.tray.is-visible) .footer { padding-bottom: 104px; }
 .math-meter > i { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
 .math-meter-note { margin: 3px 0 var(--space-1) var(--space-5); }
 
+/* a covered person's block (and the whole family's) in a household's math */
+.math-member { display: grid; margin-top: var(--space-3); padding: var(--space-2) 0 var(--space-1) var(--space-3); border-left: 2px solid var(--border-strong); }
+.math-member-title { margin-top: 0; }
+.math-family { border-left-color: var(--accent); }
+
 /* no dashed rule between a line and its bar, or under a note */
 .math-line:has(+ .math-meter), .math-sub.math-note { border-bottom: 0; }
 
