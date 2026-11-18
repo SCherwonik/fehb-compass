@@ -292,11 +292,15 @@ const usd0 = (n) => `$${Math.round(n).toLocaleString('en-US')}`;
  * Out-of-network lines are paid in full (OPM lists no out-of-network cost sharing), counted against the plan's
  * out-of-network OOP max when it lists one, and kept apart from the in-network deductible and OOP max.
  */
-export function expectedOop(benefits, usage, assumptions = {}, drugs = []) {
+export function expectedOop(benefits, usage, assumptions = {}, drugs = [], carry = null) {
   const prices = { ...ASSUMED_PRICES, ...(assumptions.prices || {}) };
   const oopMax = benefits.oopMax == null ? Infinity : benefits.oopMax;
   const oonMax = benefits.oon?.oopMax == null ? Infinity : benefits.oon.oopMax;
-  let dedLeft = benefits.deductible || 0;
+  // A running family tally (see planTotal): what earlier members already paid this year.
+  const famMax = fin(benefits.familyOopMax) ? benefits.familyOopMax : Infinity;
+  const famOonMax = fin(benefits.oon?.familyOopMax) ? benefits.oon.familyOopMax : Infinity;
+  const dedUsed = carry?.dedUsed || 0, oopUsed = carry?.oopUsed || 0, oonUsed = carry?.oonUsed || 0;
+  let dedLeft = Math.max(0, (benefits.deductible || 0) - dedUsed);
   const defaultDed = benefits.deductibleDefault === true;
   let deductiblePaid = 0, coinsurancePaid = 0, copays = 0, total = 0, oonPaid = 0;
   let drugsPaid = 0, drugsDeductible = 0, notCoveredPaid = 0;
@@ -338,7 +342,7 @@ export function expectedOop(benefits, usage, assumptions = {}, drugs = []) {
   };
 
   const take = (amount) => {
-    const a = Math.max(0, Math.min(amount, oopMax - total));
+    const a = Math.max(0, Math.min(amount, oopMax - total, famMax - oopUsed - total));
     total += a;
     return a;
   };
@@ -405,7 +409,7 @@ export function expectedOop(benefits, usage, assumptions = {}, drugs = []) {
 
     if (custom && e.oon) {
       flat = false;
-      const a = Math.max(0, Math.min(price, oonMax - oonPaid));
+      const a = Math.max(0, Math.min(price, oonMax - oonPaid, famOonMax - oonUsed - oonPaid));
       oonPaid += a;
       lines[e.line].cost += a;
       lineWarn(e, Number.isFinite(oonMax)
@@ -531,6 +535,8 @@ export function expectedOop(benefits, usage, assumptions = {}, drugs = []) {
     unpriced: lines.some((L) => L.unpriced) ? ['maternity'] : [],
     // kinds in the total as an estimate (stated terms plus MATERNITY_ASSUMPTIONS), e.g. ['maternity']
     estimated: lines.some((L) => L.estimated) ? ['maternity'] : [],
+    // the family's running tally after this person (planTotal passes it to the next member)
+    carryOut: { dedUsed: dedUsed + deductiblePaid, oopUsed: oopUsed + total, oonUsed: oonUsed + oonPaid },
   };
 }
 
@@ -547,7 +553,26 @@ function isHra(plan) {
   return /^hra$|reimbursement/i.test(String(t));
 }
 
+const sumC = (list, f) => cents(list.reduce((a, x) => a + f(x), 0));
+
+/** Merge per-member services by service|label: counts, billed totals and costs add up. */
+function mergeServices(lists) {
+  const m = new Map();
+  for (const s of lists.flat()) {
+    const k = `${s.service}|${s.label}`;
+    const t = m.get(k);
+    if (!t) m.set(k, { ...s });
+    else { t.count += s.count; t.spend = cents(t.spend + s.spend); t.cost = cents(t.cost + s.cost); }
+  }
+  return [...m.values()];
+}
+
 export function planTotal(plan, inputs) {
+  const members = Array.isArray(inputs.members) ? inputs.members : null;
+  if (members && members.length >= 2) return familyTotal(plan, inputs, members);
+  if (members && members.length === 1) {
+    inputs = { ...inputs, usage: members[0].usage ?? inputs.usage, drugs: members[0].drugs ?? inputs.drugs };
+  }
   const { status, enrollment, usage, assumptions = {}, drugs = [] } = inputs;
   const premium = annualPremium(plan.rate, { status, enrollment });
   const resolved = resolveBenefits(plan.benefits, enrollment);
@@ -589,5 +614,80 @@ export function planTotal(plan, inputs) {
       warnings: o.warnings,
     },
     firmness,
+  };
+}
+
+/**
+ * Two or more covered people, costed one at a time with a running family tally (each member's `carryOut` goes to the
+ * next). Embedded plans: every member has the self-only deductible (so the tally's deductible is not carried) and
+ * the family's out-of-pocket max caps the sum. Aggregate / unknown HDHPs: one shared deductible, carried.
+ * No family out-of-pocket max (or out-of-network max) in the data: no family cap, each person still capped alone;
+ * for the in-network max that is flagged `breakdown.familyFallback`.
+ */
+function familyTotal(plan, inputs, members) {
+  const { status, enrollment, assumptions = {} } = inputs;
+  const premium = annualPremium(plan.rate, { status, enrollment });
+  const resolved = resolveBenefits(plan.benefits, enrollment);
+  const person = personLimits(plan.benefits, enrollment);
+  const familyOopMax = fin(resolved.oopMax) ? resolved.oopMax : null;
+  const b = {
+    ...resolved, deductible: person.deductible, oopMax: person.oopMax, familyOopMax,
+    oon: { ...person.oon, familyOopMax: fin(resolved.oon?.oopMax) ? resolved.oon.oopMax : null },
+  };
+  const embedded = person.type === 'embedded';
+  let carry = { dedUsed: 0, oopUsed: 0, oonUsed: 0 };
+  const rows = [];
+  let flat = true;
+  for (const m of members) {
+    const o = expectedOop(b, m.usage ?? {}, assumptions, m.drugs ?? [], { ...carry, dedUsed: embedded ? 0 : carry.dedUsed });
+    carry = o.carryOut;
+    if (!o.flat) flat = false;
+    rows.push({
+      oop: o.total, deductiblePaid: o.deductiblePaid, coinsurancePaid: o.coinsurancePaid, copays: o.copays,
+      oonPaid: o.oonPaid, services: o.services, drugs: o.drugs, drugsPaid: o.drugsPaid, drugsDeductible: o.drugsDeductible,
+      notCoveredPaid: o.notCoveredPaid, custom: o.custom, unpriced: o.unpriced, estimated: o.estimated, warnings: o.warnings,
+      oonEstimate: o.oonEstimate,
+    });
+  }
+  const oop = sumC(rows, (r) => r.oop);
+  const deposit = inputs.hsaDeposit ?? plan.account?.[enrollment] ?? 0;
+  const hra = isHra(plan);
+  const cap = Math.max(0, deposit || 0);
+  const hsaOffset = hra ? cents(Math.min(cap, oop)) : cap;
+  const warnings = [...new Set(rows.flatMap((r) => r.warnings))];
+  const union = (k) => [...new Set(rows.flatMap((r) => r[k]))];
+  return {
+    premium,
+    oop,
+    hsaOffset,
+    total: cents(premium + oop - hsaOffset),
+    breakdown: {
+      deductiblePaid: sumC(rows, (r) => r.deductiblePaid),
+      coinsurancePaid: sumC(rows, (r) => r.coinsurancePaid),
+      copays: sumC(rows, (r) => r.copays),
+      deductible: person.deductible,
+      oopMax: person.oopMax,
+      enrollmentDeductible: resolved.deductible,
+      enrollmentOopMax: resolved.oopMax,
+      deductibleType: person.type,
+      onePerson: false,
+      memberCount: members.length,
+      familyOopMax,
+      familyFallback: familyOopMax === null,
+      accountType: hra ? 'HRA' : 'HSA',
+      oonPaid: sumC(rows, (r) => r.oonPaid),
+      oonEstimate: rows.some((r) => r.oonEstimate),
+      services: mergeServices(rows.map((r) => r.services)),
+      drugs: rows.flatMap((r) => r.drugs),
+      drugsPaid: sumC(rows, (r) => r.drugsPaid),
+      drugsDeductible: sumC(rows, (r) => r.drugsDeductible),
+      notCoveredPaid: sumC(rows, (r) => r.notCoveredPaid),
+      custom: rows.flatMap((r) => r.custom),
+      unpriced: union('unpriced'),
+      estimated: union('estimated'),
+      warnings,
+      members: rows.map(({ oonEstimate, ...r }) => r),
+    },
+    firmness: warnings.length === 0 && flat ? 'fixed' : 'estimated',
   };
 }
