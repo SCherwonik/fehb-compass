@@ -19,6 +19,7 @@ import { createRxCard, updateRxCard } from './rx-card.js';
 import { badgeEl } from './rx-render.js';
 import { overrideBadge } from './matrix-model.js';
 import { mathContent, ICON_WARN } from './math.js';
+import { estimatedTitle } from './math-family.js';
 
 const UI_KEY = 'fehb-compass:results-ui:v1';
 const ENROLLMENT_TEXT = { self: 'self only', self_plus_one: 'self plus one', family: 'family' };
@@ -379,7 +380,7 @@ export function createResults(main, { store, onRanked }) {
     }, `${matCost > 0 ? '+ ' : ''}${usd(matCost)} maternity${matEst ? ' (estimated)' : ''}${matInRank ? ', in total' : ''}`);
     const st = state.location.state;
     const area = areaChip(row, st ? STATE_NAMES[st] ?? st : null, st ? state.location.zip : null, data.zipCounty ?? null);
-    const key = `${ended ? 'ended' : ''}${row.isMine ? `mine:${mineWhere}:${rankTag}` : ''}|${vsMine}:${vsExcl}|${row.cost.firmness}|${row.diff.status}|${row.diff.flags.join(',')}|${oon}:${unpriced}:${gapText}:${matCost}:${matEst}:${matInRank}|${area?.title ?? ''}`;
+    const key = `${ended ? 'ended' : ''}${row.isMine ? `mine:${mineWhere}:${rankTag}` : ''}|${vsMine}:${vsExcl}|${row.cost.firmness}:${row.cost.firmness === 'fixed' ? '' : estimatedTitle(row.cost.breakdown)}|${row.diff.status}|${row.diff.flags.join(',')}|${oon}:${unpriced}:${gapText}:${matCost}:${matEst}:${matInRank}|${area?.title ?? ''}`;
     if (key !== rec.chipsKey) {
       rec.chipsKey = key;
       const items = ended ? [
@@ -388,7 +389,7 @@ export function createResults(main, { store, onRanked }) {
         h('li', { class: 'tag', title: 'Premium and benefits from OPM’s 2026 files: this plan has no 2027 version.' }, '2026 rates'),
         row.cost.firmness === 'fixed'
           ? h('li', { class: 'tag tag-fixed', title: 'Every service in this scenario is a flat copay, so this total does not depend on assumed prices.' }, 'Fixed cost')
-          : h('li', { class: 'tag tag-est', title: 'Part of this total depends on assumed prices for care. See the math.' }, 'Estimated'),
+          : h('li', { class: 'tag tag-est', title: estimatedTitle(row.cost.breakdown) }, 'Estimated'),
         oon && h('li', { class: 'tag tag-warn', title: 'Out-of-network lines are counted at full cost: OPM publishes no out-of-network cost sharing. See the math.' },
           svg(ICON_WARN), 'Out-of-network estimate'),
         unpricedTag,
@@ -402,7 +403,7 @@ export function createResults(main, { store, onRanked }) {
           deltaTone(vsMine) === 'flat' ? `Same as your plan${vsExcl ? ` (${vsExcl})` : ''}` : `${signedUsd(vsMine)} vs your plan${vsExcl ? ` (${vsExcl})` : ''}`),
         row.cost.firmness === 'fixed'
           ? h('li', { class: 'tag tag-fixed', title: 'Every service in this scenario is a flat copay, so this total does not depend on assumed prices.' }, 'Fixed cost')
-          : h('li', { class: 'tag tag-est', title: 'Part of this total depends on assumed prices for care. See the math.' }, 'Estimated'),
+          : h('li', { class: 'tag tag-est', title: estimatedTitle(row.cost.breakdown) }, 'Estimated'),
         oon && h('li', { class: 'tag tag-warn', title: 'Out-of-network lines are counted at full cost: OPM publishes no out-of-network cost sharing. See the math.' },
           svg(ICON_WARN), 'Out-of-network estimate'),
         unpricedTag,

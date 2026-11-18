@@ -707,6 +707,8 @@ export function planTotal(plan, inputs) {
       unpriced: o.unpriced,
       estimated: o.estimated,
       warnings: o.warnings,
+      // part of the total depends on assumed prices (or could not be priced): what 'estimated' means without a gap
+      pricesMatter: !(o.warnings.length === 0 && o.flat),
       ...(gaps.length > 0 && { gaps }),
     },
     firmness,
@@ -790,6 +792,7 @@ function familyTotal(plan, inputs, members) {
       unpriced: union('unpriced'),
       estimated: union('estimated'),
       warnings,
+      pricesMatter: !(warnings.length === 0 && flat),
       ...(gaps.length > 0 && { gaps }),
       members: rows.map(({ oonEstimate, ...r }) => r),
     },

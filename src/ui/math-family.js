@@ -123,3 +123,22 @@ export function gapFirmness(gaps) {
     .filter(Boolean).join(', and ');
   return `Estimated: ${why} (see the note below), and part of it may depend on the assumed prices listed below.`;
 }
+
+/**
+ * The card's "Estimated" tag tooltip, naming the real reason(s) from planTotal's breakdown: a known gap (a brochure
+ * cost the total leaves out), a brochure that contradicts itself, a brochure rule the estimate does not model, and
+ * assumed prices (`pricesMatter`; absent counts as true). Assumed prices alone keep the plain sentence.
+ */
+export function estimatedTitle(b) {
+  const gaps = b?.gaps ?? [];
+  const prices = b?.pricesMatter !== false;
+  const why = [
+    gaps.some((g) => LEFT_OUT.has(g.kind)) && 'this total leaves out a cost the plan’s brochure lists (a known gap)',
+    gaps.some((g) => g.kind === 'conflict') && 'the plan’s brochure contradicts itself about a figure this total uses',
+    gaps.some((g) => g.kind === 'rule_differs') && 'the plan’s brochure describes a rule this estimate does not model',
+  ].filter(Boolean);
+  if (!why.length) return 'Part of this total depends on assumed prices for care. See the math.';
+  if (prices) why.push('part of it depends on assumed prices for care');
+  const text = why.length < 3 ? why.join(', and ') : `${why.slice(0, -1).join(', ')}, and ${why.at(-1)}`;
+  return `Estimated: ${text}. See the math.`;
+}
