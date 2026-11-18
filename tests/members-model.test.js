@@ -126,3 +126,11 @@ test('makeRow applies a member-2 medication to member 2 only', () => {
   const beyond = makeRow(data, { ...VA }, '401');
   assert.equal(beyond.cost.total, beyond.baseTotal, 'member beyond the count is left out');
 });
+
+test('makeRow: a drug for a person beyond the enrollment is not priced and does not block ranking with medications', () => {
+  const drugs = [{ id: 'a1', name: 'Statin', monthlyCost: 300, fillsPerYear: 12, channel: 'retail30', member: 3 }];
+  const data = { ...DATA, brochure: FACTS, meds: { drugs, records: {} } };
+  const s = { ...VA, enrollment: 'self_plus_one', others: [{ name: '', scenario: 'typical', overrides: {} }] };
+  assert.equal(makeRow(data, s, '401').meds, null, 'dimmed drug: no meds on the row');
+  assert.ok(makeRow(data, { ...s, enrollment: 'family', familySize: 4 }, '401').meds, 'covered again at 4 people');
+});

@@ -144,7 +144,10 @@ export function makeRow(data, state, code) {
   const input = planInput(data, 2027, code);
   if (!meta || !input || !input.rate[state.enrollment]) return null;
   const inputs = costInputs(state);
-  const meds = data.meds ? planMeds(data.brochure ?? null, data.meds, code, input.benefits) : null;
+  // drugs for a person beyond the enrollment are left out entirely (not priced, not counted as unpriced)
+  const count = memberCount(state);
+  const covered = data.meds?.drugs?.filter((d) => !(Number.isInteger(d?.member) && d.member >= count));
+  const meds = covered?.length ? planMeds(data.brochure ?? null, { ...data.meds, drugs: covered }, code, input.benefits) : null;
   let cost;
   let base;
   try {
