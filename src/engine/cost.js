@@ -45,7 +45,7 @@ const fin = (v) => typeof v === 'number' && Number.isFinite(v);
  */
 /** Plans whose brochure or summary words the family deductible unclearly (modeled by deductibleType all the same). */
 export const UNCLEAR_FAMILY_DEDUCTIBLE = Object.freeze({
-  WX1: 'Its 2026 summary of benefits says each family member meets their own deductible until the family total is met, which does not fit the IRS family minimum for an HSA plan, so its wording is unclear',
+  WX1: 'Its 2026 summary of benefits says each family member meets their own deductible until the family total is met, which does not fit the IRS family minimum for an HSA plan',
 });
 
 export function deductibleType(benefits) {
