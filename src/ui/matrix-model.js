@@ -40,7 +40,12 @@ const where = (s) => (s && s.brochure && Number.isFinite(s.page) ? ` (brochure $
 export function deductibleTypeText(benefits, enrollment = 'family') {
   const type = deductibleType(benefits);
   if (type === 'embedded' && benefits?.deductible_rule_source) {
-    return { display: 'Embedded (per person, brochure)', note: `${EMBEDDED_RULE} This plan’s brochure states the per-person deductible rule${where(benefits.deductible_rule_source)}.` };
+    // a known gap saying the brochure's rule is one the estimate does not model (474's account-first net deductible)
+    const differs = (benefits.known_gaps ?? []).find((g) => g?.kind === 'rule_differs' && g.affects_cost === true);
+    const exception = differs
+      ? ` Exception: this plan’s brochure describes its deductible in a way this tool does not model; “See the math” says how${where(differs)}.`
+      : '';
+    return { display: 'Embedded (per person, brochure)', note: `${EMBEDDED_RULE} This plan’s brochure states the per-person deductible rule${where(benefits.deductible_rule_source)}.${exception}` };
   }
   if (type === 'individual') {
     const k = enrollment === 'self_plus_one' ? 'self_plus_one' : 'family';

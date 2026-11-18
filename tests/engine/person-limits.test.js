@@ -105,6 +105,14 @@ test('See the math explains the one-person modeling, and the matrix shows the de
   assert.match(row.cells[0].note, /brochure 71-017, page 29/);
   assert.match(row.cells[3].note, /does not state it/);
   assert.doesNotMatch(row.cells[3].note, /brochure \d/);
+  // GG4 (73-849 p24): "$350 per person under self only enrollment" only: assumed
+  const gg = buildMatrix(['GG4', '474'].map((code) => ({ code, benefits: benefits[2027][code] })), { enrollment: 'family' })
+    .find((s) => s.id === 'account').rows.find((r) => r.key === 'calc:deductibleType');
+  assert.equal(gg.cells[0].display, 'Embedded (assumed)');
+  // 474: the brochure states a per-person net deductible, but its known gap says the estimate models it differently
+  assert.equal(gg.cells[1].display, 'Embedded (per person, brochure)');
+  assert.match(gg.cells[1].note, /Exception: .*does not model.*See the math.*brochure 71-004, page 28/);
+  assert.doesNotMatch(row.cells[0].note, /Exception/);
   assert.equal(row.differs, true);
 });
 
