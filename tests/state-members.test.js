@@ -83,8 +83,24 @@ test('a fresh Family choice writes explicit Typical members and round-trips with
 
 test('mb present but every entry malformed: not a legacy link, others default to Typical', () => {
   const s = decodeState('e=f&mb=zz&mb=%');
-  assert.deepEqual(s.others, []);
-  assert.deepEqual(sanitizeState(s).others, []);
+  const dflt = { name: '', scenario: 'typical', overrides: {} };
+  assert.deepEqual(s.others, [dflt, dflt]);
+  assert.deepEqual(sanitizeState(s).others, [dflt, dflt]);
+});
+
+test('a malformed mb entry decodes to a default member, so later people keep their positions', () => {
+  const s = decodeState('e=f&mb=w__Ann&mb=zz&mb=h_p2_Cy&mb=' + 'x'.repeat(401));
+  assert.deepEqual(s.others.map((o) => o.name), ['Ann', '', 'Cy', '']);
+  assert.deepEqual(s.others.map((o) => o.scenario), ['worst', 'typical', 'healthy', 'typical']);
+  assert.deepEqual(s.others[2].overrides, { pcpVisits: 2 });
+});
+
+test('shared bounds: family size and member names use the exported constants', async () => {
+  const { MIN_FAMILY, MAX_MEMBERS, MAX_MEMBER_NAME } = await import('../src/state.js');
+  assert.equal(sanitizeState({ familySize: 1 }).familySize, MIN_FAMILY);
+  assert.equal(sanitizeState({ familySize: 99 }).familySize, MAX_MEMBERS);
+  const long = 'a'.repeat(MAX_MEMBER_NAME + 5);
+  assert.equal(sanitizeState({ others: [{ name: long }] }).others[0].name.length, MAX_MEMBER_NAME);
 });
 
 test('a legacy link near the hash budget keeps every inline custom line when re-encoded', () => {

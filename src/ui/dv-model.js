@@ -275,7 +275,7 @@ export function dvSections(fv, kind, ctx) {
       {
         key: 'total', label: 'Estimated total', strong: true, best: 'min', keep: true,
         hint: kind === 'dental'
-          ? 'Yearly premium plus what one person pays for the usage you picked, at assumed prices, after the deductible, coinsurance and maximums.'
+          ? 'Yearly premium for your coverage level plus one person’s out-of-pocket for the usage you picked (not multiplied by the people covered), at assumed prices, after the deductible, coinsurance and maximums.'
           : 'Yearly premium plus the copays OPM’s text states for the usage you picked.',
         cell: (r, c) => totalCell(r, c),
       },

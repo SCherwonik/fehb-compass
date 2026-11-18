@@ -2,17 +2,13 @@
 // many people it covers. Each person is one collapsible row (only one open at a time) holding their name, their
 // expected-care scenario and their own fine-tune sliders. You are member 1 and stay in state.scenario /
 // state.overrides; everyone else lives in state.others[i - 1]. Names are typed text and only ever shown as text.
-import { h, svg } from './dom.js';
+import { h, svg, ICON_CHEV, ICON_MINUS, ICON_PLUS } from './dom.js';
 import { segmented } from './inputs.js';
 import { createFineTune, SCENARIO_OPTIONS } from './fine-tune.js';
-import { memberCount, MAX_MEMBERS } from '../state.js';
+import { memberCount, MAX_MEMBERS, MIN_FAMILY, MAX_MEMBER_NAME } from '../state.js';
 import { memberView, memberLabel, memberPatch, setFocusedMember } from './members-model.js';
 import { reduceMotion, EASE_OUT } from './motion.js';
 
-const ICON_CHEV = '<svg viewBox="0 0 16 16" aria-hidden="true" class="icon-chev"><path d="M4 6l4 4 4-4"/></svg>';
-const ICON_MINUS = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8h9"/></svg>';
-const ICON_PLUS = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9"/></svg>';
-const MAX_NAME = 20;
 const SCENARIO_LABEL = Object.fromEntries(SCENARIO_OPTIONS);
 
 export const NAME_PRIVACY = 'Names are saved in the page link and in links you share, so a first name or a role such as Spouse is enough.';
@@ -21,7 +17,6 @@ export const NAME_PRIVACY = 'Names are saved in the page link and in links you s
  * createMembersSection({ store }) -> { el, sync(state) }
  */
 export function createMembersSection({ store }) {
-  const MIN_FAMILY = 3;
   const stepVal = h('output', { class: 'mb-step-val num', 'aria-live': 'polite' });
   const stepLabel = h('span', { class: 'field-label mb-step-label', id: 'mb-size-label' }, 'How many covered people');
   const minus = h('button', { type: 'button', class: 'ft-step mb-step', 'aria-label': 'Fewer covered people' }, svg(ICON_MINUS));
@@ -46,7 +41,7 @@ export function createMembersSection({ store }) {
   /** rows[i]: { el, toggle, body, nameEl, nameIn, scenario, fine, desc } built the first time member i is shown */
   const rows = [];
   let open = 0;
-  let last = null;
+  let first = true;
 
   function makeRow(i) {
     const id = `mb-${i}`;
@@ -68,7 +63,7 @@ export function createMembersSection({ store }) {
     const parts = [];
     if (i > 0) {
       nameIn = h('input', {
-        type: 'text', class: 'cl-input mb-name-in', id: `${id}-name`, maxlength: String(MAX_NAME), autocomplete: 'off',
+        type: 'text', class: 'cl-input mb-name-in', id: `${id}-name`, maxlength: String(MAX_MEMBER_NAME), autocomplete: 'off',
         'aria-describedby': `${id}-name-hint`, placeholder: `Person ${i + 1}`,
       });
       parts.push(h('div', { class: 'field mb-name-field' },
@@ -82,6 +77,7 @@ export function createMembersSection({ store }) {
     const body = h('div', { class: 'mb-body', id: `${id}-body`, role: 'group', 'aria-labelledby': `${id}-title`, hidden: true },
       h('div', { class: 'mb-inner' }, parts));
     nameEl.id = `${id}-title`;
+    // h4: this section sits under the "Your year" group, whose title is an h3 (inputs.js group())
     const rowEl = h('li', { class: 'mb-row' }, h('h4', { class: 'mb-h' }, toggle), body);
 
     scenario.el.addEventListener('change', (e) => {
@@ -141,8 +137,8 @@ export function createMembersSection({ store }) {
       const text = r.fine.describe(v);
       if (r.desc.textContent !== text) r.desc.textContent = text;
     });
-    if (last === null) setFocusedMember(open < 0 ? 0 : open);
-    last = n;
+    if (first) setFocusedMember(open < 0 ? 0 : open);
+    first = false;
   }
 
   return { el, sync };
