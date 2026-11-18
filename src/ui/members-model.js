@@ -64,5 +64,8 @@ const focus = { index: 0 };
 export const setFocusedMember = (i) => { focus.index = Number.isInteger(i) && i >= 0 ? i : 0; };
 export const focusedMember = (state) => Math.min(focus.index, memberCount(state) - 1);
 
-/** A key that changes when the names or the count do, so pickers rebuild only then. */
+/** True when two [[value, label]] lists carry the same values in the same order (labels may differ). */
+export const sameOptionValues = (a, b) => a.length === b.length && a.every((o, i) => o[0] === b[i][0]);
+
+/** A key that changes when the names or the count do, so pickers repaint only then. */
 export const memberKey = (state) => memberOptions(state).map(([, l]) => l).join('\u0001');

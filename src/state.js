@@ -43,11 +43,12 @@
 // Every field is validated independently; a malformed or unknown value falls back to its default.
 // Fine-tune overrides: o=h3.e2 (field letter + count). Custom lines go last, one `l` param each:
 //   l=<kind letter><price>_<perYear><flags>_<label>   flags: 'o' out-of-network, 't<n>' drug tier, 'm<n>' member
+//   (links made before this format used cl=<kind>_<price>_<perYear>_<flags>_<label>; still decoded)
 // Family: fs=<n> (family size, only when family and not 4); one mb=<scenario letter>_<overrides>_<name> per covered
 //   person beyond you (name = everything after the second '_'); entries equal to the default are still written to keep
-//   positions, and people not set up yet are written as the default (Typical). A Self Plus One / Family link with no
+//   positions, and people not set up yet are written as the default (Typical). A malformed `mb` entry decodes to
+//   a default member (so later people keep their positions). A Self Plus One / Family link with no
 //   `mb` at all was made before households: decode puts its other people on 'nothing', so its total is unchanged.
-//   (links made before this format used cl=<kind>_<price>_<perYear>_<flags>_<label>; still decoded)
 // When the lines would push the hash past HASH_BUDGET chars, the ones that do not fit are saved in localStorage
 // (OVERFLOW_KEY, keyed by a signature of the inline lines) and `cx=N` records how many; the same browser restores
 // them; any other browser gets the inline lines only, and decode reports the rest in `droppedCustom`.
@@ -64,7 +65,10 @@ export const OVERFLOW_KEY = 'fehb-compass:custom-overflow:v1';
 export const HASH_BUDGET = 1500;
 /** Most people on one enrollment (you plus up to 7 others). */
 export const MAX_MEMBERS = 8;
-const MAX_NAME = 20;
+/** Fewest people on a Family enrollment (familySize runs MIN_FAMILY..MAX_MEMBERS). */
+export const MIN_FAMILY = 3;
+/** Longest name typed for a person beyond you (plain text). */
+export const MAX_MEMBER_NAME = 20;
 
 export const DEFAULT_STATE = Object.freeze({
   status: 'active',
@@ -192,7 +196,7 @@ function validOthers(v) {
     const o = x && typeof x === 'object' ? x : {};
     const scenario = pickEnum(o.scenario, SCENARIOS, DEFAULT_STATE.scenario);
     return {
-      name: plainText(o.name, MAX_NAME),
+      name: plainText(o.name, MAX_MEMBER_NAME),
       scenario,
       overrides: pruneOverrides(sanitizeOverrides(o.overrides), SCENARIOS[scenario]),
     };
@@ -213,7 +217,7 @@ export function sanitizeState(input) {
     currentPlan2026: validPlan(s.currentPlan2026),
     scenario,
     overrides: pruneOverrides(sanitizeOverrides(s.overrides), SCENARIOS[scenario]),
-    familySize: Number.isFinite(s.familySize) ? Math.min(MAX_MEMBERS, Math.max(3, Math.round(s.familySize))) : DEFAULT_STATE.familySize,
+    familySize: Number.isFinite(s.familySize) ? Math.min(MAX_MEMBERS, Math.max(MIN_FAMILY, Math.round(s.familySize))) : DEFAULT_STATE.familySize,
     others: validOthers(s.others),
     custom: sanitizeLines(s.custom),
     dental: s.dental === true,
@@ -280,10 +284,18 @@ function encodeLine(l) {
   return `${KIND[l.kind]}${l.price}_${l.perYear}${flags}_${l.label}`;
 }
 
-function decodeLine(str) {
-  if (typeof str !== 'string' || str.length > 400) return null;
+/** Longest encoded entry (one `l`, `cl` or `mb` param) decoded; longer ones are treated as malformed. */
+const MAX_ENTRY = 400;
+/** An encoded entry split on '_' into at least `min` parts, or null (not a string, too long, too few parts). */
+function entryParts(str, min) {
+  if (typeof str !== 'string' || str.length > MAX_ENTRY) return null;
   const parts = str.split('_');
-  if (parts.length < 3) return null;
+  return parts.length < min ? null : parts;
+}
+
+function decodeLine(str) {
+  const parts = entryParts(str, 3);
+  if (!parts) return null;
   const head = parts[0].match(/^([a-z])(\d+(?:\.\d+)?)$/);
   const mid = parts[1].match(/^(\d+)(o?)(?:t(\d))?(?:m(\d))?$/);
   if (!head || !mid || !has(KIND_IN, head[1])) return null;
@@ -296,9 +308,8 @@ function decodeLine(str) {
 
 /** Lines from links made before the compact format: 'kind_price_perYear_flags_label' in `cl` params. */
 function decodeLegacyLine(str) {
-  if (typeof str !== 'string' || str.length > 400) return null;
-  const parts = str.split('_');
-  if (parts.length < 5) return null;
+  const parts = entryParts(str, 5);
+  if (!parts) return null;
   const [k, price, perYear, flags] = parts;
   if (!has(KIND_IN, k) || !/^(o?)(t\d)?$/.test(flags)) return null;
   const NUM = /^\d+(\.\d+)?$/;
@@ -314,10 +325,10 @@ function encodeOverrides(o) {
   return Object.entries(OVERRIDE).filter(([k]) => has(o, k)).map(([k, c]) => `${c}${o[k]}`).join('.');
 }
 
+/** One `mb` entry -> a member; a malformed entry is a default member (not dropped), so later people keep their positions. */
 function decodeMember(str) {
-  if (typeof str !== 'string' || str.length > 400) return null;
-  const parts = str.split('_');
-  if (parts.length < 3 || !has(SCENARIO_IN, parts[0])) return null;
+  const parts = entryParts(str, 3);
+  if (!parts || !has(SCENARIO_IN, parts[0])) return { name: '', scenario: DEFAULT_STATE.scenario, overrides: {} };
   return { name: parts.slice(2).join('_'), scenario: SCENARIO_IN[parts[0]], overrides: decodeOverrides(parts[1]) };
 }
 
@@ -466,7 +477,7 @@ export function decodeState(hash, opts = {}) {
     scenario: has(SCENARIO_IN, one('sc')) ? SCENARIO_IN[one('sc')] : undefined,
     overrides: decodeOverrides(one('o')),
     familySize: /^\d$/.test(one('fs') ?? '') ? Number(one('fs')) : undefined,
-    others: p.getAll('mb').slice(0, MAX_MEMBERS - 1).map(decodeMember).filter(Boolean),
+    others: p.getAll('mb').slice(0, MAX_MEMBERS - 1).map(decodeMember),
     custom,
     dental: one('d') === '1',
     selectedPlans: (one('p') ?? '').split(',').filter(Boolean),

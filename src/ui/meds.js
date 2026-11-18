@@ -1,6 +1,6 @@
 // "My medications" panel (input area), the GLP-1 filter chip and the global wiring for the tier pickers that
 // cards, the board, the compare view and the quick look-up render. Private data: see meds-store.js.
-import { h, svg, ICON_CHECK, ICON_CHEVRON } from './dom.js';
+import { h, svg, setOptions, ICON_CHECK, ICON_CHEVRON } from './dom.js';
 import { MAX_DRUGS, MAX_NAME } from './meds-store.js';
 import { rxFor, glp1Status, planMeds } from './rx-model.js';
 import { availablePlans } from './model.js';
@@ -184,8 +184,7 @@ export function createMedsPanel({ meds, store }) {
     if (!state) return;
     const opts = memberOptions(state);
     if (want >= people.count) opts.push([String(want), `${memberLabel(state, want)} (not covered)`]);
-    forSel.replaceChildren(...opts.map(([v, t]) => h('option', { value: v }, t)));
-    forSel.value = String(want);
+    setOptions(forSel, opts, want);
   }
   /** New drugs are for the person whose row is open in "Covered people" (you when there is only you). */
   const defaultFor = () => (store && people.count > 1 ? focusedMember(store.get()) : 0);
@@ -292,13 +291,18 @@ export function createMedsPanel({ meds, store }) {
     setTimeout(() => { label.textContent = 'Copy name'; copy.classList.remove('is-done'); }, 1600);
   });
 
+  const forText = (d) => {
+    const m = memberOf(d);
+    return isUncovered(d, people.count) ? `For ${memberLabel(store.get(), m)}. Not covered at this enrollment` : `For ${memberLabel(store.get(), m)}`;
+  };
+
   function drugRow(d) {
     const m = memberOf(d);
     const off = isUncovered(d, people.count); // also in Self: the drug is out of the totals, say so
     return h('li', { class: `md-drug${off ? ' is-uncovered' : ''}`, 'data-id': d.id },
       h('div', { class: 'md-drug-main' },
         h('span', { class: 'md-drug-name' }, d.name),
-        (people.count > 1 || off) && h('span', { class: 'md-drug-for' }, off ? `For ${memberLabel(store.get(), m)}. Not covered at this enrollment` : `For ${memberLabel(store.get(), m)}`),
+        (people.count > 1 || off) && h('span', { class: 'md-drug-for' }, forText(d)),
         h('span', { class: 'md-drug-meta' }, [
           d.monthlyCost != null ? `${usdExact(fillPriceOf(d))} for ${daysOf(d.channel)} days` : 'no price',
           `${d.fillsPerYear} ${d.fillsPerYear === 1 ? 'fill' : 'fills'} a year${NINETY.has(d.channel) && d.fillsPerYear > 4 ? ' (over a year of 90-day fills?)' : ''}`,
@@ -363,11 +367,17 @@ export function createMedsPanel({ meds, store }) {
   function syncPeople(s) {
     const next = { count: memberCount(s), key: memberKey(s) };
     if (next.count === people.count && next.key === people.key) return;
+    const namesOnly = next.count === people.count; // someone was renamed (typing in their name field): relabel in place
     people = next;
     // adding: a person no longer covered falls back to the open (covered) person; editing keeps the drug's own person
     const cur = forSel.value === '' ? -1 : Number(forSel.value);
     paintFor(editing ? memberOf(meds.get().drugs.find((x) => x.id === editing)) : cur < 0 || cur >= people.count ? defaultFor() : cur);
-    render();
+    if (!namesOnly) { render(); return; }
+    const drugs = meds.get().drugs;
+    for (const span of list.querySelectorAll('.md-drug-for')) {
+      const d = drugs.find((x) => x.id === span.closest('.md-drug')?.dataset.id);
+      if (d && span.textContent !== forText(d)) span.textContent = forText(d);
+    }
   }
   store?.subscribe(syncPeople);
 

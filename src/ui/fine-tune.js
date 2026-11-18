@@ -1,15 +1,12 @@
 // "Fine-tune your year": one person's worst-case sliders (overrides layered on their scenario). Shared by you
 // (bound to state.scenario / state.overrides) and each other covered person (bound to state.others[i]).
-import { h, svg } from './dom.js';
+import { h, svg, ICON_CHEV, ICON_MINUS, ICON_PLUS } from './dom.js';
 import { SCENARIOS, OVERRIDE_FIELDS } from '../engine/scenarios.js';
 import { ASSUMED_PRICES } from '../engine/assumptions.js';
 import { describeUsage, effectiveUsage, overrideChanges } from './assumptions.js';
 import { nextOverrides } from './members-model.js';
 import { reduceMotion, EASE_OUT, tweenNumber } from './motion.js';
 
-const ICON_CHEV = '<svg viewBox="0 0 16 16" aria-hidden="true" class="icon-chev"><path d="M4 6l4 4 4-4"/></svg>';
-const ICON_MINUS = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8h9"/></svg>';
-const ICON_PLUS = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9"/></svg>';
 const ICON_RESET = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.2 8a4.8 4.8 0 1 0 1.5-3.5"/><path d="M3 2.6v2.6h2.6"/></svg>';
 
 export const SCENARIO_OPTIONS = [

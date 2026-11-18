@@ -5,7 +5,7 @@
 //
 // Stored shape (MEDS_KEY): { drugs: [{ id, name, monthlyCost|null (the 30-day price: the form takes the price of one fill and converts), fillsPerYear, channel }],
 //                            records: { [planCode]: { [drugId]: 'Tier 2' | 'nc' | 'pa' } } }
-import { safeStorage } from '../state.js';
+import { safeStorage, MAX_MEMBERS } from '../state.js';
 import { plainText } from '../text.js';
 
 export const MEDS_KEY = 'fehb-compass:meds:v1';
@@ -36,7 +36,7 @@ export function sanitizeDrug(d) {
     fillsPerYear: Number.isInteger(fills) && fills >= 1 && fills <= 365 ? fills : 12,
     channel: typeof d.channel === 'string' && CHANNEL_IDS.includes(d.channel) ? d.channel : 'retail30',
     // which household member takes it: 1..7 = another member; absent = you (member 0), so records stay as they were
-    ...(Number.isInteger(mem) && mem >= 1 && mem <= 7 ? { member: mem } : {}),
+    ...(Number.isInteger(mem) && mem >= 1 && mem < MAX_MEMBERS ? { member: mem } : {}),
   };
 }
 

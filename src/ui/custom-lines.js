@@ -1,7 +1,7 @@
 // "Your own costs": an inline list editor for up to 25 custom cost lines, plus worst-case preset chips.
 // Lines are committed to the store as soon as they are valid (text fields debounced); an invalid field shows
 // a message and keeps the last valid value in the state.
-import { h, svg, ICON_CHEVRON } from './dom.js';
+import { h, svg, setOptions, ICON_CHEVRON } from './dom.js';
 import {
   CUSTOM_KINDS, CUSTOM_PRESETS, MAX_CUSTOM_LINES, MAX_LINE_PRICE, MAX_PER_YEAR, MAX_LABEL, RX_TIERS,
   sanitizeLine, lineSpend,
@@ -157,8 +157,7 @@ export function createCustomLines({ store }) {
     f.forField.hidden = people.count <= 1;
     const opts = memberOptions(state);
     if (m >= people.count) opts.push([String(m), `${memberLabel(state, m)} (not covered)`]);
-    f.memberSel.replaceChildren(...opts.map(([v, t]) => h('option', { value: v }, t)));
-    f.memberSel.value = String(m);
+    setOptions(f.memberSel, opts, m);
     const off = isUncovered(row.line, people.count); // also in Self: the line is out of the total, say so
     f.uncovered.hidden = !off;
     row.el.classList.toggle('is-uncovered', off);

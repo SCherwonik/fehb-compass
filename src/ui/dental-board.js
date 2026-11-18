@@ -433,7 +433,7 @@ export function createDvInputs({ store }) {
     vPreset.sync(s.visionUse);
     in2.label.hidden = kind !== 'dental';
     presetHow.textContent = kind === 'dental'
-      ? `${describeDentalPreset(s.dentalUse)}. Assumed list prices for one person: in-network dentists usually charge plan members less, so out-of-pocket here is more likely high than low.`
+      ? `${describeDentalPreset(s.dentalUse)}. The premium is for your coverage level (Self Only, Self Plus One or Self and Family); the care is one person’s year at assumed list prices, not multiplied by the people covered. In-network dentists usually charge plan members less, so out-of-pocket here is more likely high than low.`
       : 'Copays come from OPM’s text. Frame and contact allowances are not published by OPM, so costs above them are not counted.';
     const f = prefs.filter(kind);
     areaCtl.sync(f.area);
