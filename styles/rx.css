@@ -450,6 +450,12 @@ a.rx-cite:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .md-quick-row { grid-template-areas: none; }
 .md-quick-nolink { font-size: var(--text-xs); color: var(--text-subtle); }
 
+/* phones: a drug name that does not fit beside the tier picker takes its own line, and breaks only between words
+   (a single word longer than the line still breaks) */
+@media (max-width: 559px) {
+  .rx-drug-top { flex-wrap: wrap; }
+  .rx-drug-name { overflow-wrap: break-word; }
+}
 @media (pointer: coarse) {
   .rx-tier-select { min-height: 40px; font-size: var(--text-sm); }
   .rx-cite { min-height: 28px; padding: 0 8px 0 6px; }
