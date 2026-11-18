@@ -23,6 +23,7 @@ service area -- are joined through the normalized option name.
 from __future__ import annotations
 
 import json
+import math
 import re
 import sys
 from collections import defaultdict
@@ -761,7 +762,10 @@ def apply_benefit_overrides(benefits: dict, path: Path = OVERRIDES_PATH) -> int:
 KNOWN_GAPS_PATH = Path(__file__).resolve().parent / "known_gaps.json"
 BROCHURE_TXT_DIR = Path(__file__).resolve().parent / "raw" / "brochures_txt"
 GAP_KEYS = ("year", "plan_code", "kind", "affects_cost", "amounts", "text", "brochure", "page", "quote", "reason")
-GAP_KINDS = {"facility_deductible": True, "drug_deductible": True, "conflict": False}  # kind -> affects_cost it must have
+ENROLLMENTS = ("self", "self_plus_one", "family")  # a gap's optional "enrollments": the ones it applies to (default all)
+# kind -> the affects_cost values it may have: a conflict is data only (an out-of-network figure the estimate does not
+# use) or affects cost (the brochure contradicts itself about a figure the estimate uses)
+GAP_KINDS = {"facility_deductible": (True,), "drug_deductible": (True,), "conflict": (True, False)}
 
 
 def brochure_page_text(year, brochure: str, page: int, root: Path = BROCHURE_TXT_DIR) -> str | None:
@@ -778,10 +782,13 @@ def apply_known_gaps(benefits: dict, path: Path = KNOWN_GAPS_PATH, brochure_root
     """Attach pipeline/known_gaps.json entries to benefits[year][plan_code]["known_gaps"] (a list, in file order).
 
     A known gap is a brochure cost term the app's estimate leaves out (affects_cost true: the engine marks the plan's
-    total 'estimated' and the math panel says so) or a brochure contradiction kept as data (kind 'conflict',
-    affects_cost false). Nothing else about the plan changes. An entry for a plan that is not in the benefits, a
-    missing key, an unknown kind, an affects_cost that does not fit the kind, a quote of 15 words or more, or (when the
-    brochure text is on this machine) a quote that is not on the named page stops the build. Returns entries attached.
+    total 'estimated' and the math panel says so) or a brochure contradiction (kind 'conflict': affects_cost false keeps
+    it as data only, true when the contradiction is about a figure the estimate uses, shown like a cost gap). Nothing
+    else about the plan changes. An optional "enrollments" list limits a gap to those enrollments (e.g. a conflict
+    about the family deductible does not touch Self Only). An entry for a plan that is not in the benefits, a
+    missing key, an unknown kind, an affects_cost that does not fit the kind, an enrollments list that is empty or names
+    an unknown enrollment, a quote of 15 words or more, or (when the brochure text is on this machine) a quote that is
+    not on the named page stops the build. Returns entries attached.
     """
     if not Path(path).exists():
         return 0
@@ -795,7 +802,7 @@ def apply_known_gaps(benefits: dict, path: Path = KNOWN_GAPS_PATH, brochure_root
         e = benefits.get(str(g["year"]), {}).get(code)
         if e is None:
             raise ValueError(f"{name}: plan {code!r} is not in the {g['year']} benefits")
-        if g["kind"] not in GAP_KINDS or g["affects_cost"] is not GAP_KINDS[g["kind"]]:
+        if g["kind"] not in GAP_KINDS or not any(g["affects_cost"] is v for v in GAP_KINDS[g["kind"]]):
             raise ValueError(f"{name}: {code}: kind {g['kind']!r} with affects_cost {g['affects_cost']!r} is not allowed")
         if g["amounts"] is not None and set(g["amounts"]) != {"self", "self_plus_one", "family"}:
             raise ValueError(f"{name}: {code}: amounts must be null or have self, self_plus_one and family")
@@ -804,7 +811,73 @@ def apply_known_gaps(benefits: dict, path: Path = KNOWN_GAPS_PATH, brochure_root
         txt = brochure_page_text(g["year"], g["brochure"], g["page"], brochure_root)
         if txt is not None and re.sub(r"\s+", " ", g["quote"]) not in txt:
             raise ValueError(f"{name}: {code}: the quote is not on page {g['page']} of brochure {g['brochure']}")
-        e.setdefault("known_gaps", []).append({k: g[k] for k in GAP_KEYS if k not in ("year", "plan_code")})
+        enr = g.get("enrollments")
+        if "enrollments" in g and (not isinstance(enr, list) or not enr or not set(enr) <= set(ENROLLMENTS)):
+            raise ValueError(f"{name}: {code}: enrollments must be a non-empty list of {ENROLLMENTS}")
+        entry = {k: g[k] for k in GAP_KEYS if k not in ("year", "plan_code")}
+        if enr is not None:
+            entry["enrollments"] = enr
+        e.setdefault("known_gaps", []).append(entry)
+        n += 1
+    return n
+
+
+# --------------------------------------------------------------------------- individual deductibles
+
+INDIVIDUAL_DEDUCTIBLES_PATH = Path(__file__).resolve().parent / "individual_deductibles.json"
+INDIVIDUAL_KEYS = ("year", "plan_code", "amounts", "brochure", "page", "quote", "reason")
+
+
+def apply_individual_deductibles(benefits: dict, path: Path = INDIVIDUAL_DEDUCTIBLES_PATH,
+                                 brochure_root: Path = BROCHURE_TXT_DIR) -> int:
+    """Attach pipeline/individual_deductibles.json entries to benefits[year][plan_code]["deductible_individual"].
+
+    Some plans' brochures state that, under a Self Plus One or Self and Family enrollment, one person's deductible stops
+    at an individual threshold below the family deductible, and the rest of the family deductible can be met by one or
+    more family members. `amounts` is {self_plus_one, family}: that threshold per enrollment. The brochure number, page,
+    quote and reason go to "deductible_individual_source". The plan's deductible itself is not changed. An entry for a
+    plan that is not in the benefits, a missing key, amounts that are not finite numbers for exactly self_plus_one and
+    family, an amount above that enrollment's deductible or below the Self Only deductible, a second entry for the same
+    plan, a quote of 15 words or more, or (when the brochure text is on this machine) a quote that is not on the named
+    page stops the build. Returns entries attached.
+    """
+    if not Path(path).exists():
+        return 0
+    name = Path(path).name
+    n = 0
+    for g in json.loads(Path(path).read_text(encoding="utf-8")).get("plans", []):
+        code = g.get("plan_code")
+        missing = [k for k in INDIVIDUAL_KEYS if k not in g]
+        if missing:
+            raise ValueError(f"{name}: {code!r} lacks {missing}")
+        e = benefits.get(str(g["year"]), {}).get(code)
+        if e is None:
+            raise ValueError(f"{name}: plan {code!r} is not in the {g['year']} benefits")
+        if "deductible_individual" in e:
+            raise ValueError(f"{name}: {code}: listed twice")
+        a = g["amounts"]
+        if not isinstance(a, dict) or set(a) != {"self_plus_one", "family"}:
+            raise ValueError(f"{name}: {code}: amounts must have exactly self_plus_one and family")
+        ded = e.get("deductible") or {}
+        out = {}
+        for k, v in a.items():
+            if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
+                raise ValueError(f"{name}: {code}: amount {k} must be a finite number")
+            fam, own = ded.get(k), ded.get("self")
+            if not isinstance(fam, (int, float)) or not isinstance(own, (int, float)):
+                raise ValueError(f"{name}: {code}: the plan lists no {k} or self deductible")
+            if v > fam:
+                raise ValueError(f"{name}: {code}: {k} {v} is more than the family deductible {fam}")
+            if v < own:
+                raise ValueError(f"{name}: {code}: {k} {v} is less than the Self Only deductible {own}")
+            out[k] = float(v)
+        if len(g["quote"].split()) >= 15:
+            raise ValueError(f"{name}: {code}: the quote must be under 15 words")
+        txt = brochure_page_text(g["year"], g["brochure"], g["page"], brochure_root)
+        if txt is not None and re.sub(r"\s+", " ", g["quote"]) not in txt:
+            raise ValueError(f"{name}: {code}: the quote is not on page {g['page']} of brochure {g['brochure']}")
+        e["deductible_individual"] = out
+        e["deductible_individual_source"] = {k: g[k] for k in ("brochure", "page", "quote", "reason")}
         n += 1
     return n
 
@@ -987,6 +1060,7 @@ def main() -> None:
     apply_text_fixes(plans, benefits)
     print(f"  {apply_benefit_overrides(benefits)} brochure overrides applied ({OVERRIDES_PATH.name})")
     print(f"  {apply_known_gaps(benefits)} known gaps attached ({KNOWN_GAPS_PATH.name})")
+    print(f"  {apply_individual_deductibles(benefits)} individual deductibles attached ({INDIVIDUAL_DEDUCTIBLES_PATH.name})")
     reviewed, priced = apply_maternity_terms(benefits)
     print(f"  maternity: {priced} plans priced in 2027, {reviewed} brochure-reviewed ({MATERNITY_TERMS_PATH.name})")
     write_json("plans.json", plans)

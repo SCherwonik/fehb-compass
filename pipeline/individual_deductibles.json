@@ -1,0 +1,14 @@
+{
+  "about": "Plans whose brochure states an individual deductible threshold inside a shared Self Plus One / Self and Family deductible: once one person's deductible spending reaches the threshold, the plan begins to pay for that person, and the rest of the family deductible can be met by one or more family members. amounts: {self_plus_one, family}, the threshold per enrollment (at least the Self Only deductible, at most that enrollment's deductible). pipeline/build_data.py attaches them to data/benefits.json as benefits[year][plan_code]['deductible_individual'] (and 'deductible_individual_source': brochure, page, quote, reason) and checks that each quote occurs on the named brochure page (pipeline/raw/brochures_txt/<year>/<brochure>.txt, whitespace-insensitive). Only plans whose brochure states the threshold consistently are listed; a brochure that contradicts itself goes to known_gaps.json instead.",
+  "plans": [
+    {
+      "year": 2027,
+      "plan_code": "224",
+      "amounts": {"self_plus_one": 3500, "family": 3500},
+      "brochure": "73-828",
+      "page": 15,
+      "quote": "Once an individual meets a $3,500 deductible under the Self Plus One",
+      "reason": "Aetna HealthFund HDHP: in-network deductible $2,000 Self Only, $4,000 Self Plus One and Self and Family. Section 1 (p15) and Section 4 (p35) both say an individual's deductible stops at $3,500 and the rest of the family deductible can be met by one or more family members; the same sentence is on p26, p42, p60, p62, p77, p86, p90, p93 and p97. The Aetna Direct option in the same brochure (N61) says the Self Only deductible instead and is not listed here."
+    }
+  ]
+}

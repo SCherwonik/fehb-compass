@@ -664,8 +664,6 @@ def test_known_gap_requires_every_key_and_a_consistent_kind(tmp_path):
     with pytest.raises(ValueError, match="kind"):
         _apply_gaps(tmp_path, [{**GAP, "kind": "other"}])
     with pytest.raises(ValueError, match="affects_cost"):
-        _apply_gaps(tmp_path, [{**GAP, "kind": "conflict", "affects_cost": True}])
-    with pytest.raises(ValueError, match="affects_cost"):
         _apply_gaps(tmp_path, [{**GAP, "affects_cost": False}])
     with pytest.raises(ValueError, match="amounts"):
         _apply_gaps(tmp_path, [{**GAP, "amounts": {"self": 1}}])
@@ -692,7 +690,9 @@ def test_tracked_known_gaps_land_on_the_right_plans():
     assert {c: sorted(g["kind"] for g in gs) for c, gs in by.items()} == {
         "V31": ["facility_deductible"], "2G4": ["facility_deductible"],
         "B64": ["drug_deductible", "facility_deductible"], "B41": ["conflict"], "B44": ["conflict"]}
-    assert all(g["affects_cost"] is (g["kind"] != "conflict") for g in spec)
+    assert all(g["affects_cost"] is True for g in spec if g["kind"] != "conflict")
+    # a conflict over an out-of-network figure is data only; one over the deductible the estimate uses affects cost
+    assert {g["plan_code"]: g["affects_cost"] for g in spec if g["kind"] == "conflict"} == {"B41": False, "B44": False}
     benefits = json.loads((ROOT / "data" / "benefits.json").read_text(encoding="utf-8"))["2027"]
     for code, gs in by.items():
         assert [g["kind"] for g in benefits[code]["known_gaps"]] == [g["kind"] for g in gs]
@@ -701,3 +701,98 @@ def test_tracked_known_gaps_land_on_the_right_plans():
         txt = build_data.brochure_page_text(g["year"], g["brochure"], g["page"])
         if txt is not None:
             assert " ".join(g["quote"].split()) in txt, g["plan_code"]
+
+
+# --------------------------------------------------------------------------- individual deductibles
+
+IND = {"year": 2027, "plan_code": "X1", "amounts": {"self_plus_one": 3500, "family": 3500}, "brochure": "73-828",
+       "page": 15, "quote": "q", "reason": "r"}
+IND_PLAN = {"deductible": {"self": 2000.0, "self_plus_one": 4000.0, "family": 4000.0}}
+
+
+def _apply_ind(tmp_path, entries, b=None):
+    b = b if b is not None else {"2027": {"X1": json.loads(json.dumps(IND_PLAN)), "X2": json.loads(json.dumps(IND_PLAN))}}
+    p = tmp_path / "ind.json"
+    p.write_text(json.dumps({"plans": entries}), encoding="utf-8")
+    return build_data.apply_individual_deductibles(b, p, tmp_path), b  # tmp_path has no brochure text
+
+
+def test_individual_deductible_attaches_only_to_the_named_plan(tmp_path):
+    n, b = _apply_ind(tmp_path, [IND])
+    assert n == 1
+    assert b["2027"]["X1"]["deductible_individual"] == {"self_plus_one": 3500.0, "family": 3500.0}
+    assert b["2027"]["X1"]["deductible_individual_source"] == {"brochure": "73-828", "page": 15, "quote": "q", "reason": "r"}
+    assert b["2027"]["X1"]["deductible"] == IND_PLAN["deductible"]
+    assert "deductible_individual" not in b["2027"]["X2"]
+
+
+def test_individual_deductible_validation(tmp_path):
+    with pytest.raises(ValueError, match="Z9"):
+        _apply_ind(tmp_path, [{**IND, "plan_code": "Z9"}])
+    for k in ("amounts", "brochure", "page", "quote", "reason"):
+        with pytest.raises(ValueError, match=k):
+            _apply_ind(tmp_path, [{kk: v for kk, v in IND.items() if kk != k}])
+    with pytest.raises(ValueError, match="self_plus_one and family"):
+        _apply_ind(tmp_path, [{**IND, "amounts": {"family": 3500}}])
+    with pytest.raises(ValueError, match="self_plus_one and family"):
+        _apply_ind(tmp_path, [{**IND, "amounts": {"self": 1, "self_plus_one": 3500, "family": 3500}}])
+    with pytest.raises(ValueError, match="finite"):
+        _apply_ind(tmp_path, [{**IND, "amounts": {"self_plus_one": float("nan"), "family": 3500}}])
+    with pytest.raises(ValueError, match="finite"):
+        _apply_ind(tmp_path, [{**IND, "amounts": {"self_plus_one": "3500", "family": 3500}}])
+    with pytest.raises(ValueError, match="more than the family deductible"):
+        _apply_ind(tmp_path, [{**IND, "amounts": {"self_plus_one": 4500, "family": 3500}}])
+    with pytest.raises(ValueError, match="less than the Self Only deductible"):
+        _apply_ind(tmp_path, [{**IND, "amounts": {"self_plus_one": 3500, "family": 1500}}])
+    with pytest.raises(ValueError, match="15 words"):
+        _apply_ind(tmp_path, [{**IND, "quote": " ".join(["w"] * 15)}])
+    with pytest.raises(ValueError, match="twice"):
+        _apply_ind(tmp_path, [IND, IND])
+
+
+def test_individual_deductible_quote_must_be_on_the_named_brochure_page(tmp_path):
+    d = tmp_path / "2027"
+    d.mkdir()
+    (d / "73-828.txt").write_text("=== PAGE 14 ===\nnothing\n=== PAGE 15 ===\nOnce an individual meets\na $3,500 deductible\n", encoding="utf-8")
+    ok = {**IND, "quote": "Once an individual meets a $3,500 deductible"}
+    assert _apply_ind(tmp_path, [ok])[0] == 1
+    with pytest.raises(ValueError, match="not on page 14"):
+        _apply_ind(tmp_path, [{**ok, "page": 14}])
+
+
+def test_tracked_individual_deductibles():
+    spec = json.loads((PIPELINE / "individual_deductibles.json").read_text(encoding="utf-8"))["plans"]
+    assert [(e["year"], e["plan_code"]) for e in spec] == [(2027, "224")]
+    benefits = json.loads((ROOT / "data" / "benefits.json").read_text(encoding="utf-8"))
+    assert benefits["2027"]["224"]["deductible_individual"] == {"self_plus_one": 3500, "family": 3500}
+    assert benefits["2027"]["224"]["deductible"] == {"self": 2000, "self_plus_one": 4000, "family": 4000}
+    assert {c for y in benefits.values() for c, e in y.items() if "deductible_individual" in e} == {"224"}
+    assert "deductible_individual" not in benefits["2027"]["N61"]  # same brochure, Aetna Direct: the Self Only deductible
+    for e in spec:
+        txt = build_data.brochure_page_text(e["year"], e["brochure"], e["page"])
+        if txt is not None:
+            assert " ".join(e["quote"].split()) in txt, e["plan_code"]
+
+
+def test_known_gap_conflict_may_affect_cost(tmp_path):
+    n, b = _apply_gaps(tmp_path, [{**GAP, "kind": "conflict", "affects_cost": True, "amounts": None}])
+    assert n == 1 and b["2027"]["X1"]["known_gaps"][0]["affects_cost"] is True
+    with pytest.raises(ValueError, match="affects_cost"):
+        _apply_gaps(tmp_path, [{**GAP, "kind": "conflict", "affects_cost": "yes"}])
+
+
+def test_known_gap_may_name_the_enrollments_it_applies_to(tmp_path):
+    n, b = _apply_gaps(tmp_path, [{**GAP, "enrollments": ["self_plus_one", "family"]}, GAP])
+    assert b["2027"]["X1"]["known_gaps"][0]["enrollments"] == ["self_plus_one", "family"]
+    assert "enrollments" not in b["2027"]["X1"]["known_gaps"][1]
+    for bad in ([], ["self", "other"], "family"):
+        with pytest.raises(ValueError, match="enrollments"):
+            _apply_gaps(tmp_path, [{**GAP, "enrollments": bad}])
+
+
+def test_tracked_deductible_conflicts_apply_to_family_enrollments_only():
+    spec = json.loads((PIPELINE / "known_gaps.json").read_text(encoding="utf-8"))["gaps"]
+    for g in spec:
+        if g["kind"] == "conflict" and g["affects_cost"]:
+            assert g["enrollments"] == ["self_plus_one", "family"], g["plan_code"]
+            assert "contradicts itself" in g["text"], g["plan_code"]
