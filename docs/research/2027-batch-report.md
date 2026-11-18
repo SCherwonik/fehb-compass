@@ -101,3 +101,33 @@ With assumed prices as the only reason, the old sentence stays. The card's chip 
 
 - **474.** Choose how account payments count toward the out-of-pocket max, then decide whether to model "account first, then $1,000 per person". The same question applies to N61, EP1, F51, G51, H41 and JS1.
 - **Triggers.** ER visits do not trigger the V31, 2G4 and B64 deductibles. Brochure medications always trigger B64's Tier 2-5 deductible, because their tier number is not known to the engine.
+
+## Fixes after the final review
+
+Base for this pass: 778cb3b. Every brochure page cited below was re-read in the brochure text.
+
+- **2G4/B64 facility deductible (Important 1).**
+  - 73-718 p74 lists "Outpatient Hospital (Non-Surgical and Clinic Visit): deductible, then" a copay: $100 for Standard BlueChoice and $50 for Blue Value Plus.
+  - For diagnostic services (labs, X-rays and other tests) received at an outpatient hospital, "the deductible applies in addition to the copay" (p74 and p75).
+  - The app does not know where care is received, so the facility gap now uses a new `applies_when` token, `any_care`. It counts any scenario service, own line or medication; only a year with no care at all stays unflagged.
+  - The note now names those services. B64's drug-deductible gap keeps `brand_drugs`.
+  - V31 is unchanged. 73-009 p36 charges labs and X-rays 20% with no deductible, while MRI/CT carries the $500 hospital deductible "even for services received in an office", and p25 limits the deductible to hospital services and MRI/CT.
+  - In the browser (MD 20901, Self), 2G4 and B64 show "Estimated" in the healthy year with the gap note and tooltip, and "Fixed cost" with no note only in "nothing". No console errors.
+- **474 note (Important 2).**
+  - 71-004 p28 says the account is used first. Once one individual meets the $1,000 Self Only net deductible, coverage begins for that individual; once the other covered members meet "the additional $1,000", it begins for them.
+  - The note now says exactly that, with $2,000 in all for the family, and gets `applies_when: ["any_care"]`. The measured differences above used this rule (the others share the additional $1,000), so they stand.
+- **Board label (Minor a).**
+  - New `pipeline/embedded_deductibles.json` lists the 61 codes in the research summary row "Brochure confirms per-person (embedded)". Brochure and page come from the research table; the build attaches each as `deductible_rule_source` and checks every quote on its page (61 of 61 pass).
+  - The board reads "Embedded (per person, brochure)" with brochure and page for these, and "Embedded (assumed)" for every other embedded plan (WJ4 and AS1 included).
+  - Where a table row covers several options and its quote names another option's amount, the quote is that option's own sentence on the page the research cites: 424, KC1, AM1 and N41 on 71-028 p27, 73-003 p25, 73-004 p26 and 73-019 p27; 254 on 71-018 p26; PS4 on 73-563 p31.
+  - 73-879's Value Plan codes (EP4, F54, G54, H44, JS4) use the p16 sentence the research cites.
+- **Minor b–e.**
+  - b: an individual-threshold column gives its own plan's amounts and page (9K4: $3,500 of $3,600, 73-564 p30).
+  - c: About and README no longer say "state it" twice.
+  - d: EA1's note now covers both family lines, the $7,000 medical and $8,700 pharmacy amounts, and the p74 "apply separately to each person" sentence.
+  - e: the relabel-or-rebuild decision of `setOptions` is now the pure `optionsUpdate` (tested), and the unused `sameOptionValues` is gone.
+- **Checks.**
+  - Before each commit of this pass: pytest passed 303 and node passed 489.
+  - 778cb3b against the final tree, 22,500 runs: **no total changed**. Firmness changed only for:
+    - 2G4 and B64, all enrollments, healthy, typical and condition: fixed → estimated;
+    - 474, Self Plus One and Family, all-'nothing' households: estimated → fixed.
