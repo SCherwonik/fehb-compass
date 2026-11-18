@@ -43,8 +43,10 @@
 // Every field is validated independently; a malformed or unknown value falls back to its default.
 // Fine-tune overrides: o=h3.e2 (field letter + count). Custom lines go last, one `l` param each:
 //   l=<kind letter><price>_<perYear><flags>_<label>   flags: 'o' out-of-network, 't<n>' drug tier, 'm<n>' member
-// Family: fs=<n> (family size, only when family and not 4); one mb=<scenario letter>_<overrides>_<name> per entry of
-//   `others` (name = everything after the second '_'); entries equal to the default are still written to keep positions.
+// Family: fs=<n> (family size, only when family and not 4); one mb=<scenario letter>_<overrides>_<name> per covered
+//   person beyond you (name = everything after the second '_'); entries equal to the default are still written to keep
+//   positions, and people not set up yet are written as the default (Typical). A Self Plus One / Family link with no
+//   `mb` at all was made before households: decode puts its other people on 'nothing', so its total is unchanged.
 //   (links made before this format used cl=<kind>_<price>_<perYear>_<flags>_<label>; still decoded)
 // When the lines would push the hash past HASH_BUDGET chars, the ones that do not fit are saved in localStorage
 // (OVERFLOW_KEY, keyed by a signature of the inline lines) and `cx=N` records how many; the same browser restores
@@ -350,7 +352,15 @@ export function encodeHash(state) {
   const ov = encodeOverrides(s.overrides);
   if (ov) p.set('o', ov);
   if (s.enrollment === 'family' && s.familySize !== DEFAULT_STATE.familySize) p.set('fs', String(s.familySize));
-  for (const o of s.others.slice(0, memberCount(s) - 1)) p.append('mb', `${SCENARIO[o.scenario]}_${encodeOverrides(o.overrides)}_${o.name}`);
+  // every covered person beyond you gets an entry (unset ones as the default Typical), so a link with members never
+  // reads as one made before households (see decodeState); unnamed, unadjusted entries do not count toward the budget
+  let reserve = 0;
+  for (let i = 0; i < memberCount(s) - 1; i++) {
+    const o = s.others[i] ?? { name: '', scenario: DEFAULT_STATE.scenario, overrides: {} };
+    const ov = encodeOverrides(o.overrides);
+    p.append('mb', `${SCENARIO[o.scenario]}_${ov}_${o.name}`);
+    if (!o.name && !ov) reserve += '&mb=x__'.length;
+  }
   if (s.dental) p.set('d', '1');
   if (s.selectedPlans.length) p.set('p', s.selectedPlans.join(','));
   if (s.view !== DEFAULT_STATE.view) p.set('v', VIEW[s.view]);
@@ -375,7 +385,7 @@ export function encodeHash(state) {
     const trial = new URLSearchParams(p);
     trial.append('l', e);
     // reserve room for "&cx=NN" in case later lines have to spill
-    if (trial.toString().length + 7 > HASH_BUDGET) break;
+    if (trial.toString().length - reserve + 7 > HASH_BUDGET) break;
     p.append('l', e);
     encoded.push(e);
   }
@@ -446,7 +456,7 @@ export function decodeState(hash, opts = {}) {
     custom = custom.concat(restored);
     droppedCustom = Math.max(0, Math.min(cx, room) - restored.length);
   }
-  return sanitizeState({
+  const state = sanitizeState({
     status: STATUS_IN[one('s')] ?? undefined,
     enrollment: has(ENROLLMENT_IN, one('e')) ? ENROLLMENT_IN[one('e')] : undefined,
     location: { state: one('st'), zip: one('z') },
@@ -476,6 +486,17 @@ export function decodeState(hash, opts = {}) {
     dvGroup: has(DV_GROUP_IN, one('dg')) ? DV_GROUP_IN[one('dg')] : undefined,
     droppedCustom,
   });
+  // a link made before households has no `mb` at all: the others had no care in its total, so they keep none
+  if (!p.has('mb')) state.others = legacyOthers(state);
+  return state;
+}
+
+/**
+ * The others for a link or saved state made before households (no `mb` params / no `others` key): on "Start from
+ * nothing", so the total equals what it showed then (that total was one person's year). [] for Self.
+ */
+function legacyOthers(state) {
+  return Array.from({ length: Math.max(0, memberCount(state) - 1) }, () => ({ name: '', scenario: 'nothing', overrides: {} }));
 }
 
 // ---- storage (every access wrapped: private mode, blocked cookies, quota) ----
@@ -510,7 +531,13 @@ export function loadInitialState({ hash = '', storage } = {}) {
   if (typeof hash === 'string' && hash.replace(/^#/, '').length > 0) return decodeState(hash, { storage });
   const raw = safeStorage(storage).get(STORAGE_KEY);
   if (raw) {
-    try { return sanitizeState(JSON.parse(raw)); } catch { /* fall through */ }
+    try {
+      const rec = JSON.parse(raw);
+      const state = sanitizeState(rec);
+      // saved before households: the same rule as an old link (decodeState)
+      if (rec && typeof rec === 'object' && !Object.prototype.hasOwnProperty.call(rec, 'others')) state.others = legacyOthers(state);
+      return state;
+    } catch { /* fall through */ }
   }
   return defaultState();
 }

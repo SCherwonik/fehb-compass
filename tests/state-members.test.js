@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { encodeHash, decodeState, sanitizeState, defaultState, memberCount } from '../src/state.js';
+import { encodeHash, decodeState, sanitizeState, defaultState, memberCount, loadInitialState, STORAGE_KEY, HASH_BUDGET } from '../src/state.js';
 import { sanitizeLine } from '../src/engine/scenarios.js';
 
 test('memberCount: self 1, self_plus_one 2, family uses familySize', () => {
@@ -28,7 +28,8 @@ test('round trip: family, others, line member', () => {
     custom: [{ label: 'Braces', kind: 'other', price: 100, perYear: 3, member: 2 }],
   });
   const back = decodeState(encodeHash(s).hash);
-  assert.deepEqual(back, s);
+  // the two people not set up yet come back as explicit Typical entries (the same costing as no entry)
+  assert.deepEqual(back, { ...s, others: [...s.others, TYPICAL, TYPICAL] });
   assert.equal(back.others[0].name, s.others[0].name);
   assert.equal(back.custom[0].member, 2);
 });
@@ -38,7 +39,7 @@ test('default-valued entry keeps its position', () => {
     ...defaultState(), enrollment: 'family',
     others: [{ name: '', scenario: 'typical', overrides: {} }, { name: 'Al', scenario: 'worst', overrides: {} }],
   });
-  assert.deepEqual(decodeState(encodeHash(s).hash).others, s.others);
+  assert.deepEqual(decodeState(encodeHash(s).hash).others, [...s.others, TYPICAL]);
 });
 
 test('fs omitted at 4 and when not family', () => {
@@ -47,12 +48,82 @@ test('fs omitted at 4 and when not family', () => {
   assert.match(encodeHash(sanitizeState({ ...defaultState(), enrollment: 'family', familySize: 6 })).hash, /fs=6/);
 });
 
-test('legacy hash decodes to a one-person year', () => {
+const NONE = { name: '', scenario: 'nothing', overrides: {} };
+const TYPICAL = { name: '', scenario: 'typical', overrides: {} };
+
+test('legacy hash (no mb at all): the other people are assumed to have no care, so the old total stands', () => {
   const s = decodeState('e=f&sc=w&o=h3');
-  assert.deepEqual(s.others, []);
+  assert.deepEqual(s.others, [NONE, NONE, NONE]);
   assert.equal(s.familySize, 4);
   assert.equal(s.enrollment, 'family');
+  assert.equal(s.scenario, 'worst');
+  assert.deepEqual(s.overrides, { hospitalStays: 3 });
   for (const l of s.custom) assert.ok(!('member' in l));
+  assert.deepEqual(decodeState('e=1&sc=c').others, [NONE]);
+  assert.deepEqual(decodeState('e=f&fs=6').others, [NONE, NONE, NONE, NONE, NONE]);
+  // Self links are untouched
+  assert.deepEqual(decodeState('sc=w').others, []);
+  // re-encoded, it carries explicit mb entries and is no longer legacy
+  const again = decodeState(encodeHash(s).hash);
+  assert.deepEqual(again, s);
+  assert.equal(new URLSearchParams(encodeHash(s).hash).getAll('mb').length, 3);
+});
+
+test('a fresh Family choice writes explicit Typical members and round-trips with them', () => {
+  const s = sanitizeState({ ...defaultState(), enrollment: 'family' });
+  assert.deepEqual(s.others, []);
+  const hash = encodeHash(s).hash;
+  const mb = new URLSearchParams(hash).getAll('mb');
+  assert.deepEqual(mb, ['t__', 't__', 't__']);
+  for (const e of mb) assert.ok(e.length <= 7);
+  assert.deepEqual(decodeState(hash).others, [TYPICAL, TYPICAL, TYPICAL]);
+  // Self Plus One with one named other: padded to the one person only
+  assert.deepEqual(new URLSearchParams(encodeHash(sanitizeState({ ...defaultState(), enrollment: 'self_plus_one' })).hash).getAll('mb'), ['t__']);
+});
+
+test('mb present but every entry malformed: not a legacy link, others default to Typical', () => {
+  const s = decodeState('e=f&mb=zz&mb=%');
+  assert.deepEqual(s.others, []);
+  assert.deepEqual(sanitizeState(s).others, []);
+});
+
+test('a legacy link near the hash budget keeps every inline custom line when re-encoded', () => {
+  // as many lines as an old link fitted, the last one padded so the link sits exactly at the budget
+  const labels = [];
+  const build = () => ['e=f&sc=w', ...labels.map((l) => `l=${encodeURIComponent(`z100_2_${l}`)}`)].join('&');
+  for (let i = 0; i < 24; i++) {
+    labels.push(`${'x'.repeat(50)}${i}`);
+    if (build().length + 7 > HASH_BUDGET) { labels.pop(); break; }
+  }
+  labels[labels.length - 1] += 'y'.repeat(HASH_BUDGET - 7 - build().length);
+  const hash = build();
+  assert.equal(hash.length + 7, HASH_BUDGET);
+  const lines = labels;
+  const s = decodeState(hash);
+  assert.equal(s.custom.length, lines.length);
+  assert.deepEqual(s.others, [NONE, NONE, NONE]);
+  const res = encodeHash(s);
+  assert.equal(res.overflow.length, 0, 'no line pushed out by the member padding');
+  assert.equal(res.inline, lines.length);
+  assert.deepEqual(decodeState(res.hash), s);
+});
+
+test('saved state from before households (no `others` key) opens with the others on no care', () => {
+  const mem = new Map();
+  const storage = { getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, v), removeItem: (k) => mem.delete(k) };
+  const old = { ...defaultState(), enrollment: 'family', scenario: 'condition' };
+  delete old.others;
+  delete old.familySize;
+  mem.set(STORAGE_KEY, JSON.stringify(old));
+  assert.deepEqual(loadInitialState({ hash: '', storage }).others, [NONE, NONE, NONE]);
+  // a record saved by this version keeps its (empty = Typical) others
+  mem.set(STORAGE_KEY, JSON.stringify({ ...defaultState(), enrollment: 'family' }));
+  assert.deepEqual(loadInitialState({ hash: '', storage }).others, []);
+  // an old Self record is untouched
+  const selfOld = { ...defaultState() };
+  delete selfOld.others;
+  mem.set(STORAGE_KEY, JSON.stringify(selfOld));
+  assert.deepEqual(loadInitialState({ hash: '', storage }), defaultState());
 });
 
 test('sanitize', () => {

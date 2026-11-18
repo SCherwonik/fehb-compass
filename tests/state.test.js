@@ -31,7 +31,8 @@ const FULL = {
   scenario: 'worst',
   overrides: { hospitalStays: 4, erVisits: 3 },
   familySize: 4,
-  others: [],
+  // every covered person has an entry (encodeHash writes the ones not set up yet as Typical)
+  others: [1, 2, 3].map(() => ({ name: '', scenario: 'typical', overrides: {} })),
   droppedCustom: 0,
   tab: 'dental',
   dentalUse: 'braces',
