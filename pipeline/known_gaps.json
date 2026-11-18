@@ -1,5 +1,5 @@
 {
-  "about": "Known gaps: brochure cost terms the app's estimate does not include (affects_cost true), and brochure contradictions (kind 'conflict': affects_cost false keeps one about a figure the estimate does not use as data only; affects_cost true marks the total estimated and shows the text, which then says the brochure contradicts itself, what each statement is and which one the estimate uses), and plans whose brochure does not state a per-person out-of-pocket limit (kind 'cap_not_stated': affects_cost false, enrollments self_plus_one and family; the estimate caps each person at the plan's own Self Only maximum, the app's stated assumption, and 'See the math' shows the text for those enrollments without changing the total or marking it estimated; the text must name that Self Only maximum). enrollments (optional): the enrollments the entry applies to, all when absent. applies_when (optional): the care that can trigger a cost gap (hospital: a hospital stay or a maternity line; outpatient_surgery; imaging: MRI/CT; brand_drugs: a drug above the generic tier); the note and the 'estimated' mark then appear only when someone's year includes it, every year when absent. pipeline/build_data.py attaches each entry to data/benefits.json under benefits[year][plan_code]['known_gaps'] and checks that each quote occurs on the named brochure page (pipeline/raw/brochures_txt/<year>/<brochure>.txt, whitespace-insensitive). amounts: {self, self_plus_one, family} or null where the brochure gives no amounts by enrollment. text is the sentence shown to users in 'See the math', after 'Not included in this estimate:' for a cost term and on its own for a conflict.",
+  "about": "Known gaps: brochure cost terms the app's estimate does not include (affects_cost true), and brochure contradictions (kind 'conflict': affects_cost false keeps one about a figure the estimate does not use as data only; affects_cost true marks the total estimated and shows the text, which then says the brochure contradicts itself, what each statement is and which one the estimate uses), and plans whose brochure does not state a per-person out-of-pocket limit (kind 'cap_not_stated': affects_cost false, enrollments self_plus_one and family; the estimate caps each person at the plan's own Self Only maximum, the app's stated assumption, and 'See the math' shows the text for those enrollments without changing the total or marking it estimated; the text must name that Self Only maximum). enrollments (optional): the enrollments the entry applies to, all when absent. applies_when (optional): the care that can trigger a cost gap (hospital: a hospital stay or a maternity line; outpatient_surgery; imaging: MRI/CT; brand_drugs: a drug above the generic tier; any_care: any care at all, scenario services, own lines or medications); the note and the 'estimated' mark then appear only when someone's year includes it, every year when absent. pipeline/build_data.py attaches each entry to data/benefits.json under benefits[year][plan_code]['known_gaps'] and checks that each quote occurs on the named brochure page (pipeline/raw/brochures_txt/<year>/<brochure>.txt, whitespace-insensitive). amounts: {self, self_plus_one, family} or null where the brochure gives no amounts by enrollment. text is the sentence shown to users in 'See the math', after 'Not included in this estimate:' for a cost term and on its own for a conflict.",
   "gaps": [
     {
       "year": 2027,
@@ -20,12 +20,12 @@
       "kind": "facility_deductible",
       "affects_cost": true,
       "amounts": {"self": 250, "self_plus_one": 500, "family": 500},
-      "text": "a hospital facility deductible on inpatient and outpatient hospital charges: $250 for Self Only, $500 for Self Plus One and for Self and Family. The estimate may be low by up to that amount.",
+      "text": "a hospital facility deductible on inpatient and outpatient hospital charges, including lab tests, X-rays and other diagnostic services and clinic visits at an outpatient hospital: $250 for Self Only, $500 for Self Plus One and for Self and Family. The estimate may be low by up to that amount.",
       "brochure": "73-718",
       "page": 29,
       "quote": "separate in-network and out-of-network $250 inpatient and outpatient hospital facility deductible",
-      "applies_when": ["hospital", "outpatient_surgery"],
-      "reason": "The app's deductible is $0 / $0 / $0. The brochure has a hospital-facility-only deductible, in-network and out-of-network. Not modeled."
+      "applies_when": ["any_care"],
+      "reason": "The app's deductible is $0 / $0 / $0. The brochure has a hospital-facility-only deductible, in-network and out-of-network. Section 5(c) (p74-75) applies it to outpatient hospital non-surgical and clinic visits (\"deductible, then $100 copay\") and to diagnostic services received at an outpatient hospital (\"the deductible applies in addition to the copay\"). The app does not know where care is received, so any care in the year can trigger it. Not modeled."
     },
     {
       "year": 2027,
@@ -33,12 +33,12 @@
       "kind": "facility_deductible",
       "affects_cost": true,
       "amounts": {"self": 250, "self_plus_one": 500, "family": 500},
-      "text": "a hospital facility deductible on inpatient and outpatient hospital charges: $250 for Self Only, $500 for Self Plus One and for Self and Family. The estimate may be low by up to that amount.",
+      "text": "a hospital facility deductible on inpatient and outpatient hospital charges, including lab tests, X-rays and other diagnostic services and clinic visits at an outpatient hospital: $250 for Self Only, $500 for Self Plus One and for Self and Family. The estimate may be low by up to that amount.",
       "brochure": "73-718",
       "page": 29,
       "quote": "an in-network $250 inpatient and outpatient hospital facility deductible",
-      "applies_when": ["hospital", "outpatient_surgery"],
-      "reason": "The app's deductible is $0 / $0 / $0. The brochure has an in-network hospital-facility-only deductible. Not modeled."
+      "applies_when": ["any_care"],
+      "reason": "The app's deductible is $0 / $0 / $0. The brochure has an in-network hospital-facility-only deductible. Section 5(c) (p74-75) applies it to outpatient hospital non-surgical and clinic visits (\"deductible, then $50 copay\") and to diagnostic services received at an outpatient hospital (\"the deductible applies in addition to the copay\"). The app does not know where care is received, so any care in the year can trigger it. Not modeled."
     },
     {
       "year": 2027,
@@ -253,11 +253,11 @@
       "affects_cost": false,
       "enrollments": ["self_plus_one", "family"],
       "amounts": null,
-      "text": "This plan’s brochure prints “per person” next to its Self Plus One out-of-pocket limit but does not say plainly whether each person has their own limit. The estimate assumes no one person pays more than the plan’s Self Only limit of $3,500.",
+      "text": "This plan’s brochure prints “per person” next to its Self Plus One and Self and Family out-of-pocket limits ($7,000 medical, $8,700 pharmacy) and says deductibles and maximum allowances apply separately to each person, but it does not say what one person’s own limit is, and elsewhere it gives those amounts as enrollment totals. The estimate assumes no one person pays more than the plan’s Self Only limit of $3,500.",
       "brochure": "73-197",
       "page": 28,
       "quote": "Medical Self Only $3,500 in-network Self Plus One $7,000 per person",
-      "reason": "Capital Health Plan. Section 4 (p28) prints \"per person\" next to both family amounts (medical $7,000, pharmacy $8,700), but the pharmacy intro (p61), the Medicare table (p80) and the summary (p89) restate them as enrollment amounts. Probably a form-template leftover. The separate pharmacy maximum ($4,600 Self Only) is not checked here."
+      "reason": "Capital Health Plan. Section 4 (p28) prints \"per person\" next to both family amounts (medical $7,000, pharmacy $8,700), but the pharmacy intro (p61), the Medicare table (p80) and the summary (p89) restate them as enrollment amounts. Probably a form-template leftover. Section 7 (p74) says \"deductibles and maximum allowances apply separately to each person\" (a record-keeping instruction). The separate pharmacy maximum ($4,600 Self Only) is not checked here."
     },
     {
       "year": 2027,
@@ -278,8 +278,9 @@
       "kind": "rule_differs",
       "affects_cost": true,
       "enrollments": ["self_plus_one", "family"],
+      "applies_when": ["any_care"],
       "amounts": null,
-      "text": "The brochure says the plan’s $2,400 Personal Care Account pays first, and then each person pays their own $1,000 net deductible. The estimate instead gives each person a $2,200 deductible and subtracts the account money from the total. For one person with a chronic condition it may be about $1,000 too low; in other years it can be too high or too low.",
+      "text": "The brochure says the plan’s $2,400 Personal Care Account is used first; after that, once one person meets a $1,000 net deductible coverage begins for that person, and once the other covered members meet an additional $1,000 it begins for them, so the family’s net deductible is $2,000 in all. The estimate instead gives each person a $2,200 deductible (up to $4,400 for the family) and subtracts the account money from the total. For one person with a chronic condition it may be about $1,000 too low; in other years it can be too high or too low.",
       "brochure": "71-004",
       "page": 28,
       "quote": "once one individual meets the Self Only Net Deductible of $1,000",

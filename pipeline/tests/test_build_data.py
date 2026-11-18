@@ -860,8 +860,9 @@ def test_tracked_hospital_and_drug_deductibles_say_what_triggers_them():
     got = {(g["plan_code"], g["kind"]): g.get("applies_when") for g in spec
            if g["kind"] in ("facility_deductible", "drug_deductible")}
     assert got == {("V31", "facility_deductible"): ["hospital", "outpatient_surgery", "imaging"],
-                   ("2G4", "facility_deductible"): ["hospital", "outpatient_surgery"],
-                   ("B64", "facility_deductible"): ["hospital", "outpatient_surgery"],
+                   # 73-718 p74-75: also outpatient-hospital clinic visits and diagnostic services
+                   ("2G4", "facility_deductible"): ["any_care"],
+                   ("B64", "facility_deductible"): ["any_care"],
                    ("B64", "drug_deductible"): ["brand_drugs"]}
     # the same words as the engine's APPLIES_WHEN (src/engine/cost.js TRIGGERS)
     js = (ROOT / "src" / "engine" / "cost.js").read_text(encoding="utf-8")
@@ -920,5 +921,74 @@ def test_tracked_474_account_first_deductible_is_a_family_rule_note(tmp_path):
     g = [x for x in spec if x["kind"] == "rule_differs"]
     assert [x["plan_code"] for x in g] == ["474"]
     assert g[0]["affects_cost"] is True and g[0]["enrollments"] == ["self_plus_one", "family"]
+    assert g[0]["applies_when"] == ["any_care"]
+    # 71-004 p28: one individual meets $1,000; the other members together meet an additional $1,000
+    assert "once the other covered members meet an additional $1,000" in g[0]["text"]
+    assert "each person pays their own" not in g[0]["text"]
     with pytest.raises(ValueError, match="affects_cost"):
         _apply_gaps(tmp_path, [{**GAP, "kind": "rule_differs", "affects_cost": False}])
+
+
+# --------------------------------------------------------------------------- embedded deductibles stated by the brochure
+
+EMB = {"year": 2027, "plan_code": "X1", "brochure": "73-003", "page": 25, "quote": "q"}
+EMB_PLAN = {"deductible": {"self": 100.0, "self_plus_one": 200.0, "family": 200.0}, "account_type": "Not Applicable",
+            "raw": {"Plan Option Type": "Traditional"}}
+
+
+def _apply_emb(tmp_path, entries, b=None):
+    b = b if b is not None else {"2027": {"X1": json.loads(json.dumps(EMB_PLAN)), "X2": json.loads(json.dumps(EMB_PLAN))}}
+    p = tmp_path / "emb.json"
+    p.write_text(json.dumps({"plans": entries}), encoding="utf-8")
+    return build_data.apply_embedded_deductibles(b, p, tmp_path), b
+
+
+def test_embedded_deductible_source_attaches_only_to_the_named_plan(tmp_path):
+    n, b = _apply_emb(tmp_path, [EMB])
+    assert n == 1
+    assert b["2027"]["X1"]["deductible_rule_source"] == {"brochure": "73-003", "page": 25, "quote": "q"}
+    assert "deductible_rule_source" not in b["2027"]["X2"]
+    assert b["2027"]["X1"]["deductible"] == EMB_PLAN["deductible"]
+
+
+def test_embedded_deductible_validation(tmp_path):
+    with pytest.raises(ValueError, match="Z9"):
+        _apply_emb(tmp_path, [{**EMB, "plan_code": "Z9"}])
+    for k in ("brochure", "page", "quote"):
+        with pytest.raises(ValueError, match=k):
+            _apply_emb(tmp_path, [{kk: v for kk, v in EMB.items() if kk != k}])
+    with pytest.raises(ValueError, match="twice"):
+        _apply_emb(tmp_path, [EMB, EMB])
+    with pytest.raises(ValueError, match="year must be an integer"):
+        _apply_emb(tmp_path, [{**EMB, "year": "2027"}])
+    with pytest.raises(ValueError, match="quote must be a string"):
+        _apply_emb(tmp_path, [{**EMB, "quote": None}])
+    with pytest.raises(ValueError, match="15 words"):
+        _apply_emb(tmp_path, [{**EMB, "quote": " ".join(["w"] * 15)}])
+    hdhp = {**json.loads(json.dumps(EMB_PLAN)), "account_type": "Health Savings Account"}
+    with pytest.raises(ValueError, match="high-deductible"):
+        _apply_emb(tmp_path, [EMB], {"2027": {"X1": hdhp}})
+    d = tmp_path / "2027"
+    d.mkdir()
+    (d / "73-003.txt").write_text("=== PAGE 25 ===\nthe deductible is $100\nper person\n", encoding="utf-8")
+    assert _apply_emb(tmp_path, [{**EMB, "quote": "$100 per person"}])[0] == 1
+    with pytest.raises(ValueError, match="not on page 25"):
+        _apply_emb(tmp_path, [{**EMB, "quote": "$200 per person"}])
+
+
+def test_tracked_embedded_deductibles_are_the_61_confirmed_plans():
+    spec = json.loads((PIPELINE / "embedded_deductibles.json").read_text(encoding="utf-8"))["plans"]
+    doc = (ROOT / "docs" / "research" / "2027-family-rules-from-brochures.md").read_text(encoding="utf-8")
+    m = re.search(r"\| Brochure confirms per-person \(embedded\), and the app assumes embedded \| 61 \| ([^|]+)\|", doc)
+    confirmed = {c.strip() for c in m.group(1).split(",")}
+    assert len(spec) == 61 and {e["plan_code"] for e in spec} == confirmed
+    assert not {"WJ4", "AS1"} & confirmed  # 'not stated' in the research: stay assumed
+    benefits = json.loads((ROOT / "data" / "benefits.json").read_text(encoding="utf-8"))["2027"]
+    assert {c for c, e in benefits.items() if "deductible_rule_source" in e} == confirmed
+    for e in spec:  # each brochure number matches the research table row for that code
+        row = next(r for r in doc.splitlines() if r.startswith(f"| {e['brochure']} |")
+                   and re.search(rf"(?<!\w){re.escape(e['plan_code'])}(?!\w)", r.split("|")[2]))
+        assert f"(p{e['page']})" in row or e["plan_code"] in ("EP4", "F54", "G54", "H44", "JS4"), e["plan_code"]
+        txt = build_data.brochure_page_text(e["year"], e["brochure"], e["page"])
+        if txt is not None:
+            assert " ".join(e["quote"].split()) in txt, e["plan_code"]

@@ -41,6 +41,13 @@ test('the 13 plans carry a cap_not_stated note for Self Plus One and Self and Fa
   }
 });
 
+test('EA1 says everything brochure 73-197 prints there: both family lines and both maximums "per person"', () => {
+  const t = capNotes(BENEFITS.EA1, 'family')[0].text;
+  assert.match(t, /next to its Self Plus One and Self and Family out-of-pocket limits \(\$7,000 medical, \$8,700 pharmacy\)/);
+  assert.match(t, /deductibles and maximum allowances apply separately to each person/);
+  assert.match(t, /does not say what one person’s own limit is/);
+});
+
 test('Kaiser Hawaii 631 and 634 state the per-person amount: no note', () => {
   for (const code of ['631', '634']) for (const e of ['self', 'self_plus_one', 'family']) assert.deepEqual(capNotes(BENEFITS[code], e), []);
 });

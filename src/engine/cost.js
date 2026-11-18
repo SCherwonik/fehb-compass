@@ -624,8 +624,12 @@ const lineUsed = (l, kinds) => kinds.includes(l?.kind) && used(l.perYear);
  *   imaging             MRI or CT imaging (scenario or own line)
  *   brand_drugs         a drug above the generic tier: an own drug line on tier 2 or higher (or no tier chosen), or any
  *                       medication from the list (its tier number is not known here); monthly generics do not count
+ *   any_care            any care at all: a scenario service, an own line or a medication (e.g. 2G4/B64's facility
+ *                       deductible also applies to clinic visits and tests at an outpatient hospital, and the app does
+ *                       not know where care is received)
  * (person: { usage, drugs })
  */
+const SCENARIO_CARE = ['pcpVisits', 'specialistVisits', 'erVisits', 'hospitalStays', 'labs', 'imaging', 'rxMonthly'];
 const TRIGGERS = {
   hospital: ({ usage: u }) => used(u?.hospitalStays) || (u?.custom ?? []).some((l) => lineUsed(l, ['hospital_stay', 'maternity'])),
   outpatient_surgery: ({ usage: u }) => (u?.custom ?? []).some((l) => lineUsed(l, ['surgery_outpatient'])),
@@ -633,6 +637,9 @@ const TRIGGERS = {
   brand_drugs: ({ usage: u, drugs }) => (drugs ?? []).some((d) => d && typeof d === 'object' && used(d.fillsPerYear)
       && (d.share && typeof d.share === 'object' ? true : !(Number.isInteger(d.tier) && d.tier <= 1)))
     || (u?.custom ?? []).some((l) => CUSTOM_KINDS[l?.kind]?.rx === true && used(l.perYear) && !(Number.isInteger(l.tier) && l.tier <= 1)),
+  any_care: ({ usage: u, drugs }) => SCENARIO_CARE.some((k) => used(u?.[k]))
+    || (u?.custom ?? []).some((l) => l && CUSTOM_KINDS[l.kind] && used(l.perYear))
+    || (drugs ?? []).some((d) => d && typeof d === 'object' && used(d.fillsPerYear)),
 };
 /** The `applies_when` words a known gap may use (pipeline/build_data.py checks the data against the same list). */
 export const APPLIES_WHEN = Object.freeze(Object.keys(TRIGGERS));

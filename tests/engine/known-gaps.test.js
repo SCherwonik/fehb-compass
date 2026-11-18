@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { planTotal, costGaps, APPLIES_WHEN } from '../../src/engine/cost.js';
 import { SCENARIOS } from '../../src/engine/scenarios.js';
-import { gapNote, gapFirmness } from '../../src/ui/math-family.js';
+import { gapNote, gapFirmness, estimatedTitle } from '../../src/ui/math-family.js';
 
 const read = (f) => JSON.parse(fs.readFileSync(new URL(`../../data/${f}`, import.meta.url), 'utf8'));
 const RATES = read('rates.json')['2027'];
@@ -16,12 +16,19 @@ const CONFLICT_PLANS = ['B41', 'B44'];
 const COST_CONFLICT_PLANS = ['KX1', 'L14'];
 const FAMILY = ['self_plus_one', 'family'];
 // scenarios whose care can trigger each plan's missing deductible (see applies_when below)
-const TRIGGERED_BY = { V31: ['typical', 'condition', 'worst'], '2G4': ['worst'], B64: ['worst'] };
+// 2G4/B64 (73-718 p74-75): the facility deductible also applies to clinic visits and diagnostic services at an
+// outpatient hospital, and the app does not know where care is received: any care can trigger it
+const TRIGGERED_BY = {
+  V31: ['typical', 'condition', 'worst'], '2G4': ['healthy', 'typical', 'condition', 'worst'],
+  B64: ['healthy', 'typical', 'condition', 'worst'],
+};
 // the brochure describes a Self Plus One / Self and Family rule the estimate does not model (474: account first, then
-// each person's net deductible)
+// the net deductible); it applies once the year has any care
 const RULE_DIFFERS_PLANS = ['474'];
+const ANY_CARE = ['healthy', 'typical', 'condition', 'worst'];
 const affected = (code, enrollment, scenarios) => scenarios.some((s) => TRIGGERED_BY[code]?.includes(s))
-  || ([...COST_CONFLICT_PLANS, ...RULE_DIFFERS_PLANS].includes(code) && FAMILY.includes(enrollment));
+  || (COST_CONFLICT_PLANS.includes(code) && FAMILY.includes(enrollment))
+  || (RULE_DIFFERS_PLANS.includes(code) && FAMILY.includes(enrollment) && scenarios.some((s) => ANY_CARE.includes(s)));
 const codes = Object.keys(BENEFITS).filter((c) => RATES[c]);
 const U = (name) => ({ ...SCENARIOS[name], custom: [] });
 const without = (b) => { const { known_gaps, ...rest } = b; return rest; };
@@ -30,8 +37,9 @@ const run = (code, benefits, inputs) => {
 };
 
 // When the member's year can trigger the brochure deductible the estimate leaves out (gap.applies_when): hospital stays
-// (and the birth stay in a maternity line), outpatient surgery, MRI/CT imaging for V31, brand-tier drugs for B64's drug
-// deductible. Scenario usage: healthy/nothing have none; typical and condition have imaging; worst has stays.
+// (and the birth stay in a maternity line), outpatient surgery and MRI/CT imaging for V31; any care for the 2G4 and B64
+// facility deductible; brand-tier drugs for B64's drug deductible. Scenario usage: nothing has no care; healthy has a
+// visit and a lab; typical and condition add imaging; worst has stays.
 test('V31, 2G4 and B64 are estimated, with the note, only when the year can trigger the missing deductible', () => {
   for (const code of GAP_PLANS) {
     for (const scenario of Object.keys(SCENARIOS)) {
@@ -65,24 +73,30 @@ test("scenario 'nothing': no note and the firmness of the plan without the gap; 
   }
 });
 
-test('what triggers each gap: own lines, maternity, imaging (V31 only) and brand-tier drugs (B64 drug deductible)', () => {
+test('what triggers each gap: V31 hospital care and MRI/CT; 2G4/B64 facility any care; B64 drugs brand tiers', () => {
   const line = (kind, extra = {}) => ({ ...SCENARIOS.nothing, custom: [{ kind, label: kind, price: 100, perYear: 1, ...extra }] });
   const kinds = (code, usage, drugs = []) => (run(code, BENEFITS[code], { enrollment: 'self', usage, drugs }).breakdown.gaps ?? []).map((g) => g.kind);
   for (const code of GAP_PLANS) {
     assert.ok(kinds(code, line('hospital_stay')).includes('facility_deductible'), `${code} stay`);
     assert.ok(kinds(code, line('surgery_outpatient')).includes('facility_deductible'), `${code} surgery`);
     assert.ok(kinds(code, line('maternity')).includes('facility_deductible'), `${code} birth stay`);
-    assert.deepEqual(kinds(code, line('specialist')), [], `${code} office visit`);
-    assert.deepEqual(kinds(code, line('er')), [], `${code} ER: a copay in these brochures`);
+    assert.deepEqual(kinds(code, U('nothing')), [], `${code}: no care`);
   }
+  // V31 (73-009 p25, p36): hospital services and MRI/CT only; labs, office visits and the ER copay do not trigger it
   assert.deepEqual(kinds('V31', line('imaging')), ['facility_deductible'], 'V31: MRI/CT');
-  assert.deepEqual(kinds('2G4', line('imaging')), []);
-  assert.deepEqual(kinds('B64', line('rx_brand', { tier: 2 })), ['drug_deductible']);
-  assert.deepEqual(kinds('B64', line('rx_generic', { tier: 1 })), [], 'tier 1 is outside the Tier 2-5 deductible');
-  assert.deepEqual(kinds('B64', { ...SCENARIOS.typical, imaging: 0, custom: [] }), [], 'monthly generics only');
+  for (const k of ['specialist', 'er', 'lab']) assert.deepEqual(kinds('V31', line(k)), [], `V31 ${k}`);
+  // 2G4/B64 (73-718 p74-75): labs, X-rays, imaging and clinic visits at an outpatient hospital too: any care
+  for (const k of ['lab', 'imaging', 'specialist', 'pcp', 'er', 'therapy', 'other']) {
+    assert.deepEqual(kinds('2G4', line(k)), ['facility_deductible'], `2G4 ${k}`);
+    assert.ok(kinds('B64', line(k)).includes('facility_deductible'), `B64 ${k}`);
+  }
+  assert.deepEqual(kinds('2G4', line('lab', { perYear: 0 })), [], 'a line used 0 times');
+  assert.deepEqual(kinds('B64', line('rx_brand', { tier: 2 })), ['facility_deductible', 'drug_deductible']);
+  assert.ok(!kinds('B64', line('rx_generic', { tier: 1 })).includes('drug_deductible'), 'tier 1 is outside the Tier 2-5 deductible');
+  assert.ok(!kinds('B64', { ...SCENARIOS.typical, imaging: 0, custom: [] }).includes('drug_deductible'), 'monthly generics only');
   const med = { label: 'a drug', fillsPerYear: 12, price: 300, share: { kind: 'usd', value: 50 }, deductibleApplies: null };
-  assert.deepEqual(kinds('B64', U('nothing'), [med]), ['drug_deductible'], 'a medication from the list');
-  assert.deepEqual(kinds('B64', line('rx_brand', { tier: 2, perYear: 0 })), [], 'a line used 0 times');
+  assert.ok(kinds('B64', U('nothing'), [med]).includes('drug_deductible'), 'a medication from the list');
+  assert.ok(!kinds('B64', line('rx_brand', { tier: 2, perYear: 0 })).includes('drug_deductible'), 'a line used 0 times');
 });
 
 test('a gap without applies_when applies to every year; an unknown trigger never hides a gap', () => {
@@ -97,12 +111,28 @@ test('a gap without applies_when applies to every year; an unknown trigger never
 });
 
 test('a household total is estimated when any member triggers the gap, and lists it', () => {
+  const none = U('nothing');
+  for (const code of ['V31', '2G4']) {
+    const t = run(code, BENEFITS[code], { enrollment: 'family', usage: none, members: [{ usage: none }, { usage: U('worst') }, { usage: none }] });
+    assert.equal(t.firmness, 'estimated', code);
+    assert.equal(t.breakdown.gaps[0].kind, 'facility_deductible');
+    const all = run(code, BENEFITS[code], { enrollment: 'family', usage: none, members: [{ usage: none }, { usage: none }] });
+    assert.equal(all.breakdown.gaps, undefined, code);
+  }
   const healthy = U('healthy');
-  const t = run('2G4', BENEFITS['2G4'], { enrollment: 'family', usage: healthy, members: [{ usage: healthy }, { usage: U('worst') }, { usage: healthy }] });
-  assert.equal(t.firmness, 'estimated');
-  assert.equal(t.breakdown.gaps[0].kind, 'facility_deductible');
-  const none = run('2G4', BENEFITS['2G4'], { enrollment: 'family', usage: healthy, members: [{ usage: healthy }, { usage: healthy }] });
-  assert.equal(none.breakdown.gaps, undefined);
+  assert.equal(run('V31', BENEFITS.V31, { enrollment: 'family', usage: healthy, members: [{ usage: healthy }, { usage: healthy }] }).breakdown.gaps, undefined);
+});
+
+test("2G4 and B64: the 'Fixed cost' line no longer shows when the facility deductible can apply", () => {
+  for (const code of ['2G4', 'B64']) {
+    for (const s of ['healthy', 'typical', 'condition']) {
+      const t = run(code, BENEFITS[code], { enrollment: 'self', usage: U(s) });
+      assert.equal(t.firmness, 'estimated', `${code} ${s}`);
+      assert.equal(run(code, without(BENEFITS[code]), { enrollment: 'self', usage: U(s) }).firmness, 'fixed', `${code} ${s}: flat copays alone`);
+      assert.match(estimatedTitle(t.breakdown), /known gap/);
+      assert.doesNotMatch(gapFirmness(t.breakdown.gaps), /flat copay/);
+    }
+  }
 });
 
 test('conflict entries are data only: no gap in the breakdown, firmness as before', () => {
@@ -189,7 +219,8 @@ test('gapFirmness: the line under the total names what the gaps are', () => {
 });
 
 // APWU Consumer Driven Option 474 (brochure 71-004 p28): the $2,400 Personal Care Account (Self Plus One / Self and
-// Family) is used first, then each person pays their own $1,000 net deductible. The app gives each person a $2,200
+// Family) is used first; one individual then meets a $1,000 net deductible and the other covered members an additional
+// $1,000 ($2,000 for the family). The app gives each person a $2,200
 // deductible and subtracts the account money afterwards. Not modeled (the brochure leaves open whether account payments
 // count toward the out-of-pocket limit): a cost-affecting note for Self Plus One and Self and Family.
 test('474: the account-first deductible is a cost-affecting note for Self Plus One and Family; Self untouched', () => {
@@ -204,10 +235,16 @@ test('474: the account-first deductible is a cost-affecting note for Self Plus O
       const t = run('474', BENEFITS['474'], { enrollment, usage: U(scenario) });
       const before = run('474', without(BENEFITS['474']), { enrollment, usage: U(scenario) });
       assert.equal(t.total, before.total, 'total unchanged');
+      if (scenario === 'nothing') {
+        assert.equal(t.breakdown.gaps, undefined, 'no care: no note');
+        assert.equal(t.firmness, before.firmness);
+        continue;
+      }
       assert.equal(t.firmness, 'estimated');
       const note = gapNote(t.breakdown.gaps[0]);
-      assert.match(note, /Personal Care Account.*\$1,000 net deductible.*\(Brochure 71-004, page 28\.\)$/);
-      assert.doesNotMatch(note, /Not included/);
+      assert.match(note, /Personal Care Account is used first; after that, once one person meets a \$1,000 net deductible coverage begins for that person, and once the other covered members meet an additional \$1,000 it begins for them, so the family’s net deductible is \$2,000 in all\./);
+      assert.match(note, /\(Brochure 71-004, page 28\.\)$/);
+      assert.doesNotMatch(note, /Not included|each person pays their own/);
     }
   }
   assert.match(gapFirmness([{ kind: 'rule_differs' }]), /brochure describes .* this estimate does not model/);

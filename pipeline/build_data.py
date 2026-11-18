@@ -775,7 +775,7 @@ GAP_KINDS = {"facility_deductible": (True,), "drug_deductible": (True,), "confli
              "cap_not_stated": (False,), "rule_differs": (True,)}
 # a gap's optional "applies_when": the care that can trigger it (the engine's TRIGGERS in src/engine/cost.js); without it
 # the gap applies to every year
-APPLIES_WHEN = ("hospital", "outpatient_surgery", "imaging", "brand_drugs")
+APPLIES_WHEN = ("hospital", "outpatient_surgery", "imaging", "brand_drugs", "any_care")
 
 
 def brochure_page_text(year, brochure: str, page: int, root: Path = BROCHURE_TXT_DIR) -> str | None:
@@ -913,9 +913,7 @@ def apply_individual_deductibles(benefits: dict, path: Path = INDIVIDUAL_DEDUCTI
             raise ValueError(f"{name}: {code}: listed twice")
         # the engine (src/engine/cost.js deductibleType) models every plan that is not an HSA plan or an HDHP as
         # 'embedded' (a per-person deductible already); a threshold belongs on a high-deductible plan's shared deductible
-        hdhp = re.search(r"savings", str(e.get("account_type") or ""), re.I) \
-            or re.search(r"hdhp", str((e.get("raw") or {}).get("Plan Option Type") or ""), re.I)
-        if not hdhp:
+        if not _is_hdhp(e):
             raise ValueError(f"{name}: {code}: an individual threshold needs a high-deductible plan (an HSA plan or an "
                              f"HDHP); this plan's deductible is already modeled per person")
         a = g["amounts"]
@@ -938,6 +936,54 @@ def apply_individual_deductibles(benefits: dict, path: Path = INDIVIDUAL_DEDUCTI
             skipped.append(code)
         e["deductible_individual"] = out
         e["deductible_individual_source"] = {k: g[k] for k in ("brochure", "page", "quote", "reason")}
+        n += 1
+    _say_skipped(name, skipped, brochure_root)
+    return n
+
+
+# --------------------------------------------------------------------------- embedded deductibles stated by the brochure
+
+EMBEDDED_DEDUCTIBLES_PATH = Path(__file__).resolve().parent / "embedded_deductibles.json"
+EMBEDDED_KEYS = ("year", "plan_code", "brochure", "page", "quote")
+
+
+def _is_hdhp(e: dict) -> bool:
+    """The engine's high-deductible test (src/engine/cost.js deductibleType): an HSA plan or an HDHP option type."""
+    return bool(re.search(r"savings", str(e.get("account_type") or ""), re.I)
+                or re.search(r"hdhp", str((e.get("raw") or {}).get("Plan Option Type") or ""), re.I))
+
+
+def apply_embedded_deductibles(benefits: dict, path: Path = EMBEDDED_DEDUCTIBLES_PATH,
+                               brochure_root: Path = BROCHURE_TXT_DIR) -> int:
+    """Attach pipeline/embedded_deductibles.json entries to benefits[year][plan_code]["deductible_rule_source"].
+
+    Each entry is a regular plan whose brochure states the per-person (embedded) deductible rule the engine applies to
+    every plan that is not a high-deductible plan; the board then says "(brochure)" instead of "(assumed)". Nothing
+    else changes. An entry for a plan that is not in the benefits, a missing key, a high-deductible plan, a second entry
+    for a plan, a year that is not an integer, a quote that is not a string or has 15 words or more, or (when the
+    brochure text is on this machine) a quote that is not on the named page stops the build. Returns entries attached.
+    """
+    if not Path(path).exists():
+        return 0
+    name = Path(path).name
+    n = 0
+    skipped = []
+    for g in json.loads(Path(path).read_text(encoding="utf-8")).get("plans", []):
+        code = g.get("plan_code")
+        missing = [k for k in EMBEDDED_KEYS if k not in g]
+        if missing:
+            raise ValueError(f"{name}: {code!r} lacks {missing}")
+        _check_entry_types(name, code, g)
+        e = benefits.get(str(g["year"]), {}).get(code)
+        if e is None:
+            raise ValueError(f"{name}: plan {code!r} is not in the {g['year']} benefits")
+        if "deductible_rule_source" in e:
+            raise ValueError(f"{name}: {code}: listed twice")
+        if _is_hdhp(e):
+            raise ValueError(f"{name}: {code}: a high-deductible plan is not modeled as embedded")
+        if not _check_quote(name, code, g, brochure_root):
+            skipped.append(code)
+        e["deductible_rule_source"] = {k: g[k] for k in ("brochure", "page", "quote")}
         n += 1
     _say_skipped(name, skipped, brochure_root)
     return n
@@ -1122,6 +1168,7 @@ def main() -> None:
     print(f"  {apply_benefit_overrides(benefits)} brochure overrides applied ({OVERRIDES_PATH.name})")
     print(f"  {apply_known_gaps(benefits)} known gaps attached ({KNOWN_GAPS_PATH.name})")
     print(f"  {apply_individual_deductibles(benefits)} individual deductibles attached ({INDIVIDUAL_DEDUCTIBLES_PATH.name})")
+    print(f"  {apply_embedded_deductibles(benefits)} brochure-stated embedded deductibles attached ({EMBEDDED_DEDUCTIBLES_PATH.name})")
     reviewed, priced = apply_maternity_terms(benefits)
     print(f"  maternity: {priced} plans priced in 2027, {reviewed} brochure-reviewed ({MATERNITY_TERMS_PATH.name})")
     write_json("plans.json", plans)
