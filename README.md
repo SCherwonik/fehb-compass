@@ -120,11 +120,16 @@ Everything else is external (`src/`, `styles/`, `assets/`): the page loads nothi
 - No provider networks: check that your doctors and hospitals are in network.
 - No formulary search: each plan has a drug lookup link; you record the tier you find.
 - Each scenario is one person's year of care. With Self Plus One or Self and Family coverage you set up each covered
-  person's year, and the household is costed one person after another: each has their own deductible and out-of-pocket
-  max, and the family out-of-pocket max caps the sum. Regular plans are assumed to give each person their own
-  deductible (OPM's data does not say); HSA plans whose family deductible is twice the self-only one, and other
-  high-deductible plans, share one family deductible (the cautious choice). Names are saved in the page link;
-  medications are not.
+  person's year, and the household is costed one person after another, in the order listed. How a family deductible
+  works differs by plan (some brochures state it, others do not, and SelectHealth's HDHP words it unclearly). Where a
+  plan's brochure does not state it, the app assumes: regular plans give each person their own self-only deductible
+  until everyone's deductible spending together reaches the family deductible; HSA plans whose family deductible is
+  exactly twice the self-only one, and every other high-deductible plan (the cautious choice), share one family
+  deductible. Out-of-pocket: there is no single figure for everyone. The app caps each person at that plan's own
+  self-only out-of-pocket max and the household's sum at the plan's family max (when it lists one). That is the app's
+  assumption for plans whose brochure does not say so (Blue Cross and Blue Shield's and one GEHA HDHP brochure state
+  it; OPM Carrier Letter 2025-04 asks for per-member tracking from 2026; not checked plan by plan). Names are saved in
+  the page link; medications are not.
 - Service areas: OPM lists regional plans by county, so your ZIP is matched to its county with the Census 2020
   ZIP-to-county file (`zip_county.json`; Census ZIP areas only approximate postal ZIPs). Plans the match cannot
   confirm (no ZIP, a PO-box ZIP, a ZIP split across counties) are marked "confirm your county" or "confirm your

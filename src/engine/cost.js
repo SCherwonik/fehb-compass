@@ -33,13 +33,21 @@ export function resolveBenefits(benefits, enrollment) {
 const fin = (v) => typeof v === 'number' && Number.isFinite(v);
 
 /**
- * How a plan's Self Plus One / Self and Family deductible works for one person (OPM data never says, and no
- * 2027 benefits or brochure-fact text uses "embedded" or "aggregate"; see About > How it works):
- *   'embedded'  every plan that is not an HDHP: each person has the self-only deductible and OOP max inside the family ones;
+ * How a plan's Self Plus One / Self and Family deductible works for one person. It differs by plan and OPM's data does
+ * not record it; some brochures state it in their own words (e.g. V41: "The full Self plus One or Self and Family
+ * deductible must be satisfied ..."), others do not, and WX1's summary is unclear (UNCLEAR_FAMILY_DEDUCTIBLE). The data
+ * files carry no such field, so this is the app's assumption from the plan type (see About > How it works):
+ *   'embedded'  every plan that is not an HDHP: each person has the self-only deductible (until the family's deductible
+ *               spending reaches the family deductible) and the self-only OOP max inside the family ones;
  *   'aggregate' an HSA HDHP whose family deductible is exactly twice the self-only one (the IRS family minimum
  *               rules this out as an embedded per-person amount): one person must meet the whole family deductible;
  *   'unknown'   any other HDHP (e.g. an HDHP with an HRA): modeled like 'aggregate', the cautious choice.
  */
+/** Plans whose brochure or summary words the family deductible unclearly (modeled by deductibleType all the same). */
+export const UNCLEAR_FAMILY_DEDUCTIBLE = Object.freeze({
+  WX1: 'Its 2026 summary of benefits says each family member meets their own deductible until the family total is met, which does not fit the IRS family minimum for an HSA plan, so its wording is unclear',
+});
+
 export function deductibleType(benefits) {
   const account = String(benefits?.account_type ?? '');
   const hsa = /savings/i.test(account);
@@ -55,7 +63,8 @@ export function deductibleType(benefits) {
  * The limits that apply to ONE covered person's care under this enrollment (each scenario is one person's year).
  * -> {deductible, oopMax, oon: {deductible, oopMax}, type}. Self enrollment: the plan's self-only limits.
  * Self Plus One / Family: embedded plans use the self-only deductible and OOP max; aggregate (and unknown) HDHPs
- * use the enrollment's deductible, with the out-of-pocket max capped at the self-only one (ACA embedded OOP rule).
+ * use the enrollment's deductible. Every person's out-of-pocket max is the plan's own self-only one: the app's stated
+ * assumption (some brochures say so and OPM asks plans to track each member's costs from 2026; not verified per plan).
  * Raw benefits with scalar limits (test fixtures) pass through unchanged.
  */
 export function personLimits(benefits, enrollment) {

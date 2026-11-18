@@ -1,11 +1,11 @@
 // C2: a scenario is ONE covered person's year of care. Self Plus One / Family enrollments therefore apply the
 // per-person (embedded) limits: the self-only deductible and the self-only out-of-pocket max. Aggregate-family
 // HSA HDHPs keep the family deductible (one person must meet all of it) but are still capped at the self-only OOP
-// max (ACA embedded OOP rule). Premiums and account deposits follow the chosen enrollment. Real 2027 data.
+// max (the app's stated assumption, see About). Premiums and account deposits follow the chosen enrollment. Real 2027 data.
 import test from 'node:test';
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
-import { planTotal, deductibleType, personLimits } from '../../src/engine/cost.js';
+import { planTotal, deductibleType, personLimits, UNCLEAR_FAMILY_DEDUCTIBLE } from '../../src/engine/cost.js';
 import { SCENARIOS } from '../../src/engine/scenarios.js';
 
 const r = (f) => JSON.parse(fs.readFileSync(new URL(`../../data/${f}`, import.meta.url)));
@@ -100,4 +100,15 @@ test('See the math explains the one-person modeling, and the matrix shows the de
   const row = m.find((s) => s.id === 'account').rows.find((r) => r.key === 'calc:deductibleType');
   assert.deepEqual(row.cells.map((c) => c.display), ['Embedded (assumed)', 'Aggregate (shared)', 'Unknown (modeled as shared)']);
   assert.equal(row.differs, true);
+});
+
+test('WX1 is listed as unclear wording and still modeled as shared; no text makes a legal claim', () => {
+  assert.ok(UNCLEAR_FAMILY_DEDUCTIBLE.WX1);
+  assert.equal(deductibleType(benefits[2027].WX1), 'aggregate');
+  const files = ['src/engine/cost.js', 'src/ui/about.js', 'src/ui/math.js', 'src/ui/math-family.js', 'src/ui/matrix-model.js', 'src/ui/model.js', 'README.md'];
+  for (const f of files) {
+    const t = fs.readFileSync(new URL(`../../${f}`, import.meta.url), 'utf8');
+    assert.doesNotMatch(t, /\bACA\b|by law|the ACA requires/i, f);
+    assert.doesNotMatch(t, /data does not say how (a|this plan’s) family deductible/i, f);
+  }
 });

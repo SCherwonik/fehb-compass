@@ -7,6 +7,7 @@ import { memberLabel } from './members-model.js';
 import { memberBlockInput, familyInNetwork, assumedHeading, memberAssumed, householdDeductibleNote, labelledByMember, itemWho, familyDeductibleUse, sharedDeductible, oopNote } from './math-family.js';
 import { dvMathLines } from './dental-board.js';
 import { ASSUMED_PRICES, ASSUMPTIONS_NOTE } from '../engine/assumptions.js';
+import { UNCLEAR_FAMILY_DEDUCTIBLE } from '../engine/cost.js';
 import { usd, usdExact } from './format.js';
 import { reduceMotion, EASE_OUT } from './motion.js';
 
@@ -173,13 +174,17 @@ function familyDeductibleLines(b) {
 }
 
 /** The "Whole family" block: the care sum, the family deductible and out-of-pocket max bars, and what limits each person. */
-function familyBlock(b, cost) {
+function familyBlock(b, cost, code) {
   const inNet = familyInNetwork(b);
   const famMax = b.familyOopMax;
   const shared = b.deductibleType !== 'embedded';
-  const order = b.deductibleType === 'aggregate'
-    ? 'This plan’s family deductible is shared: the first person’s care listed uses it up first, then the next.'
-    : 'The data does not say how this plan’s family deductible works, so it is treated as shared (the cautious choice): the first person’s care listed uses it up first, then the next.';
+  const unclear = UNCLEAR_FAMILY_DEDUCTIBLE[code];
+  const uses = 'the first person’s care listed uses it up first, then the next.';
+  const order = unclear
+    ? `How this plan’s family deductible works is unclear. ${unclear}. It is treated as shared (the cautious choice): ${uses}`
+    : b.deductibleType === 'aggregate'
+      ? `This plan’s family deductible is treated as shared (an HSA plan whose family deductible is twice the self-only one): ${uses}`
+      : `How a family deductible works differs by plan, and this plan’s data does not say, so it is treated as shared (the cautious choice): ${uses}`;
   return h('div', { class: 'math-member math-family' },
     h('p', { class: 'math-h math-member-title' }, 'Whole family'),
     mathLine(h('span', {}, h('i', { class: 'dot dot-oop' }), 'Expected care costs, everyone'), `+ ${usd(cost.oop)}`),
@@ -187,7 +192,7 @@ function familyBlock(b, cost) {
     ...(famMax == null
       ? [mathLine('This plan’s data lists no family out-of-pocket max, so each person is capped at the self-only max and no family cap is applied.', '', 'math-sub math-note')]
       : oopMaxLines({ oopMax: famMax, onePerson: false }, { oop: inNet }, inNet >= famMax - 0.5, 'Toward the family out-of-pocket max')),
-    Number.isFinite(b.oopMax) && mathLine(`No one pays more than ${usd(b.oopMax)} in-network, the self-only out-of-pocket max.`, '', 'math-sub math-note'),
+    Number.isFinite(b.oopMax) && mathLine(`No one pays more than ${usd(b.oopMax)} in-network, this plan’s self-only out-of-pocket max (the tool’s assumption where the brochure does not say).`, '', 'math-sub math-note'),
     shared && mathLine(order, '', 'math-sub math-note'),
     roundingLine(b, cost.oop));
 }
@@ -222,7 +227,7 @@ export function mathContent(row, state, data, basis) {
 
   // 2+ covered people: a block each, then the whole family; one person: the plain list
   const lines = (family
-    ? [premiumLine, ...b.members.map((_, i) => memberBlock(state, b, i)), familyBlock(b, cost), ...tail]
+    ? [premiumLine, ...b.members.map((_, i) => memberBlock(state, b, i)), familyBlock(b, cost, row.code), ...tail]
     : [
       premiumLine,
       mathLine(h('span', {}, h('i', { class: 'dot dot-oop' }), 'Expected care costs'), `+ ${usd(cost.oop)}`),

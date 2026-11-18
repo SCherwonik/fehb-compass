@@ -21,9 +21,9 @@ import { deductibleType } from '../engine/cost.js';
 
 /** The "Deductible type" row (engine deductibleType): how a family deductible is modeled for each covered person's care. */
 export const DEDUCTIBLE_TYPE_TEXT = Object.freeze({
-  embedded: { display: 'Embedded (assumed)', note: 'Each person has the self-only deductible and out-of-pocket max inside the family amounts. OPM’s data does not say; this tool assumes it for every plan that is not a high-deductible plan.' },
-  aggregate: { display: 'Aggregate (shared)', note: 'An HSA plan whose family deductible is twice the self-only one: the family deductible is shared, so one person may have to meet all of it, and the people on the enrollment share one. Each person’s costs stop at the self-only out-of-pocket max, and the family out-of-pocket max caps the total.' },
-  unknown: { display: 'Unknown (modeled as shared)', note: 'A high-deductible plan whose data does not say how its family deductible works: modeled as shared by the family, the cautious choice.' },
+  embedded: { display: 'Embedded (assumed)', note: 'Each person meets their own self-only deductible until everyone’s deductible spending together reaches the family deductible, and pays at most this plan’s self-only out-of-pocket max; the family out-of-pocket max (when the plan lists one) caps the total. How a family deductible works differs by plan: where the brochure does not state it, this tool assumes this for every plan that is not a high-deductible plan.' },
+  aggregate: { display: 'Aggregate (shared)', note: 'An HSA plan whose family deductible is twice the self-only one: the family deductible is shared by the people on the enrollment, so one person may have to meet all of it. Each person’s costs stop at this plan’s self-only out-of-pocket max and the family out-of-pocket max (when the plan lists one) caps the total: the tool’s assumption where the brochure does not say.' },
+  unknown: { display: 'Unknown (modeled as shared)', note: 'A high-deductible plan whose family deductible rule is not known here (it differs by plan): where the brochure does not state it, it is modeled as shared by the family, the cautious choice.' },
 });
 
 /** OPM identity columns: shown in column headers or dropped, never matrix rows. */
