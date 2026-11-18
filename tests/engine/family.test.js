@@ -170,7 +170,7 @@ test('order does not matter on embedded plans, three and four people', () => {
 
 test('aggregate plans: the family deductible tally changes nothing', () => {
   for (const code of codes) {
-    if (deductibleType(BENEFITS[code]) === 'embedded') continue;
+    if (['embedded', 'individual'].includes(deductibleType(BENEFITS[code]))) continue;
     const t = run(code, { enrollment: 'family', members: [{ usage: U('worst') }, { usage: U('condition') }, { usage: U('typical') }] });
     if (!t) continue;
     assert.equal(t.breakdown.familyDeductible ?? null, null, code);

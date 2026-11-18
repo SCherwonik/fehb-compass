@@ -19,7 +19,8 @@ const total = (code, enrollment, scenario) => planTotal(plan(code), { status: 'a
 
 test('deductibleType: embedded for non-HDHP plans, aggregate for HSA HDHPs whose family deductible is 2x self, unknown otherwise', () => {
   for (const c of ['131', '104', '444', '471', 'YJ1']) assert.equal(deductibleType(benefits[2027][c]), 'embedded', c);
-  for (const c of ['B61', 'V41', '224', 'KX1']) assert.equal(deductibleType(benefits[2027][c]), 'aggregate', c);
+  for (const c of ['B61', 'V41', 'KX1']) assert.equal(deductibleType(benefits[2027][c]), 'aggregate', c);
+  assert.equal(deductibleType(benefits[2027]['224']), 'individual', '224: its brochure states a $3,500 individual threshold');
   assert.equal(deductibleType(benefits[2027]['8W4']), 'unknown', '8W4: HDHP with an HRA, the data does not say');
 });
 

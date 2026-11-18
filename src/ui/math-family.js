@@ -2,9 +2,23 @@
 import { effectiveUsage, describeUsage, overrideChanges, YEAR_TEXT } from './assumptions.js';
 import { memberView, memberLabel, memberOfItem } from './members-model.js';
 import { usd } from './format.js';
+import { perPersonDeductible } from '../engine/cost.js';
 
 /** True when the plan's deductible is one pot for the whole enrollment (aggregate, or unknown and treated so). */
-export const sharedDeductible = (b) => b.deductibleType !== 'embedded';
+export const sharedDeductible = (b) => !perPersonDeductible(b.deductibleType);
+
+/**
+ * The words after "Toward the deductible" for one person: "of $3,000" with who it is for, or, on a plan whose brochure
+ * states an individual threshold (type 'individual') under a family enrollment, "individual stops at $3,500 of the
+ * family’s $4,000". `ctx`: a household member's memberBlockInput (shared, familyDeductible), {} for one person.
+ */
+export function deductibleHow(b, ctx = {}) {
+  const family = Number.isFinite(ctx.familyDeductible) ? ctx.familyDeductible : b.onePerson ? b.enrollmentDeductible : null;
+  if (b.deductibleType === 'individual' && Number.isFinite(family) && Number.isFinite(b.deductible) && family > b.deductible) {
+    return `individual stops at ${usd(b.deductible)} of the family’s ${usd(family)}`;
+  }
+  return `of ${usd(b.deductible)}${ctx.shared ? ' (shared by the family)' : b.onePerson ? ' (one person)' : ''}`;
+}
 
 /** A member's in-network care: what counts toward the out-of-pocket max (out-of-network and not-covered spend do not). */
 export const memberInNetwork = (m) => Math.max(0, m.oop - (m.oonPaid || 0) - (m.notCoveredPaid || 0));
@@ -74,8 +88,10 @@ export function memberAssumed(state, i) {
   return { title: assumedHeading(v.scenario, overrideChanges(v).length > 0, i === 0 ? 'you' : memberLabel(state, i)), text: describeUsage(effectiveUsage(v)) };
 }
 
-/** What the services list's note says about the deductible, for a household (embedded: each person's own; else shared). */
-export const householdDeductibleNote = (b) => (b.deductibleType === 'embedded'
+/** What the services list's note says about the deductible, for a household (embedded / individual: each person's own; else shared). */
+export const householdDeductibleNote = (b) => (b.deductibleType === 'individual'
+  ? `These services are everyone’s added together. As the plan’s brochure states, each person’s deductible stops at ${usd(b.deductible)}, used up by their own first services billed, and everyone’s deductible spending together stops at the family’s ${usd(b.familyDeductible ?? b.enrollmentDeductible)} (see each person above).`
+  : b.deductibleType === 'embedded'
   ? 'These services are everyone’s added together. Each person has their own deductible, which their own first services billed use up, until everyone’s deductible spending together reaches the family deductible (see each person above).'
   : 'These services are everyone’s added together. The family shares one deductible, used up by care in the order the people are listed above.');
 

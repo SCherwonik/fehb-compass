@@ -292,6 +292,10 @@ export function personLimitsNote(b) {
     return `${lead}the self-only ${usd0(b.deductible)} deductible and ${usd0(b.oopMax)} out-of-pocket max apply (assumed where the brochure does not say); `
       + `the family limits (${usd0(b.enrollmentDeductible)} and ${usd0(b.enrollmentOopMax)}) are not reached by one person.`;
   }
+  if (b.deductibleType === 'individual') {
+    return `${lead}this plan’s brochure says one person’s deductible stops at ${usd0(b.deductible)} of the ${usd0(b.enrollmentDeductible)} family deductible; `
+      + `their costs stop at the ${usd0(b.oopMax)} self-only out-of-pocket max (assumed where the brochure does not say).`;
+  }
   const why = b.deductibleType === 'aggregate'
     ? 'this HSA plan’s family deductible is shared'
     : 'how a family deductible works differs by plan and this plan’s data does not say, so it is treated as shared (the cautious choice)';

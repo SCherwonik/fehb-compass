@@ -36,7 +36,11 @@ const fin = (v) => typeof v === 'number' && Number.isFinite(v);
  * How a plan's Self Plus One / Self and Family deductible works for one person. It differs by plan and OPM's data does
  * not record it; some brochures state it in their own words (e.g. V41: "The full Self plus One or Self and Family
  * deductible must be satisfied ..."), others do not, and WX1's summary is unclear (UNCLEAR_FAMILY_DEDUCTIBLE). The data
- * files carry no such field, so this is the app's assumption from the plan type (see About > How it works):
+ * files carry no such field except where a brochure states an individual threshold (below); otherwise this is the
+ * app's assumption from the plan type (see About > How it works):
+ *   'individual' the brochure states it (benefits.deductible_individual, pipeline/individual_deductibles.json): under
+ *               Self Plus One / Self and Family one person's deductible stops at the individual threshold, and the
+ *               family's deductible spending together stops at the family deductible (e.g. 224: $3,500 of $4,000);
  *   'embedded'  every plan that is not an HDHP: each person has the self-only deductible (until the family's deductible
  *               spending reaches the family deductible) and the self-only OOP max inside the family ones;
  *   'aggregate' an HSA HDHP whose family deductible is exactly twice the self-only one (the IRS family minimum
@@ -48,7 +52,18 @@ export const UNCLEAR_FAMILY_DEDUCTIBLE = Object.freeze({
   WX1: 'Its 2026 summary of benefits says each family member meets their own deductible until the family total is met, which does not fit the IRS family minimum for an HSA plan',
 });
 
+/** The brochure-stated individual deductible thresholds by enrollment ({self_plus_one?, family?}), or null. */
+function individualThresholds(benefits) {
+  const t = benefits?.deductible_individual;
+  if (!t || typeof t !== 'object') return null;
+  return ['self_plus_one', 'family'].some((k) => fin(t[k])) ? t : null;
+}
+
+/** Each person's deductible spending is their own (capped by the family deductible together), not one shared pot. */
+export const perPersonDeductible = (type) => type === 'embedded' || type === 'individual';
+
 export function deductibleType(benefits) {
+  if (individualThresholds(benefits)) return 'individual';
   const account = String(benefits?.account_type ?? '');
   const hsa = /savings/i.test(account);
   const hdhp = hsa || /hdhp/i.test(String(benefits?.raw?.['Plan Option Type'] ?? ''));
@@ -62,8 +77,9 @@ export function deductibleType(benefits) {
 /**
  * The limits that apply to ONE covered person's care under this enrollment (each scenario is one person's year).
  * -> {deductible, oopMax, oon: {deductible, oopMax}, type}. Self enrollment: the plan's self-only limits.
- * Self Plus One / Family: embedded plans use the self-only deductible and OOP max; aggregate (and unknown) HDHPs
- * use the enrollment's deductible. Every person's out-of-pocket max is the plan's own self-only one: the app's stated
+ * Self Plus One / Family: embedded plans use the self-only deductible and OOP max; 'individual' plans use the
+ * brochure's individual threshold for that enrollment (the enrollment's deductible when none is listed for it);
+ * aggregate (and unknown) HDHPs use the enrollment's deductible. Out-of-network limits are never changed by a threshold. Every person's out-of-pocket max is the plan's own self-only one: the app's stated
  * assumption (some brochures say so and OPM asks plans to track each member's costs from 2026; not verified per plan).
  * Raw benefits with scalar limits (test fixtures) pass through unchanged.
  */
@@ -74,17 +90,19 @@ export function personLimits(benefits, enrollment) {
     const own = o[enrollment] ?? null;
     return { own, self: o.self ?? null };
   };
-  const limits = (ded, max) => {
+  const ind = individualThresholds(benefits);
+  const limits = (ded, max, inNetwork) => {
     const d = one(ded);
     const m = one(max);
     if (!('own' in d)) return { deductible: d.ded, oopMax: m.own ?? m.ded ?? null };
     if (enrollment === 'self') return { deductible: d.own, oopMax: m.own ?? null };
-    const deductible = type === 'embedded' ? (d.self ?? d.own) : d.own;
+    const deductible = type === 'embedded' ? (d.self ?? d.own)
+      : inNetwork && ind && fin(ind[enrollment]) ? ind[enrollment] : d.own;
     const caps = [m.own, m.self].filter(fin);
     const oopMax = caps.length ? Math.min(...caps) : null;
     return { deductible, oopMax };
   };
-  const inNet = limits(benefits?.deductible, benefits?.oop_max);
+  const inNet = limits(benefits?.deductible, benefits?.oop_max, true);
   const oon = limits(benefits?.out_of_network?.deductible, benefits?.out_of_network?.oop_max);
   return { deductible: inNet.deductible, oopMax: inNet.oopMax, oon: { deductible: oon.deductible, oopMax: oon.oopMax }, type };
 }
@@ -309,7 +327,8 @@ export function expectedOop(benefits, usage, assumptions = {}, drugs = [], carry
   const famMax = fin(benefits.familyOopMax) ? benefits.familyOopMax : Infinity;
   const famOonMax = fin(benefits.oon?.familyOopMax) ? benefits.oon.familyOopMax : Infinity;
   const dedUsed = carry?.dedUsed || 0, oopUsed = carry?.oopUsed || 0, oonUsed = carry?.oonUsed || 0;
-  // embedded plans: each person's own deductible, until the family's deductible spending reaches the family deductible
+  // embedded and individual-threshold plans: each person's own deductible, until the family's deductible spending
+  // reaches the family deductible
   const famDed = fin(benefits.familyDeductible) ? benefits.familyDeductible : Infinity;
   const famDedUsed = carry?.famDedUsed || 0;
   let dedLeft = Math.max(0, Math.min((benefits.deductible || 0) - dedUsed, famDed - famDedUsed));
@@ -646,7 +665,8 @@ export function planTotal(plan, inputs) {
  * Two or more covered people, costed one at a time with a running family tally (each member's `carryOut` goes to the
  * next). Embedded plans: every member has the self-only deductible until the family's combined deductible spending
  * reaches the enrollment's (family) deductible, then no one pays more deductible (the `famDedUsed` tally); the family's
- * out-of-pocket max caps the sum. Aggregate / unknown HDHPs: one shared deductible, carried.
+ * out-of-pocket max caps the sum. 'individual' plans work the same way with the brochure's individual threshold as each
+ * person's deductible. Aggregate / unknown HDHPs: one shared deductible, carried.
  * No family out-of-pocket max (or out-of-network max) in the data: no family cap, each person still capped alone;
  * for the in-network max that is flagged `breakdown.familyFallback`.
  */
@@ -660,8 +680,8 @@ function familyTotal(plan, inputs, members) {
     ...resolved, deductible: person.deductible, oopMax: person.oopMax, familyOopMax,
     oon: { ...person.oon, familyOopMax: fin(resolved.oon?.oopMax) ? resolved.oon.oopMax : null },
   };
-  const embedded = person.type === 'embedded';
-  // embedded: the enrollment's (family) deductible caps what everyone spends on their own deductibles together
+  const embedded = perPersonDeductible(person.type);
+  // embedded / individual: the enrollment's (family) deductible caps what everyone spends on their own deductibles together
   const familyDeductible = embedded && fin(resolved.deductible) ? resolved.deductible : null;
   if (familyDeductible !== null) b.familyDeductible = familyDeductible;
   let carry = { dedUsed: 0, oopUsed: 0, oonUsed: 0, famDedUsed: 0 };
@@ -703,7 +723,7 @@ function familyTotal(plan, inputs, members) {
       onePerson: false,
       memberCount: members.length,
       familyOopMax,
-      // embedded plans: the family deductible that caps everyone's deductible spending together (null otherwise)
+      // embedded and individual plans: the family deductible that caps everyone's deductible spending together (null otherwise)
       familyDeductible,
       familyFallback: familyOopMax === null,
       accountType: hra ? 'HRA' : 'HSA',

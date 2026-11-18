@@ -4,7 +4,7 @@ import { h, svg } from './dom.js';
 import { effectiveUsage, describeUsage, overrideChanges, inNetworkAtMax } from './assumptions.js';
 import { personLimitsNote, rankTotal } from './model.js';
 import { memberLabel } from './members-model.js';
-import { memberBlockInput, familyInNetwork, assumedHeading, memberAssumed, householdDeductibleNote, labelledByMember, itemWho, familyDeductibleUse, sharedDeductible, oopNote, gapNote } from './math-family.js';
+import { memberBlockInput, familyInNetwork, assumedHeading, memberAssumed, householdDeductibleNote, labelledByMember, itemWho, familyDeductibleUse, sharedDeductible, oopNote, gapNote, deductibleHow } from './math-family.js';
 import { dvMathLines } from './dental-board.js';
 import { ASSUMED_PRICES, ASSUMPTIONS_NOTE } from '../engine/assumptions.js';
 import { UNCLEAR_FAMILY_DEDUCTIBLE } from '../engine/cost.js';
@@ -70,11 +70,10 @@ function deductibleLines(b, drugsDed, ctx = {}) {
   const before = ctx.before ?? 0;
   const used = before + b.deductiblePaid;
   const shown = b.deductiblePaid - drugsDed;
-  const who = ctx.shared ? ' (shared by the family)' : b.onePerson ? ' (one person)' : '';
   if (!limit) return [mathLine('Toward the deductible', usd(shown), 'math-sub'), mathLine('This plan has no deductible to meet.', '', 'math-sub math-note')];
   const pct = Math.max(0, Math.min(100, (used / limit) * 100));
   return [
-    mathLine(h('span', {}, 'Toward the deductible ', h('span', { class: 'math-how' }, `of ${usd(limit)}${who}`)), usd(shown), 'math-sub'),
+    mathLine(h('span', {}, 'Toward the deductible ', h('span', { class: 'math-how' }, deductibleHow(b, ctx))), usd(shown), 'math-sub'),
     h('div', {
       class: 'math-meter', role: 'img',
       'aria-label': `${usd(used)} of the ${usd(limit)} deductible used${drugsDed > 0 ? `, ${usd(drugsDed)} of it by your medications` : ''}`,
@@ -168,7 +167,9 @@ function familyDeductibleLines(b) {
     h('p', { class: 'math-how math-meter-note' }, `${usd(used)} of the family’s ${usd(limit)} deductible. `
       + (sharedDeductible(b)
         ? (met ? 'Met: no more deductible applies to anyone this year.' : `${usd(limit - used)} of it is left unused.`)
-        : `Each person meets their own ${usd(b.deductible)} deductible until everyone’s deductible spending together reaches ${usd(limit)}`
+        : (b.deductibleType === 'individual'
+          ? `As the plan’s brochure states, each person’s deductible stops at ${usd(b.deductible)}, and everyone’s deductible spending together stops at ${usd(limit)}`
+          : `Each person meets their own ${usd(b.deductible)} deductible until everyone’s deductible spending together reaches ${usd(limit)}`)
           + (met ? ', which it did (in the order people are listed), so no more deductible applies to anyone this year.' : `; ${usd(limit - used)} of it is left unused.`))),
   ];
 }
@@ -177,7 +178,7 @@ function familyDeductibleLines(b) {
 function familyBlock(b, cost, code) {
   const inNet = familyInNetwork(b);
   const famMax = b.familyOopMax;
-  const shared = b.deductibleType !== 'embedded';
+  const shared = sharedDeductible(b);
   const unclear = UNCLEAR_FAMILY_DEDUCTIBLE[code];
   const uses = 'the first person’s care listed uses it up first, then the next.';
   const order = unclear
