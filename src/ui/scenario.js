@@ -24,6 +24,7 @@ export function createScenarioSection({ store }) {
 
   const fine = createFineTune({
     idPrefix: 'ft',
+    lede: 'Set your own worst case.', // your own year (Self): the wording it has always had
     get: () => ({ scenario: store.get().scenario, overrides: store.get().overrides }),
     set: (overrides) => store.set({ overrides }),
   });

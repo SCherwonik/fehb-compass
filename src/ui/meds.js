@@ -364,7 +364,9 @@ export function createMedsPanel({ meds, store }) {
     const next = { count: memberCount(s), key: memberKey(s) };
     if (next.count === people.count && next.key === people.key) return;
     people = next;
-    paintFor(editing ? memberOf(meds.get().drugs.find((x) => x.id === editing)) : forSel.value === '' ? defaultFor() : Number(forSel.value));
+    // adding: a person no longer covered falls back to the open (covered) person; editing keeps the drug's own person
+    const cur = forSel.value === '' ? -1 : Number(forSel.value);
+    paintFor(editing ? memberOf(meds.get().drugs.find((x) => x.id === editing)) : cur < 0 || cur >= people.count ? defaultFor() : cur);
     render();
   }
   store?.subscribe(syncPeople);

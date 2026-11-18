@@ -30,11 +30,11 @@ function fieldNote(key, v) {
 }
 
 /**
- * createFineTune({ idPrefix, label, get, set }) -> { el, sync(view), describe(view) }
+ * createFineTune({ idPrefix, label, lede, get, set }) -> { el, sync(view), describe(view) }
  * get() -> { scenario, overrides } as currently stored; set(overrides) writes a new overrides object.
  * sync(view) paints from the same { scenario, overrides } shape. idPrefix keeps ids unique per person.
  */
-export function createFineTune({ idPrefix = 'ft', label = 'Fine-tune your year', get, set }) {
+export function createFineTune({ idPrefix = 'ft', label = 'Fine-tune your year', lede = 'Set a worst case.', get, set }) {
   const ftId = `${idPrefix}-body`;
   const ftToggle = h('button', { type: 'button', class: 'ft-toggle', 'aria-expanded': 'false', 'aria-controls': ftId },
     h('span', { class: 'ft-toggle-copy' },
@@ -62,7 +62,7 @@ export function createFineTune({ idPrefix = 'ft', label = 'Fine-tune your year',
   });
   const body = h('div', { class: 'ft-body', id: ftId, role: 'group', 'aria-label': label, hidden: true },
     h('div', { class: 'ft-inner' },
-      h('p', { class: 'field-hint ft-lede' }, 'Set a worst case. Each change sits on top of the scenario; the tick marks the scenario’s value.'),
+      h('p', { class: 'field-hint ft-lede' }, `${lede} Each change sits on top of the scenario; the tick marks the scenario’s value.`),
       sliders.map((s) => s.row),
       reset));
   const el = h('div', { class: 'field ft' }, ftToggle, body);
