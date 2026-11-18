@@ -1,9 +1,10 @@
 // "Your situation" bar: the one-line summary chips and the open-or-closed decision on first load.
 // DOM-free (unit tested); the bar itself is src/ui/situation.js.
 import { STATE_NAMES } from '../data.js';
-import { decodeState, encodeState, sanitizeState } from '../state.js';
-import { overrideChanges } from './assumptions.js';
+import { decodeState, encodeState, sanitizeState, memberCount } from '../state.js';
+import { overrideChanges, householdCareText } from './assumptions.js';
 import { DENTAL_PRESETS, VISION_PRESETS } from '../engine/dental.js';
+import { isUncovered } from './members-model.js';
 
 const STATUS = { active: 'active employee', retiree: 'retiree' };
 const ENROLLMENT = { self: 'Self only', self_plus_one: 'Self plus one', family: 'Self and family' };
@@ -14,7 +15,7 @@ const list = (names, one, many) => (names.length === 1 ? `${one}: ${names[0]}` :
 
 /**
  * summaryChips(state, opts) -> [{ id, text, title? }] in reading order: who, where, then what the active tab uses.
- * opts: planName(code) -> 2026 FEHB plan name | null; medsCount: number;
+ * opts: planName(code) -> 2026 FEHB plan name | null; medsCount: number (only the covered people's: coveredCount);
  *       dvFilter: { carriers, area, oon, in2 } for the active dental/vision tab; dvPlanName(id) -> name | null.
  * Medication names never appear (only a count), the same rule as the printed summary.
  */
@@ -31,8 +32,14 @@ export function summaryChips(state, { planName = () => null, medsCount = 0, dvFi
   }
 
   if (s.tab === 'medical') {
-    const adjusted = s.custom.length > 0 || overrideChanges(s).length > 0;
-    out.push({ id: 'scenario', text: `${SCENARIO[s.scenario]}${adjusted ? ', adjusted' : ''}` });
+    if (memberCount(s) > 1) {
+      // a household: everyone's year (assumptions.householdCareText), not only yours
+      const t = householdCareText(s);
+      out.push({ id: 'scenario', text: t[0].toUpperCase() + t.slice(1) });
+    } else {
+      const adjusted = s.custom.some((l) => !isUncovered(l, 1)) || overrideChanges(s).length > 0;
+      out.push({ id: 'scenario', text: `${SCENARIO[s.scenario]}${adjusted ? ', adjusted' : ''}` });
+    }
     if (s.currentPlan2026) {
       out.push({ id: 'plan', text: `2026 plan: ${planName(s.currentPlan2026) ?? s.currentPlan2026}` });
     }

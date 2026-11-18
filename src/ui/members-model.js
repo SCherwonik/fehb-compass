@@ -56,6 +56,8 @@ export function nextOverrides(scenarioKey, overrides, key, value, field) {
 export const memberOfItem = (x) => (Number.isInteger(x?.member) && x.member > 0 ? x.member : 0);
 /** True when the item is tied to a person beyond the `count` people on the enrollment (in every enrollment, Self too). */
 export const isUncovered = (x, count) => memberOfItem(x) >= count;
+/** How many items (medications, custom lines) are for people the enrollment covers. */
+export const coveredCount = (items, state) => (Array.isArray(items) ? items.filter((x) => !isUncovered(x, memberCount(state))).length : 0);
 
 /** The member the "For" selectors start on: the open row of "Covered people" (set by members.js), clamped to the count. */
 const focus = { index: 0 };

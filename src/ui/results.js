@@ -2,7 +2,7 @@
 // Cards are keyed by plan code and updated in place; reordering uses FLIP limited to visible cards.
 import { h, svg, ICON_CHECK, ICON_CHEVRON } from './dom.js';
 import { segmented, mineSwitch } from './inputs.js';
-import { assumptionChips, overrideChanges } from './assumptions.js';
+import { assumptionChips, careCaption } from './assumptions.js';
 import { computeRows, savingsVsCurrent, availablePlans, servesState, SORTS, rankWithMine, baseTotal, dvCost, dvLabel, basisOf, basisNote, basisParts, anyMeds, anyDv, anyMaternity, anyMatEstimated, areaChip, rankTotal, planMeta } from './model.js';
 import { GROUP_LABELS, GROUP_MODES } from './grouping.js';
 import { createResultsBoard, mineNoteText } from './results-board.js';
@@ -19,14 +19,11 @@ import { createRxCard, updateRxCard } from './rx-card.js';
 import { badgeEl } from './rx-render.js';
 import { overrideBadge } from './matrix-model.js';
 import { mathContent, ICON_WARN } from './math.js';
-import { YEAR_TEXT } from './assumptions.js';
 
 const UI_KEY = 'fehb-compass:results-ui:v1';
 const ENROLLMENT_TEXT = { self: 'self only', self_plus_one: 'self plus one', family: 'family' };
-/** "typical year", or "your own year" once overrides or custom lines change the scenario. */
-const yearText = (state) => (state.custom.length || overrideChanges(state).length
-  ? (state.scenario === 'nothing' ? 'your own costs' : `${YEAR_TEXT[state.scenario] ?? YEAR_TEXT.typical}, adjusted`)
-  : (YEAR_TEXT[state.scenario] ?? YEAR_TEXT.typical));
+/** "typical year", "typical year, adjusted", "your own costs", or a household's phrase (assumptions.careCaption). */
+const yearText = careCaption;
 const TYPES = [['all', 'All'], ['FFS', 'FFS'], ['HMO', 'HMO'], ['HDHP', 'HDHP']];
 
 const ICON_CHEV = '<svg viewBox="0 0 16 16" aria-hidden="true" class="icon-chev"><path d="M4 6l4 4 4-4"/></svg>';

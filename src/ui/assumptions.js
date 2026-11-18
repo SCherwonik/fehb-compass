@@ -60,18 +60,63 @@ export function changeText(c) {
 
 const yearText = (scenario) => (scenario === 'nothing' ? 'Only your own costs' : cap(YEAR_TEXT[scenario] ?? YEAR_TEXT.typical));
 
+const scenarioKey = (k) => (Object.prototype.hasOwnProperty.call(SCENARIOS, k) ? k : 'typical');
+
+/** The custom lines that are costed: those for people the enrollment covers. */
+export const coveredLines = (state) => (state.custom ?? []).filter((l) => !isUncovered(l, memberCount(state)));
+
+/**
+ * How the people on the enrollment are set up: { count, keys (each person's scenario), same, allNothing, adjusted }.
+ * `adjusted`: someone's year is fine-tuned, or a costed custom line adds to it.
+ */
+export function household(state) {
+  const count = memberCount(state);
+  const views = Array.from({ length: count }, (_, i) => memberView(state, i));
+  const keys = views.map((v) => scenarioKey(v.scenario));
+  return {
+    count, views, keys,
+    same: keys.every((k) => k === keys[0]),
+    allNothing: keys.every((k) => k === 'nothing'),
+    adjusted: coveredLines(state).length > 0 || views.some((v) => overrideChanges(v).length > 0),
+  };
+}
+
+/**
+ * One short phrase for a household's expected care (2+ people): "4 people, typical year each",
+ * "3 people, mixed years, adjusted", "3 people, no assumed care", "3 people, the household's own costs".
+ */
+export function householdCareText(state) {
+  const hh = household(state);
+  if (hh.allNothing) return `${hh.count} people, ${coveredLines(state).length ? 'the household’s own costs' : 'no assumed care'}`;
+  const base = hh.same ? `${YEAR_TEXT[hh.keys[0]]} each` : 'mixed years';
+  return `${hh.count} people, ${base}${hh.adjusted ? ', adjusted' : ''}`;
+}
+
 /** The scenario chip for a household: one shared scenario, or a short "mixed" note with each person in the title. */
 function householdScenarioChip(state, count) {
-  const views = Array.from({ length: count }, (_, i) => memberView(state, i));
-  const keys = views.map((v) => (Object.prototype.hasOwnProperty.call(SCENARIOS, v.scenario) ? v.scenario : 'typical'));
-  const same = keys.every((k) => k === keys[0]);
-  const title = views.map((v, i) => `${memberLabel(state, i)}: ${yearText(keys[i])}. ${describeUsage(effectiveUsage(v))}`).join(' ');
+  const hh = household(state);
+  const one = (k) => (k === 'nothing' ? 'No assumed care' : yearText(k));
+  const title = hh.views.map((v, i) => `${memberLabel(state, i)}: ${one(hh.keys[i])}. ${describeUsage(effectiveUsage(v))}`).join(' ');
   return {
     id: 'scenario',
-    text: same ? `${count} people, ${keys[0] === 'nothing' ? yearText(keys[0]) : yearText(keys[0]).toLowerCase()} each` : `${count} people, mixed scenarios`,
+    text: hh.allNothing ? `${count} people, no assumed care`
+      : hh.same ? `${count} people, ${yearText(hh.keys[0]).toLowerCase()} each` : `${count} people, mixed scenarios`,
     tone: 'plain',
     title,
   };
+}
+
+/**
+ * The caption under a card's expected care (and the Board's "Expected care" cell). One person: the scenario's year
+ * ("typical year", "start-from-nothing year"), or "..., adjusted" / "your own costs" once fine-tuning or a costed
+ * custom line changes it. A household: householdCareText.
+ */
+export function careCaption(state) {
+  if (memberCount(state) > 1) return householdCareText(state);
+  const k = scenarioKey(state.scenario);
+  const adjusted = coveredLines(state).length > 0 || overrideChanges(state).length > 0;
+  if (adjusted) return k === 'nothing' ? 'your own costs' : `${YEAR_TEXT[k]}, adjusted`;
+  return k === 'nothing' ? 'start-from-nothing year' : YEAR_TEXT[k];
 }
 
 /**
@@ -99,11 +144,11 @@ export function assumptionChips(state) {
   } else {
     for (const c of changes) chips.push({ id: `o-${c.who ? `${c.who}-` : ''}${c.key}`, text: ctext(c), tone: 'accent', title: `${c.who ? `${c.who}, ` : ''}${c.label}: scenario has ${c.from}` });
   }
-  const custom = (state.custom ?? []).filter((l) => !isUncovered(l, count));
+  const custom = coveredLines(state);
   if (custom.length) {
     const spend = custom.reduce((a, l) => a + lineSpend(l), 0);
     chips.push({ id: 'custom', text: plural(custom.length, 'custom line'), tone: 'accent',
-      title: `${money(spend)} a year of your own costs before plan cost sharing` });
+      title: `${money(spend)} a year of ${count > 1 ? 'the household’s' : 'your'} own costs before plan cost sharing` });
   }
   if (state.droppedCustom > 0) {
     chips.push({ id: 'dropped', text: `${plural(state.droppedCustom, 'line')} not in link`, tone: 'warn', dismissible: true,

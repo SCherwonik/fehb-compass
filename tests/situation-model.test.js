@@ -19,7 +19,7 @@ test('summary chips: medical inputs read as plain chips, medications only as a c
   };
   const chips = summaryChips(s, { planName: (c) => (c === '104' ? 'Blue Cross Basic' : null), medsCount: 2 });
   assert.deepEqual(texts(chips), [
-    'Self and family, retiree', 'Virginia, ZIP 22030', 'Worst case, adjusted', '2026 plan: Blue Cross Basic',
+    'Self and family, retiree', 'Virginia, ZIP 22030', '4 people, mixed years, adjusted', '2026 plan: Blue Cross Basic',
     'HSA plans only', '2 networks', 'Covers GLP-1 for weight loss',
     'Dental and vision added', '2 medications',
   ]);

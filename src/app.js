@@ -17,6 +17,7 @@ import { initShare } from './ui/share-ui.js';
 import { initAbout } from './ui/about.js';
 import { initPrint } from './ui/print.js';
 import { initCompass } from './ui/compass.js';
+import { coveredCount } from './ui/members-model.js';
 
 const NEEDLE_ANGLE = { nothing: -64, healthy: -42, typical: -12, condition: 24, worst: 58 };
 // What the brand needle does: 'sway' (rests at 0, now and then glides to a random angle: src/ui/compass.js),
@@ -142,7 +143,7 @@ async function main() {
       const fv = fedvipHub.get();
       return {
         planName,
-        medsCount: meds.get()?.drugs?.length ?? 0,
+        medsCount: coveredCount(meds.get()?.drugs, s),
         dvFilter: dvPrefs().filter(s.tab),
         dvPlanName: (id) => {
           const p = fv?.years?.['2026']?.plans?.[id] ?? fv?.years?.['2027']?.plans?.[id];
@@ -179,7 +180,7 @@ async function main() {
       store,
       results,
       planName,
-      medsCount: () => meds.get()?.drugs?.length ?? 0,
+      medsCount: () => coveredCount(meds.get()?.drugs, store.get()),
     });
     // "My medications" prices health plans: shown with the health plan inputs only
     const medsPanel = createMedsPanel({ meds, store }).el;

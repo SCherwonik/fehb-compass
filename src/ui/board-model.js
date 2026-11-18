@@ -12,7 +12,8 @@
 import { usd, signedUsd, signedPct, deltaTone, DASH } from './format.js';
 import { FLAG_TEXT } from '../engine/diff.js';
 import { networkLabel } from './network.js';
-import { YEAR_TEXT } from './assumptions.js';
+import { YEAR_TEXT, coveredLines, householdCareText } from './assumptions.js';
+import { memberCount } from '../state.js';
 import { baseTotal, medsCost, anyMeds, anyDv, dvCost, dvLabel, basisOf, basisNote, medsRanked, rankTotal, anyMaternity, maternityRanked, anyMatEstimated } from './model.js';
 import { MATERNITY_UNPRICED } from '../engine/cost.js';
 
@@ -114,7 +115,9 @@ export function boardContext(rankedRows, state, mine = null, baseline = null) {
     scenario: state?.scenario ?? 'typical',
     stateCode: state?.location?.state ?? null, // for the "Part of VA" chip on partial-state plans
     // fine-tune overrides or custom lines change the scenario's care
-    adjusted: (state?.custom?.length ?? 0) > 0 || Object.keys(state?.overrides ?? {}).length > 0,
+    adjusted: (state ? coveredLines(state).length : 0) > 0 || Object.keys(state?.overrides ?? {}).length > 0,
+    // a household's "Expected care" sub-line covers everyone (assumptions.householdCareText); null for one person
+    household: state && memberCount(state) > 1 ? householdCareText(state) : null,
     values: valueScores(rows, state?.enrollment ?? 'self', withMeds, withMat),
     // medications priced on some plan: the "vs" totals compare without them (rows with `when: medsOn` say so)
     medsOn: anyMeds(mine ? [...rows, mine] : rows),
@@ -274,7 +277,7 @@ export const MEDICAL_SECTIONS = [
         // the board turns this cell into the number plus a "See the math" button (results-board.js hooks.math)
         cell: (r, ctx) => ({
           ...money(r.cost.oop, {
-            sub: ctx.scenario === 'nothing' ? 'your own costs' : `${YEAR_TEXT[ctx.scenario] ?? YEAR_TEXT.typical}${ctx.adjusted ? ', adjusted' : ''}`,
+            sub: ctx.household ?? (ctx.scenario === 'nothing' ? 'your own costs' : `${YEAR_TEXT[ctx.scenario] ?? YEAR_TEXT.typical}${ctx.adjusted ? ', adjusted' : ''}`),
           }),
           hook: 'math',
         }),
