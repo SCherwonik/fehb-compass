@@ -101,11 +101,14 @@ export const labelledByMember = (state, lists) => lists.flatMap((list, i) => (li
 /** A medication that is not counted, with the person it is for (items beyond the count keep their own member index). */
 export const itemWho = (state, it) => memberLabel(state, memberOfItem(it));
 
+// known-gap kinds that are a brochure cost the estimate leaves out (the others are sentences of their own)
+const LEFT_OUT = new Set(['facility_deductible', 'drug_deductible']);
+
 /**
- * The note for one known gap (engine breakdown.gaps entry), and where the brochure says so: what the estimate leaves
- * out, or (kind 'conflict') the gap's own sentence on how the brochure contradicts itself and which figure is used.
+ * The note for one known gap (engine breakdown.gaps or capNotes entry), and where the brochure says so: what the
+ * estimate leaves out, or (kind 'conflict', 'cap_not_stated' and the like) the gap's own sentence.
  */
-export const gapNote = (g) => `${g.kind === 'conflict' ? '' : 'Not included in this estimate: '}${g.text} (Brochure ${g.brochure}, page ${g.page}.)`;
+export const gapNote = (g) => `${LEFT_OUT.has(g.kind) ? 'Not included in this estimate: ' : ''}${g.text} (Brochure ${g.brochure}, page ${g.page}.)`;
 
 /** The firmness line for a total with known gaps: a brochure cost it leaves out, a brochure that contradicts itself, or both. */
 export function gapFirmness(gaps) {

@@ -612,6 +612,20 @@ export function costGaps(benefits, enrollment = null) {
     .map(({ kind, text, brochure, page, amounts }) => ({ kind, text, brochure, page, amounts: amounts ?? null }));
 }
 
+/**
+ * The plan's notes on the per-person out-of-pocket cap for this enrollment (pipeline/known_gaps.json kind
+ * 'cap_not_stated': the brochure does not state a per-person limit, and the estimate caps each person at the plan's own
+ * Self Only maximum, the app's stated assumption), as [{ kind, text, brochure, page }]. Never for Self; an entry with an
+ * `enrollments` list applies only to those. They change no total and no firmness: "See the math" shows them.
+ */
+export function capNotes(benefits, enrollment) {
+  if (!enrollment || enrollment === 'self') return [];
+  const list = Array.isArray(benefits?.known_gaps) ? benefits.known_gaps : [];
+  return list.filter((g) => g && g.kind === 'cap_not_stated'
+    && (!Array.isArray(g.enrollments) || g.enrollments.includes(enrollment)))
+    .map(({ kind, text, brochure, page }) => ({ kind, text, brochure, page }));
+}
+
 export function planTotal(plan, inputs) {
   const members = Array.isArray(inputs.members) ? inputs.members : null;
   if (members && members.length >= 2) return familyTotal(plan, inputs, members);

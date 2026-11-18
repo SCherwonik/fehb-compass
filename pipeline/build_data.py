@@ -765,7 +765,12 @@ GAP_KEYS = ("year", "plan_code", "kind", "affects_cost", "amounts", "text", "bro
 ENROLLMENTS = ("self", "self_plus_one", "family")  # a gap's optional "enrollments": the ones it applies to (default all)
 # kind -> the affects_cost values it may have: a conflict is data only (an out-of-network figure the estimate does not
 # use) or affects cost (the brochure contradicts itself about a figure the estimate uses)
-GAP_KINDS = {"facility_deductible": (True,), "drug_deductible": (True,), "conflict": (True, False)}
+# 'cap_not_stated': the brochure gives out-of-pocket limits for the whole enrollment only (or prints "per person" next to
+# the Self Plus One amount without saying more); the estimate caps each person at the plan's own Self Only maximum, the
+# app's stated assumption. Data only (no total or firmness changes); "See the math" shows the text for Self Plus One and
+# Self and Family.
+GAP_KINDS = {"facility_deductible": (True,), "drug_deductible": (True,), "conflict": (True, False),
+             "cap_not_stated": (False,)}
 
 
 def brochure_page_text(year, brochure: str, page: int, root: Path = BROCHURE_TXT_DIR) -> str | None:
@@ -841,6 +846,15 @@ def apply_known_gaps(benefits: dict, path: Path = KNOWN_GAPS_PATH, brochure_root
         enr = g.get("enrollments")
         if "enrollments" in g and (not isinstance(enr, list) or not enr or not set(enr) <= set(ENROLLMENTS)):
             raise ValueError(f"{name}: {code}: enrollments must be a non-empty list of {ENROLLMENTS}")
+        if g["kind"] == "cap_not_stated":
+            if not enr or "self" in enr:
+                raise ValueError(f"{name}: {code}: a cap_not_stated entry applies to Self Plus One and Self and Family only "
+                                 f"(enrollments without self)")
+            own = (e.get("oop_max") or {}).get("self")
+            want = f"${own:,.0f}" if isinstance(own, (int, float)) and float(own).is_integer() else None
+            if want is None or f"Self Only limit of {want}" not in g["text"]:
+                raise ValueError(f"{name}: {code}: the text must name the plan's Self Only out-of-pocket limit "
+                                 f"({want or 'none listed'})")
         entry = {k: g[k] for k in GAP_KEYS if k not in ("year", "plan_code")}
         if enr is not None:
             entry["enrollments"] = enr

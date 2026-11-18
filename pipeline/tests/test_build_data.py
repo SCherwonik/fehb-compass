@@ -690,8 +690,8 @@ def test_tracked_known_gaps_land_on_the_right_plans():
     assert {c: sorted(g["kind"] for g in gs) for c, gs in by.items()} == {
         "V31": ["facility_deductible"], "2G4": ["facility_deductible"],
         "B64": ["drug_deductible", "facility_deductible"], "B41": ["conflict"], "B44": ["conflict"],
-        "KX1": ["conflict"], "L14": ["conflict"]}
-    assert all(g["affects_cost"] is True for g in spec if g["kind"] != "conflict")
+        "KX1": ["conflict"], "L14": ["conflict"], **{c: ["cap_not_stated"] for c in CAP_NOT_STATED}}
+    assert all(g["affects_cost"] is True for g in spec if g["kind"] not in ("conflict", "cap_not_stated"))
     # a conflict over an out-of-network figure is data only; one over the deductible the estimate uses affects cost
     assert {g["plan_code"]: g["affects_cost"] for g in spec if g["kind"] == "conflict"} == {
         "B41": False, "B44": False, "KX1": True, "L14": True}
@@ -842,6 +842,44 @@ def test_known_gap_may_name_the_enrollments_it_applies_to(tmp_path):
     for bad in ([], ["self", "other"], "family"):
         with pytest.raises(ValueError, match="enrollments"):
             _apply_gaps(tmp_path, [{**GAP, "enrollments": bad}])
+
+
+CAP = {**GAP, "kind": "cap_not_stated", "affects_cost": False, "amounts": None, "enrollments": ["self_plus_one", "family"],
+       "text": "This plan’s brochure gives out-of-pocket limits only for the whole enrollment. The estimate assumes no one "
+               "person pays more than the plan’s Self Only limit of $6,000."}
+CAP_PLAN = {"oop_max": {"self": 6000.0, "self_plus_one": 12000.0, "family": 12000.0}}
+
+
+def test_cap_not_stated_is_data_for_family_enrollments_naming_the_self_only_limit(tmp_path):
+    n, b = _apply_gaps(tmp_path, [CAP], {"2027": {"X1": dict(CAP_PLAN)}})
+    assert n == 1 and b["2027"]["X1"]["known_gaps"][0]["kind"] == "cap_not_stated"
+    with pytest.raises(ValueError, match="affects_cost"):
+        _apply_gaps(tmp_path, [{**CAP, "affects_cost": True}], {"2027": {"X1": dict(CAP_PLAN)}})
+    for enr in (None, ["self", "family"]):
+        bad = {k: v for k, v in CAP.items() if k != "enrollments"} if enr is None else {**CAP, "enrollments": enr}
+        with pytest.raises(ValueError, match="Self Plus One"):
+            _apply_gaps(tmp_path, [bad], {"2027": {"X1": dict(CAP_PLAN)}})
+    with pytest.raises(ValueError, match=r"\$7,000"):
+        _apply_gaps(tmp_path, [CAP], {"2027": {"X1": {"oop_max": {"self": 7000.0}}}})
+
+
+CAP_NOT_STATED = {"421": 6000, "424": 9000, "W51": 2500, "A81": 7000, "P81": 7000, "A84": 6000, "P84": 6000,
+                  "RE1": 9500, "YZ1": 9500, "YJ1": 8100, "EA1": 3500, "YJ4": 3000, "8W4": 6000}
+
+
+def test_tracked_cap_not_stated_plans():
+    spec = json.loads((PIPELINE / "known_gaps.json").read_text(encoding="utf-8"))["gaps"]
+    caps = {g["plan_code"]: g for g in spec if g["kind"] == "cap_not_stated"}
+    assert set(caps) == set(CAP_NOT_STATED)
+    benefits = json.loads((ROOT / "data" / "benefits.json").read_text(encoding="utf-8"))["2027"]
+    for code, amount in CAP_NOT_STATED.items():
+        g = caps[code]
+        assert g["affects_cost"] is False and g["enrollments"] == ["self_plus_one", "family"], code
+        assert benefits[code]["oop_max"]["self"] == amount, code
+        assert f"Self Only limit of ${amount:,}." in g["text"], code
+        assert ("prints “per person”" in g["text"]) == (code in ("EA1", "YJ4", "8W4")), code
+    for code in ("631", "634"):  # Kaiser Hawaii: the Medicare table states "$3,250 per person" / "$3,500 per person"
+        assert "known_gaps" not in benefits[code]
 
 
 def test_tracked_deductible_conflicts_apply_to_family_enrollments_only():

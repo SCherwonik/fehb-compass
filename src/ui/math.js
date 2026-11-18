@@ -7,7 +7,7 @@ import { memberLabel } from './members-model.js';
 import { memberBlockInput, familyInNetwork, assumedHeading, memberAssumed, householdDeductibleNote, labelledByMember, itemWho, familyDeductibleUse, sharedDeductible, oopNote, gapNote, deductibleHow, gapFirmness } from './math-family.js';
 import { dvMathLines } from './dental-board.js';
 import { ASSUMED_PRICES, ASSUMPTIONS_NOTE } from '../engine/assumptions.js';
-import { UNCLEAR_FAMILY_DEDUCTIBLE } from '../engine/cost.js';
+import { UNCLEAR_FAMILY_DEDUCTIBLE, capNotes } from '../engine/cost.js';
 import { usd, usdExact } from './format.js';
 import { reduceMotion, EASE_OUT } from './motion.js';
 
@@ -299,6 +299,8 @@ export function mathContent(row, state, data, basis) {
     h('div', { class: 'math-notes' },
       h('p', { class: 'math-p math-firm' }, firmness + oonNote),
       ...gaps.map((g) => h('p', { class: 'mc-warn math-gap' }, svg(ICON_WARN), gapNote(g))),
+      // the brochure does not state a per-person out-of-pocket limit: what the estimate assumes (no total change)
+      ...capNotes(row.benefits, state.enrollment).map((g) => h('p', { class: 'math-p math-cap' }, gapNote(g))),
       ...(family
         ? b.members.flatMap((_, i) => { const a = memberAssumed(state, i); return [h('p', { class: 'math-h' }, a.title), h('p', { class: 'math-p' }, a.text)]; })
         : [h('p', { class: 'math-h' }, assumedHeading(state.scenario, changes.length > 0)),
