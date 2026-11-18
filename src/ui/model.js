@@ -8,6 +8,7 @@ import { statesFromServiceArea } from '../data.js';
 import { groupPlans } from './grouping.js';
 import { glp1Covered, planMeds } from './rx-model.js';
 import { dvAddOn } from './dv-model.js';
+import { memberCount } from '../state.js';
 
 const cents = (n) => Math.round(n * 100) / 100;
 
@@ -55,18 +56,51 @@ export function planInput(data, year, code) {
   return { rate, benefits, account: benefits.account_contribution ?? null, accountType };
 }
 
-/** Engine inputs: the scenario's usage, with the fine-tune overrides on top, plus the user's custom lines. */
+const scenarioFor = (id) => (Object.prototype.hasOwnProperty.call(SCENARIOS, id) ? SCENARIOS[id] : SCENARIOS.typical);
+const lineMember = (l) => (Number.isInteger(l?.member) && l.member > 0 ? l.member : 0);
+
+/**
+ * Engine inputs: each member's scenario usage, with the fine-tune overrides on top, plus the user's custom lines
+ * (a line costs the member it names; none named = you). `usage` is member 1's (you), kept for existing readers;
+ * `members` is [{ usage }] of length memberCount(state). Lines for a member beyond the count are left out.
+ */
 export function costInputs(state) {
-  const base = Object.prototype.hasOwnProperty.call(SCENARIOS, state.scenario) ? SCENARIOS[state.scenario] : SCENARIOS.typical;
+  const n = memberCount(state);
+  const custom = Array.isArray(state.custom) ? state.custom : [];
+  const others = Array.isArray(state.others) ? state.others : [];
+  const members = [];
+  for (let i = 0; i < n; i++) {
+    const o = i === 0 ? state : others[i - 1];
+    const base = scenarioFor(o?.scenario);
+    members.push({ usage: usageFromCustom(custom.filter((l) => lineMember(l) === i), applyOverrides(base, o?.overrides)) });
+  }
   return {
     status: state.status,
     enrollment: state.enrollment,
-    usage: usageFromCustom(state.custom, applyOverrides(base, state.overrides)),
+    usage: members[0].usage,
+    members,
+  };
+}
+
+/**
+ * The inputs with the priced medication entries split by entry.member (default 0) into members[i].drugs.
+ * Entries for a member beyond the count are dropped. A one-member input gets `drugs` as before.
+ */
+export function withDrugs(inputs, entries) {
+  const list = Array.isArray(entries) ? entries : [];
+  const members = inputs.members ?? [{ usage: inputs.usage }];
+  if (members.length <= 1) {
+    const drugs = list.filter((e) => (e?.member ?? 0) === 0);
+    return { ...inputs, drugs, ...(inputs.members ? { members: inputs.members.map((m) => ({ ...m, drugs })) } : {}) };
+  }
+  return {
+    ...inputs,
+    members: members.map((m, i) => ({ ...m, drugs: list.filter((e) => (e?.member ?? 0) === i) })),
   };
 }
 
 /** True when the engine inputs carry a maternity line ("Having a baby") that is used this year. */
-export const hasMaternityLine = (inputs) => (inputs?.usage?.custom ?? []).some((l) => l?.kind === 'maternity' && (l.perYear ?? 0) > 0);
+export const hasMaternityLine = (inputs) => (inputs?.members ?? [{ usage: inputs?.usage }]).some((m) => (m?.usage?.custom ?? []).some((l) => l?.kind === 'maternity' && (l.perYear ?? 0) > 0));
 
 /**
  * The maternity part of a row when the custom lines include a maternity line, else null:
@@ -86,9 +120,11 @@ function maternityPart(input, inputs, base, meds) {
     // the engine already left the line out: the totals without it are the totals
     return { priced, estimated: false, assumed: [], estimate: null, gap: maternityGap(input.benefits?.maternity), cost: 0, baseTotal: base.total, total: null };
   }
-  const without = { ...inputs, usage: { ...inputs.usage, custom: inputs.usage.custom.filter((l) => l?.kind !== 'maternity') } };
+  const noMat = (u) => ({ ...u, custom: (u.custom ?? []).filter((l) => l?.kind !== 'maternity') });
+  const without = { ...inputs, usage: noMat(inputs.usage) };
+  if (inputs.members) without.members = inputs.members.map((m) => ({ ...m, usage: noMat(m.usage) }));
   const baseNo = planTotal(input, without).total;
-  const withMedsNo = meds?.entries.length ? planTotal(input, { ...without, drugs: meds.entries }).total : null;
+  const withMedsNo = meds?.entries.length ? planTotal(input, withDrugs(without, meds.entries)).total : null;
   const m = input.benefits.maternity;
   const estimated = m.estimated === true;
   return {
@@ -113,7 +149,7 @@ export function makeRow(data, state, code) {
   let base;
   try {
     base = planTotal(input, inputs);
-    cost = meds?.entries.length ? planTotal(input, { ...inputs, drugs: meds.entries }) : base;
+    cost = meds?.entries.length ? planTotal(input, withDrugs(inputs, meds.entries)) : base;
   } catch { return null; }
   if (!Number.isFinite(cost.total) || !Number.isFinite(base.total)) return null;
   // "Add dental and vision": the same FEDVIP line items join every plan's total (data.fedvip: lazy-loaded)

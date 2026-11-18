@@ -661,7 +661,7 @@ export function planMeds(facts, meds, code, benefits) {
   if (!drugs.length) return null;
   const lookup = facts ? lookupFor(code, facts) : null;
   if (!facts) {
-    const items = drugs.map((d) => ({ status: 'pending', text: 'Brochure facts not loaded', drugId: d.id, name: d.name, tier: undefined, lookup: null }));
+    const items = drugs.map((d) => ({ status: 'pending', text: 'Brochure facts not loaded', drugId: d.id, name: d.name, member: d.member ?? 0, tier: undefined, lookup: null }));
     return { count: drugs.length, notLookedUp: 0, pending: drugs.length, factsMissing: true, items, entries: [], estimate: 0, lookup: null };
   }
   const rx = rxFor(code, undefined, facts);
@@ -669,13 +669,13 @@ export function planMeds(facts, meds, code, benefits) {
   const deductibleDefault = hdhpDefault(benefits);
   const items = drugs.map((d) => {
     const tier = own(rec, d.id);
-    return { ...annualDrugCost(d, tier, rx, { deductibleDefault }), drugId: d.id, name: d.name, tier, lookup };
+    return { ...annualDrugCost(d, tier, rx, { deductibleDefault }), drugId: d.id, name: d.name, member: d.member ?? 0, tier, lookup };
   });
   const entries = [];
   let estimate = 0;
   for (const it of items) {
     if (!it.share || it.annual == null) continue;
-    entries.push({ label: it.name, fillsPerYear: it.fills, price: it.price ?? it.perFill, share: it.share, deductibleApplies: it.deductibleApplies, drugId: it.drugId });
+    entries.push({ label: it.name, fillsPerYear: it.fills, price: it.price ?? it.perFill, share: it.share, deductibleApplies: it.deductibleApplies, drugId: it.drugId, member: it.member });
     estimate += it.annual;
   }
   return {

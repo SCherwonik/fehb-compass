@@ -28,12 +28,15 @@ export function sanitizeDrug(d) {
   if (!id || !name) return null;
   const cost = typeof d.monthlyCost === 'string' && d.monthlyCost.trim() !== '' ? Number(d.monthlyCost) : d.monthlyCost;
   const fills = typeof d.fillsPerYear === 'string' ? Number(d.fillsPerYear) : d.fillsPerYear;
+  const mem = typeof d.member === 'string' && d.member.trim() !== '' ? Number(d.member) : d.member;
   return {
     id,
     name,
     monthlyCost: typeof cost === 'number' && Number.isFinite(cost) && cost >= 0 && cost <= 100000 ? Math.round(cost * 10000) / 10000 : null, // 4 decimals: a 90-day price kept as a 30-day price must come back to the cent
     fillsPerYear: Number.isInteger(fills) && fills >= 1 && fills <= 365 ? fills : 12,
     channel: typeof d.channel === 'string' && CHANNEL_IDS.includes(d.channel) ? d.channel : 'retail30',
+    // which household member takes it: 1..7 = another member; absent = you (member 0), so records stay as they were
+    ...(Number.isInteger(mem) && mem >= 1 && mem <= 7 ? { member: mem } : {}),
   };
 }
 
