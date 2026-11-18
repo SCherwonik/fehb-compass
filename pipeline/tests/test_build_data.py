@@ -689,10 +689,12 @@ def test_tracked_known_gaps_land_on_the_right_plans():
         by.setdefault(g["plan_code"], []).append(g)
     assert {c: sorted(g["kind"] for g in gs) for c, gs in by.items()} == {
         "V31": ["facility_deductible"], "2G4": ["facility_deductible"],
-        "B64": ["drug_deductible", "facility_deductible"], "B41": ["conflict"], "B44": ["conflict"]}
+        "B64": ["drug_deductible", "facility_deductible"], "B41": ["conflict"], "B44": ["conflict"],
+        "KX1": ["conflict"], "L14": ["conflict"]}
     assert all(g["affects_cost"] is True for g in spec if g["kind"] != "conflict")
     # a conflict over an out-of-network figure is data only; one over the deductible the estimate uses affects cost
-    assert {g["plan_code"]: g["affects_cost"] for g in spec if g["kind"] == "conflict"} == {"B41": False, "B44": False}
+    assert {g["plan_code"]: g["affects_cost"] for g in spec if g["kind"] == "conflict"} == {
+        "B41": False, "B44": False, "KX1": True, "L14": True}
     benefits = json.loads((ROOT / "data" / "benefits.json").read_text(encoding="utf-8"))["2027"]
     for code, gs in by.items():
         assert [g["kind"] for g in benefits[code]["known_gaps"]] == [g["kind"] for g in gs]

@@ -599,13 +599,16 @@ function mergeServices(lists) {
 }
 
 /**
- * The plan's known gaps that change what care costs (pipeline/known_gaps.json: a brochure deductible the estimate does
- * not include), as [{ kind, text, brochure, page, amounts }]. They are not priced: the total stays as computed and
- * is marked 'estimated'. Conflict entries (affects_cost false) are data only and never listed here.
+ * The plan's known gaps that change what care costs for this enrollment (pipeline/known_gaps.json: a brochure deductible
+ * the estimate does not include, or a brochure that contradicts itself about a figure the estimate uses, kind
+ * 'conflict'), as [{ kind, text, brochure, page, amounts }]. They are not priced: the total stays as computed and is
+ * marked 'estimated'. Entries with affects_cost false are data only and never listed here; an entry with an
+ * `enrollments` list applies only to those enrollments (no enrollment given: every entry).
  */
-export function costGaps(benefits) {
+export function costGaps(benefits, enrollment = null) {
   const list = Array.isArray(benefits?.known_gaps) ? benefits.known_gaps : [];
-  return list.filter((g) => g && g.affects_cost === true)
+  return list.filter((g) => g && g.affects_cost === true
+    && (!enrollment || !Array.isArray(g.enrollments) || g.enrollments.includes(enrollment)))
     .map(({ kind, text, brochure, page, amounts }) => ({ kind, text, brochure, page, amounts: amounts ?? null }));
 }
 
@@ -625,7 +628,7 @@ export function planTotal(plan, inputs) {
   const hra = isHra(plan);
   const cap = Math.max(0, deposit || 0);
   const hsaOffset = hra ? cents(Math.min(cap, o.total)) : cap;
-  const gaps = costGaps(plan.benefits);
+  const gaps = costGaps(plan.benefits, enrollment);
   const firmness = o.warnings.length === 0 && o.flat && gaps.length === 0 ? 'fixed' : 'estimated';
   return {
     premium,
@@ -705,7 +708,7 @@ function familyTotal(plan, inputs, members) {
   const hsaOffset = hra ? cents(Math.min(cap, oop)) : cap;
   const warnings = [...new Set(rows.flatMap((r) => r.warnings))];
   const union = (k) => [...new Set(rows.flatMap((r) => r[k]))];
-  const gaps = costGaps(plan.benefits);
+  const gaps = costGaps(plan.benefits, enrollment);
   return {
     premium,
     oop,

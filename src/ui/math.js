@@ -4,7 +4,7 @@ import { h, svg } from './dom.js';
 import { effectiveUsage, describeUsage, overrideChanges, inNetworkAtMax } from './assumptions.js';
 import { personLimitsNote, rankTotal } from './model.js';
 import { memberLabel } from './members-model.js';
-import { memberBlockInput, familyInNetwork, assumedHeading, memberAssumed, householdDeductibleNote, labelledByMember, itemWho, familyDeductibleUse, sharedDeductible, oopNote, gapNote, deductibleHow } from './math-family.js';
+import { memberBlockInput, familyInNetwork, assumedHeading, memberAssumed, householdDeductibleNote, labelledByMember, itemWho, familyDeductibleUse, sharedDeductible, oopNote, gapNote, deductibleHow, gapFirmness } from './math-family.js';
 import { dvMathLines } from './dental-board.js';
 import { ASSUMED_PRICES, ASSUMPTIONS_NOTE } from '../engine/assumptions.js';
 import { UNCLEAR_FAMILY_DEDUCTIBLE } from '../engine/cost.js';
@@ -289,7 +289,7 @@ export function mathContent(row, state, data, basis) {
   const firmness = cost.firmness === 'fixed'
     ? 'Fixed cost: every service in this scenario is a flat copay, so this total does not depend on assumed prices.'
     : gaps.length > 0
-      ? 'Estimated: this total leaves out a cost the plan’s brochure lists (see the note below), and part of it may depend on the assumed prices listed below.'
+      ? gapFirmness(gaps)
       : 'Estimated: part of this total depends on the assumed prices listed below.';
   const oonNote = b.oonEstimate === true
     ? ' Out-of-network lines are counted at full cost: OPM publishes no out-of-network cost sharing.'

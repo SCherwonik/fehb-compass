@@ -1,5 +1,5 @@
 {
-  "about": "Known gaps: brochure cost terms the app's estimate does not include (affects_cost true), and brochure contradictions kept as data only (kind 'conflict', affects_cost false). pipeline/build_data.py attaches each entry to data/benefits.json under benefits[year][plan_code]['known_gaps'] and checks that each quote occurs on the named brochure page (pipeline/raw/brochures_txt/<year>/<brochure>.txt, whitespace-insensitive). amounts: {self, self_plus_one, family} or null where the brochure gives no amounts by enrollment. text is the sentence shown to users in 'See the math' after 'Not included in this estimate:'.",
+  "about": "Known gaps: brochure cost terms the app's estimate does not include (affects_cost true), and brochure contradictions (kind 'conflict': affects_cost false keeps one about a figure the estimate does not use as data only; affects_cost true marks the total estimated and shows the text, which then says the brochure contradicts itself, what each statement is and which one the estimate uses). enrollments (optional): the enrollments the entry applies to, all when absent. pipeline/build_data.py attaches each entry to data/benefits.json under benefits[year][plan_code]['known_gaps'] and checks that each quote occurs on the named brochure page (pipeline/raw/brochures_txt/<year>/<brochure>.txt, whitespace-insensitive). amounts: {self, self_plus_one, family} or null where the brochure gives no amounts by enrollment. text is the sentence shown to users in 'See the math', after 'Not included in this estimate:' for a cost term and on its own for a conflict.",
   "gaps": [
     {
       "year": 2027,
@@ -72,6 +72,32 @@
       "page": 27,
       "quote": "for your enrollment reach $1,000 under High and Standard Option",
       "reason": "Same brochure and conflict as B41: Section 4 (p27) says $1,000, Section 5 (p35 and others) says $1,500. The app keeps $1,500."
+    },
+    {
+      "year": 2027,
+      "plan_code": "KX1",
+      "kind": "conflict",
+      "affects_cost": true,
+      "enrollments": ["self_plus_one", "family"],
+      "amounts": null,
+      "text": "The brochure contradicts itself about the Self Plus One and Self and Family deductible: it says the deductible is $2,000 per person, met for the family once two members each meet theirs (pages 25 and 102), but also that one or more family members can meet the $4,000 family deductible (page 104); the estimate uses the shared $4,000 deductible, so it may be too high by up to $2,000.",
+      "brochure": "73-776",
+      "page": 102,
+      "quote": "The deductible is $2,000 per person ($4,000 per Self Plus One enrollment",
+      "reason": "TakeCare HDHP. Section 4 (p25) and Section 5 (p102, p171) say the Self and Family deductible is met when at least two covered family members have met their individual deductible; p104 and the other Section 5 subsections (p117, p126, p129, p132, p135) say it can be satisfied by one or more family members. The brochure states no individual threshold for one person. The app keeps the shared $4,000 deductible (aggregate)."
+    },
+    {
+      "year": 2027,
+      "plan_code": "L14",
+      "kind": "conflict",
+      "affects_cost": true,
+      "enrollments": ["self_plus_one", "family"],
+      "amounts": null,
+      "text": "The brochure contradicts itself about the Self Plus One and Self and Family deductible: Sections 4 and 5 give it as $3,500 per family unit, but the Summary (page 172) gives $1,650 per person, and a line later $1,750 per person, up to $3,500 for the family; the estimate uses the shared $3,500 deductible, so for one person it may be too high by up to $1,850.",
+      "brochure": "73-051",
+      "page": 26,
+      "quote": "Self Plus One or Self and Family enrollment is $3,500 per family unit",
+      "reason": "Kaiser Permanente Washington Options Federal HDHP. Section 4 (p26), the changes page (p18) and Section 5 (p100, p101, p117 and others) say $3,500 per family unit. The Summary (p172) says \"$1,650 per person for Self Plus One or Self and Family enrollment\" not to exceed $3,500, and one line later \"$1,750 per person Self Plus One or Self and Family\". The app keeps the shared $3,500 deductible (aggregate)."
     }
   ]
 }

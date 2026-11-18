@@ -101,5 +101,17 @@ export const labelledByMember = (state, lists) => lists.flatMap((list, i) => (li
 /** A medication that is not counted, with the person it is for (items beyond the count keep their own member index). */
 export const itemWho = (state, it) => memberLabel(state, memberOfItem(it));
 
-/** The note for one known gap (engine breakdown.gaps entry): what the estimate leaves out, and where the brochure says so. */
-export const gapNote = (g) => `Not included in this estimate: ${g.text} (Brochure ${g.brochure}, page ${g.page}.)`;
+/**
+ * The note for one known gap (engine breakdown.gaps entry), and where the brochure says so: what the estimate leaves
+ * out, or (kind 'conflict') the gap's own sentence on how the brochure contradicts itself and which figure is used.
+ */
+export const gapNote = (g) => `${g.kind === 'conflict' ? '' : 'Not included in this estimate: '}${g.text} (Brochure ${g.brochure}, page ${g.page}.)`;
+
+/** The firmness line for a total with known gaps: a brochure cost it leaves out, a brochure that contradicts itself, or both. */
+export function gapFirmness(gaps) {
+  const conflict = gaps.some((g) => g.kind === 'conflict');
+  const missing = gaps.some((g) => g.kind !== 'conflict');
+  const why = [missing && 'this total leaves out a cost the plan’s brochure lists', conflict && 'the plan’s brochure contradicts itself about a figure it uses']
+    .filter(Boolean).join(', and ');
+  return `Estimated: ${why} (see the note below), and part of it may depend on the assumed prices listed below.`;
+}
