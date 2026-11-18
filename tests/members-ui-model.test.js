@@ -4,8 +4,9 @@ import assert from 'node:assert/strict';
 import { defaultState } from '../src/state.js';
 import { OVERRIDE_FIELDS, SCENARIOS } from '../src/engine/scenarios.js';
 import {
-  withOther, memberPatch, sameOptionValues, memberLabel, memberOptions, memberView, nextOverrides, setFocusedMember, focusedMember, memberKey,
+  withOther, memberPatch, memberLabel, memberOptions, memberView, nextOverrides, setFocusedMember, focusedMember, memberKey,
 } from '../src/ui/members-model.js';
+import { optionsUpdate } from '../src/ui/dom.js';
 
 const fam = (extra = {}) => ({ ...defaultState(), enrollment: 'family', familySize: 4, ...extra });
 
@@ -105,11 +106,16 @@ test('memberKey changes with a name (and ignores everything else)', () => {
   assert.equal(memberKey(named('Mia')), memberKey({ ...named('Mia'), scenario: 'worst' }));
 });
 
-test('sameOptionValues: relabelling keeps the picker, adding or reordering people rebuilds it', () => {
+test('optionsUpdate (setOptions): relabelling keeps the picker, adding or reordering people rebuilds it', () => {
   const a = memberOptions(fam({ others: [{ name: 'Mi', scenario: 'typical', overrides: {} }] }));
   const b = memberOptions(fam({ others: [{ name: 'Mia', scenario: 'typical', overrides: {} }] }));
   assert.notDeepEqual(a, b);
-  assert.equal(sameOptionValues(a, b), true);
-  assert.equal(sameOptionValues(a, a.slice(1)), false);
-  assert.equal(sameOptionValues([['0', 'x'], ['1', 'y']], [['1', 'y'], ['0', 'x']]), false);
+  // same values: only the changed label is rewritten in place
+  assert.deepEqual(optionsUpdate(a, b), { rebuild: false, relabel: [[1, b[1][1]]] });
+  assert.deepEqual(optionsUpdate(a, a), { rebuild: false, relabel: [] });
+  // a person added or removed, or the order changed: rebuild
+  assert.equal(optionsUpdate(a, a.slice(1)).rebuild, true);
+  assert.equal(optionsUpdate(a.slice(1), a).rebuild, true);
+  assert.equal(optionsUpdate([['0', 'x'], ['1', 'y']], [['1', 'y'], ['0', 'x']]).rebuild, true);
+  assert.deepEqual(optionsUpdate([], []), { rebuild: false, relabel: [] });
 });

@@ -30,12 +30,20 @@ export const svg = (markup) => {
  */
 export function setOptions(select, opts, value) {
   const cur = Array.from(select.options);
-  if (cur.length === opts.length && cur.every((o, i) => o.value === opts[i][0])) {
-    cur.forEach((o, i) => { if (o.textContent !== opts[i][1]) o.textContent = opts[i][1]; });
-  } else {
-    select.replaceChildren(...opts.map(([v, t]) => h('option', { value: v }, t)));
-  }
+  const plan = optionsUpdate(cur.map((o) => [o.value, o.textContent]), opts);
+  if (plan.rebuild) select.replaceChildren(...opts.map(([v, t]) => h('option', { value: v }, t)));
+  else plan.relabel.forEach(([i, t]) => { cur[i].textContent = t; });
   if (select.value !== String(value)) select.value = String(value);
+}
+
+/**
+ * What setOptions does to a <select> showing `current` ([[value, label]]) to show `opts`: rebuild it when the values
+ * differ (count or order), otherwise rewrite only the changed labels: { rebuild, relabel: [[index, label]] }. Pure.
+ */
+export function optionsUpdate(current, opts) {
+  const same = current.length === opts.length && current.every((o, i) => o[0] === opts[i][0]);
+  if (!same) return { rebuild: true, relabel: [] };
+  return { rebuild: false, relabel: opts.flatMap(([, t], i) => (current[i][1] !== t ? [[i, t]] : [])) };
 }
 
 export const ICON_CHECK = '<svg class="chip-check" viewBox="0 0 16 16" aria-hidden="true"><circle class="chip-ring" cx="8" cy="8" r="6.25"/><path class="chip-tick" d="M4.6 8.4l2.3 2.3 4.5-5"/></svg>';
