@@ -811,12 +811,17 @@ def test_individual_deductible_quote_must_be_on_the_named_brochure_page(tmp_path
 
 def test_tracked_individual_deductibles():
     spec = json.loads((PIPELINE / "individual_deductibles.json").read_text(encoding="utf-8"))["plans"]
-    assert [(e["year"], e["plan_code"]) for e in spec] == [(2027, "224")]
+    assert [(e["year"], e["plan_code"]) for e in spec] == [(2027, "224"), (2027, "9K4")]
     benefits = json.loads((ROOT / "data" / "benefits.json").read_text(encoding="utf-8"))
     assert benefits["2027"]["224"]["deductible_individual"] == {"self_plus_one": 3500, "family": 3500}
     assert benefits["2027"]["224"]["deductible"] == {"self": 2000, "self_plus_one": 4000, "family": 4000}
-    assert {c for y in benefits.values() for c, e in y.items() if "deductible_individual" in e} == {"224"}
+    # Altius HDHP (73-564): $3,500 of the $3,600 family deductible
+    assert benefits["2027"]["9K4"]["deductible_individual"] == {"self_plus_one": 3500, "family": 3500}
+    assert benefits["2027"]["9K4"]["deductible"] == {"self": 1800, "self_plus_one": 3600, "family": 3600}
+    assert {c for y in benefits.values() for c, e in y.items() if "deductible_individual" in e} == {"224", "9K4"}
     assert "deductible_individual" not in benefits["2027"]["N61"]  # same brochure, Aetna Direct: the Self Only deductible
+    for code in ("9K1", "DK4"):  # same brochure as 9K4, not HDHPs: their own per-person Self Only deductible
+        assert "deductible_individual" not in benefits["2027"][code]
     for e in spec:
         txt = build_data.brochure_page_text(e["year"], e["brochure"], e["page"])
         if txt is not None:

@@ -97,6 +97,42 @@ test('See the math: per-person deductible, family bar of $4,000, notes name the 
   assert.equal(deductibleHow({ deductible: 4000, deductibleType: 'aggregate' }, { shared: true }), 'of $4,000 (shared by the family)');
 });
 
+// Altius HDHP 9K4, 2027 (brochure 73-564): Self Only $1,800; Self Plus One / Self and Family $3,600, and "Once an
+// individual meets a deductible of $3,500 under the Self Plus One" (p30; also p17, p22, p104 and every HDHP Section 5
+// page). The same brochure's High and Standard options (9K1, DK4) are not HDHPs and keep their own rule.
+test('9K4 carries the brochure threshold: $3,500 of the $3,600 family deductible', () => {
+  assert.deepEqual(BENEFITS['9K4'].deductible_individual, { self_plus_one: 3500, family: 3500 });
+  assert.equal(BENEFITS['9K4'].deductible_individual_source.brochure, '73-564');
+  assert.equal(deductibleType(BENEFITS['9K4']), 'individual');
+  assert.equal(deductibleType(without(BENEFITS['9K4'])), 'aggregate');
+  for (const code of ['9K1', 'DK4']) {
+    assert.equal(BENEFITS[code].deductible_individual, undefined, code);
+    assert.equal(deductibleType(BENEFITS[code]), 'embedded', code);
+  }
+});
+
+test('9K4: one sick person pays at most $3,500 of deductible; two or four together at most $3,600', () => {
+  for (const e of ['self_plus_one', 'family']) {
+    const t = run('9K4', e, ['worst']);
+    assert.equal(t.breakdown.deductiblePaid, 3500, e);
+    assert.equal(run('9K4', e, ['worst'], without(BENEFITS['9K4'])).breakdown.deductiblePaid, 3600, 'before: the whole $3,600');
+    assert.equal(deductibleHow(t.breakdown, {}), 'individual stops at $3,500 of the family’s $3,600');
+  }
+  for (const people of [['worst', 'worst'], ['worst', 'worst', 'worst', 'worst']]) {
+    const t = run('9K4', 'family', people);
+    assert.deepEqual(t.breakdown.members.map((m) => m.deductiblePaid).slice(0, 2), [3500, 100]);
+    assert.equal(t.breakdown.deductiblePaid, 3600);
+  }
+});
+
+test('9K4 Self results are unchanged by the threshold', () => {
+  for (const s of Object.keys(SCENARIOS)) {
+    const a = run('9K4', 'self', [s]);
+    const b = run('9K4', 'self', [s], without(BENEFITS['9K4']));
+    assert.deepEqual({ ...a, breakdown: { ...a.breakdown, deductibleType: null } }, { ...b, breakdown: { ...b.breakdown, deductibleType: null } }, s);
+  }
+});
+
 test('the matrix row says the brochure states the threshold', () => {
   assert.ok(DEDUCTIBLE_TYPE_TEXT.individual);
   const m = buildMatrix(['224', 'B61'].map((code) => ({ code, benefits: BENEFITS[code] })), { enrollment: 'family' });

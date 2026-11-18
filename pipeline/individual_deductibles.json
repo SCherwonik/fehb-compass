@@ -8,7 +8,16 @@
       "brochure": "73-828",
       "page": 15,
       "quote": "Once an individual meets a $3,500 deductible under the Self Plus One",
-      "reason": "Aetna HealthFund HDHP: in-network deductible $2,000 Self Only, $4,000 Self Plus One and Self and Family. Section 1 (p15) and Section 4 (p35) both say an individual's deductible stops at $3,500 and the rest of the family deductible can be met by one or more family members; the same sentence is on p26, p42, p60, p62, p77, p86, p90, p93 and p97. The Aetna Direct option in the same brochure (N61) says the Self Only deductible instead and is not listed here."
+      "reason": "Aetna HealthFund HDHP: in-network deductible $2,000 Self Only, $4,000 Self Plus One and Self and Family. Section 1 (p15) and Section 4 (p35) both say an individual's deductible stops at $3,500 and the rest of the family deductible can be met by one or more family members; the same sentence is on p26, p42, p60, p62, p77, p86, p90, p93 and p97. The Aetna Direct option in the same brochure (N61) says the Self Only deductible instead and is not listed here. The brochure also states that each person's out-of-pocket costs stop at the Self Only maximum (p16, p37)."
+    },
+    {
+      "year": 2027,
+      "plan_code": "9K4",
+      "amounts": {"self_plus_one": 3500, "family": 3500},
+      "brochure": "73-564",
+      "page": 30,
+      "quote": "Once an individual meets a deductible of $3,500 under the Self Plus One",
+      "reason": "Altius HDHP: in-network deductible $1,800 Self Only, $3,600 Self Plus One and Self and Family. Section 4 (p30) says an individual's deductible stops at $3,500 and the rest of the family deductible can be met by one or more family members; the same sentence is on every HDHP page that states the deductible (p17, p22, p104, p105, p120, p129, p133, p136, p139, p146, p174). The \"Once an individual meets the Self Only deductible\" sentences in the same brochure (p15, p30, p36 and later) are about the High and Standard Options (9K1, DK4), which are not listed here. The brochure also states that each person's out-of-pocket costs stop at the Self Only maximum (p17, p104)."
     }
   ]
 }
