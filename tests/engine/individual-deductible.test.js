@@ -141,9 +141,13 @@ test('9K4 Self results are unchanged by the threshold', () => {
 
 test('the matrix row says the brochure states the threshold', () => {
   assert.ok(DEDUCTIBLE_TYPE_TEXT.individual);
-  const m = buildMatrix(['224', 'B61'].map((code) => ({ code, benefits: BENEFITS[code] })), { enrollment: 'family' });
+  const m = buildMatrix(['224', 'B61', '9K4'].map((code) => ({ code, benefits: BENEFITS[code] })), { enrollment: 'family' });
   const row = m.find((s) => s.id === 'account').rows.find((r) => r.key === 'calc:deductibleType');
-  assert.deepEqual(row.cells.map((c) => c.display), ['Individual threshold (brochure)', 'Aggregate (shared)']);
+  assert.deepEqual(row.cells.map((c) => c.display), ['Individual threshold (brochure)', 'Aggregate (shared)', 'Individual threshold (brochure)']);
+  // each column gives its own plan's numbers and brochure
+  assert.match(row.cells[0].note, /\$3,500 of the \$4,000 family deductible \(brochure 73-828, page 15\)/);
+  assert.match(row.cells[2].note, /\$3,500 of the \$3,600 family deductible \(brochure 73-564, page 30\)/);
+  assert.doesNotMatch(row.cells[2].note, /\$4,000|Aetna/);
   assert.match(DEDUCTIBLE_TYPE_TEXT.individual.note, /brochure/);
 });
 
@@ -154,7 +158,8 @@ test('About and README state the brochure rule with Aetna 224 as the example, an
     assert.match(t, /shared family deductible \(the cautious choice\)/, f);
     assert.doesNotMatch(t, /estimates estimated/, f);
     // brochures that state the per-person out-of-pocket cap, Aetna's HealthFund HDHP among them
-    assert.match(t, /Blue Cross and Blue Shield[^.]*Aetna[^.]*state it/, f);
+    assert.match(t, /Many brochures state it, among them Blue Cross and Blue Shield[^.]*Aetna[^.]*Altius/, f);
+    assert.doesNotMatch(t, /state it[^.]*state it/, f);
     assert.match(t, /Aetna[^.]*\$3,500 of (its|the) \$4,000/, f);
     assert.match(t, /one or more family members/, f);
     assert.match(t, /TakeCare[^.]*Kaiser Permanente Washington[^.]*contradict/, f);

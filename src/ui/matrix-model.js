@@ -19,13 +19,42 @@
 import { usdExact } from './format.js';
 import { deductibleType } from '../engine/cost.js';
 
+const EMBEDDED_RULE = 'Each person meets their own self-only deductible until everyone’s deductible spending together reaches the family deductible, and pays at most this plan’s self-only out-of-pocket max; the family out-of-pocket max (when the plan lists one) caps the total.';
+
 /** The "Deductible type" row (engine deductibleType): how a family deductible is modeled for each covered person's care. */
 export const DEDUCTIBLE_TYPE_TEXT = Object.freeze({
-  embedded: { display: 'Embedded (per person)', note: 'Each person meets their own self-only deductible until everyone’s deductible spending together reaches the family deductible, and pays at most this plan’s self-only out-of-pocket max; the family out-of-pocket max (when the plan lists one) caps the total. How a family deductible works differs by plan: many brochures state this rule, and where a brochure does not, this tool assumes it for every plan that is not a high-deductible plan.' },
+  embedded: { display: 'Embedded (assumed)', note: `${EMBEDDED_RULE} How a family deductible works differs by plan; this plan’s brochure does not state it (or it was not found there), so this tool assumes it, as for every plan that is not a high-deductible plan.` },
   aggregate: { display: 'Aggregate (shared)', note: 'An HSA plan whose family deductible is twice the self-only one: the family deductible is shared by the people on the enrollment, so one person may have to meet all of it. Each person’s costs stop at this plan’s self-only out-of-pocket max and the family out-of-pocket max (when the plan lists one) caps the total: the tool’s assumption where the brochure does not say.' },
-  individual: { display: 'Individual threshold (brochure)', note: 'The plan’s brochure states it: under Self Plus One or Self and Family, one person’s deductible stops at an individual amount below the family deductible, and the rest of the family deductible can be met by one or more family members (Aetna’s HSA high-deductible plan: $3,500 of $4,000). Each person’s costs stop at this plan’s self-only out-of-pocket max and the family out-of-pocket max (when the plan lists one) caps the total: the tool’s assumption where the brochure does not say.' },
+  individual: { display: 'Individual threshold (brochure)', note: 'The plan’s brochure states it: under Self Plus One or Self and Family, one person’s deductible stops at an individual amount below the family deductible, and the rest of the family deductible can be met by one or more family members. As the brochure also states, each person’s costs stop at this plan’s self-only out-of-pocket max; the family out-of-pocket max (when the plan lists one) caps the total.' },
   unknown: { display: 'Unknown (modeled as shared)', note: 'A high-deductible plan whose family deductible rule is not known here (it differs by plan): where the brochure does not state it, it is modeled as shared by the family, the cautious choice.' },
 });
+
+const where = (s) => (s && s.brochure && Number.isFinite(s.page) ? ` (brochure ${s.brochure}, page ${s.page})` : '');
+
+/**
+ * The "Deductible type" cell for one plan: { display, note }. An embedded plan whose brochure states the per-person rule
+ * (benefits.deductible_rule_source, pipeline/embedded_deductibles.json) says "brochure"; any other embedded plan says
+ * "assumed". An individual-threshold plan gives its own amounts and brochure page (`enrollment`: the family one unless
+ * 'self_plus_one').
+ */
+export function deductibleTypeText(benefits, enrollment = 'family') {
+  const type = deductibleType(benefits);
+  if (type === 'embedded' && benefits?.deductible_rule_source) {
+    return { display: 'Embedded (per person, brochure)', note: `${EMBEDDED_RULE} This plan’s brochure states the per-person deductible rule${where(benefits.deductible_rule_source)}.` };
+  }
+  if (type === 'individual') {
+    const k = enrollment === 'self_plus_one' ? 'self_plus_one' : 'family';
+    const ind = benefits.deductible_individual?.[k];
+    const fam = benefits.deductible?.[k];
+    if (Number.isFinite(ind) && Number.isFinite(fam)) {
+      return {
+        display: DEDUCTIBLE_TYPE_TEXT.individual.display,
+        note: `The plan’s brochure states it: under Self Plus One or Self and Family, one person’s deductible stops at ${usdExact(ind)} of the ${usdExact(fam)} family deductible${where(benefits.deductible_individual_source)}, and the rest of the family deductible can be met by one or more family members. As the brochure also states, each person’s costs stop at this plan’s self-only out-of-pocket max; the family out-of-pocket max (when the plan lists one) caps the total.`,
+      };
+    }
+  }
+  return DEDUCTIBLE_TYPE_TEXT[type];
+}
 
 /** OPM identity columns: shown in column headers or dropped, never matrix rows. */
 export const MATRIX_METADATA_FIELDS = Object.freeze([
@@ -394,7 +423,7 @@ export function buildMatrix(plans, { enrollment = 'self', status = 'active', ext
       key: 'calc:deductibleType', label: 'Deductible type', hint: 'How this tool models a family deductible for each covered person’s care (not an OPM field)',
       fields: [], source: 'extra', dir: null, seq: Infinity,
       cells: list.map((p) => {
-        const t = DEDUCTIBLE_TYPE_TEXT[deductibleType(p.benefits)];
+        const t = deductibleTypeText(p.benefits, enrollment);
         return { code: p.code, field: null, ...richCell({ text: t.display, display: t.display, kind: 'text', note: t.note }) };
       }),
     });

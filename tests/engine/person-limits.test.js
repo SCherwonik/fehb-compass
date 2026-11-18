@@ -97,9 +97,14 @@ test('See the math explains the one-person modeling, and the matrix shows the de
   assert.match(e, /\$1,000 deductible and \$11,000 out-of-pocket max/);
   assert.match(e, /family limits \(\$2,000 and \$22,000\) are not reached by one person/);
   assert.match(personLimitsNote(total('B61', 'family', 'typical').breakdown), /whole \$3,500 deductible.*\$7,500 self-only/);
-  const m = buildMatrix(['131', 'B61', '8W4'].map((code) => ({ code, benefits: benefits[2027][code] })), { enrollment: 'family' });
+  // 131's brochure states the per-person rule (pipeline/embedded_deductibles.json); WJ4's and AS1's do not (assumed)
+  const m = buildMatrix(['131', 'B61', '8W4', 'WJ4', 'AS1'].map((code) => ({ code, benefits: benefits[2027][code] })), { enrollment: 'family' });
   const row = m.find((s) => s.id === 'account').rows.find((r) => r.key === 'calc:deductibleType');
-  assert.deepEqual(row.cells.map((c) => c.display), ['Embedded (per person)', 'Aggregate (shared)', 'Unknown (modeled as shared)']);
+  assert.deepEqual(row.cells.map((c) => c.display),
+    ['Embedded (per person, brochure)', 'Aggregate (shared)', 'Unknown (modeled as shared)', 'Embedded (assumed)', 'Embedded (assumed)']);
+  assert.match(row.cells[0].note, /brochure 71-017, page 29/);
+  assert.match(row.cells[3].note, /does not state it/);
+  assert.doesNotMatch(row.cells[3].note, /brochure \d/);
   assert.equal(row.differs, true);
 });
 
