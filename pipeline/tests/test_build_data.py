@@ -691,7 +691,7 @@ def test_tracked_known_gaps_land_on_the_right_plans():
     assert {c: sorted(g["kind"] for g in gs) for c, gs in by.items()} == {
         "V31": ["facility_deductible"], "2G4": ["facility_deductible"],
         "B64": ["drug_deductible", "facility_deductible"], "B41": ["conflict"], "B44": ["conflict"],
-        "KX1": ["conflict"], "L14": ["conflict"], "474": ["rule_differs"],
+        "KX1": ["conflict"], "L14": ["conflict"], "474": ["rule_assumed", "rule_differs"],
         **{c: ["rule_differs"] for c in FUND_FIRST},
         **{c: ["cap_not_stated"] for c in CAP_NOT_STATED}}
     assert all(g["affects_cost"] is True for g in spec if g["kind"] not in ("conflict", "cap_not_stated"))
@@ -951,13 +951,42 @@ def test_tracked_fund_first_plans_are_rule_notes_for_every_enrollment_with_figur
         assert fund["self_plus_one"] == fund["family"] and ded["self_plus_one"] == ded["family"], code
         assert g["text"].startswith(
             f"The brochure says the plan’s Medical Fund ({usd(fund['self'])} for Self Only, {usd(fund['family'])} for Self "
-            f"Plus One or Self and Family) is used first, and only then does the whole deductible apply ({usd(ded['self'])} "
-            f"for Self Only, {usd(ded['family'])} for Self Plus One or Self and Family"), code
+            f"Plus One or Self and Family) is used first, and only then does the whole in-network deductible apply "
+            f"({usd(ded['self'])} for Self Only, {usd(ded['family'])} for Self Plus One or Self and Family; "), code
+        oon = b["out_of_network"]["deductible"]
+        if oon == ded:
+            assert "the out-of-network deductible is the same;" in g["text"], code
+        else:
+            assert (f"the out-of-network deductible is {usd(oon['self'])} for Self Only, {usd(oon['family'])} for Self "
+                    f"Plus One or Self and Family;") in g["text"], code
         assert f"once one person meets the {usd(ded['self'])} Self Only deductible" in g["text"], code
         assert "by up to the fund amount" in g["text"], code
         assert "Self is not flagged" not in g["reason"], code
         assert [x["kind"] for x in b["known_gaps"]] == ["rule_differs"], code
         assert b["known_gaps"][0]["enrollments"] == ["self", "self_plus_one", "family"], code
+
+
+def test_tracked_474_account_and_out_of_pocket_limit_is_an_assumption_for_every_enrollment(tmp_path):
+    spec = json.loads((PIPELINE / "known_gaps.json").read_text(encoding="utf-8"))["gaps"]
+    benefits = json.loads((ROOT / "data" / "benefits.json").read_text(encoding="utf-8"))["2027"]
+    g = [x for x in spec if x["plan_code"] == "474" and x["kind"] == "rule_assumed"]
+    assert len(g) == 1
+    g = g[0]
+    assert g["affects_cost"] is True and g["amounts"] is None and g["applies_when"] == ["any_care"]
+    assert g["enrollments"] == ["self", "self_plus_one", "family"]
+    assert (g["brochure"], g["page"]) == ("71-004", 31)
+    b = benefits["474"]
+    usd = lambda v: f"${v:,.0f}"
+    acct, oop = b["account_contribution"], b["oop_max"]
+    assert (f"Personal Care Account ({usd(acct['self'])} for Self Only, {usd(acct['family'])} for Self Plus One or Self "
+            f"and Family)") in g["text"]
+    assert f"in-network out-of-pocket limit ({usd(oop['self'])} for Self Only, {usd(oop['family'])}" in g["text"]
+    assert "The brochure does not say whether" in g["text"]
+    assert "The estimate assumes they do count" in g["text"]
+    # both 474 entries reach the plan, the family rule first (file order)
+    assert [x["kind"] for x in b["known_gaps"]] == ["rule_differs", "rule_assumed"]
+    with pytest.raises(ValueError, match="affects_cost"):
+        _apply_gaps(tmp_path, [{**GAP, "kind": "rule_assumed", "affects_cost": False}])
 
 
 # --------------------------------------------------------------------------- embedded deductibles stated by the brochure
