@@ -26,13 +26,13 @@ const TRIGGERED_BY = {
 // the net deductible; N61 and the Aetna HealthFund CDHPs: the Medical Fund first, then the whole deductible); it
 // applies once the year has any care
 // (fund and deductible: Self Only, then Self Plus One / Self and Family; the fund-first rule applies to every enrollment)
-const FUND_FIRST = { N61: { brochure: '73-828', page: 17, fund: ['$900', '$1,800'], ded: ['$2,000', '$4,000'], oon: 'the out-of-network deductible is the same;' },
-  ...Object.fromEntries(['EP1', 'F51', 'G51', 'H41', 'JS1'].map((c) => [c, { brochure: '73-879', page: 15, fund: ['$1,000', '$2,000'], ded: ['$1,000', '$2,000'], oon: 'the out-of-network deductible is $1,500 for Self Only, $3,000 for Self Plus One or Self and Family;' }])) };
+const FUND_FIRST = { N61: { brochure: '73-828', page: 17, fund: ['$900', '$1,800'], ded: ['$2,000', '$4,000'], oon: 'the out-of-network deductible is the same' },
+  ...Object.fromEntries(['EP1', 'F51', 'G51', 'H41', 'JS1'].map((c) => [c, { brochure: '73-879', page: 15, fund: ['$1,000', '$2,000'], ded: ['$1,000', '$2,000'], oon: 'the out-of-network deductible is $1,500 for Self Only, $3,000 for Self Plus One or Self and Family' }])) };
 const RULE_DIFFERS_PLANS = ['474', ...Object.keys(FUND_FIRST)];
 const ANY_CARE = ['healthy', 'typical', 'condition', 'worst'];
 const affected = (code, enrollment, scenarios) => scenarios.some((s) => TRIGGERED_BY[code]?.includes(s))
   || (COST_CONFLICT_PLANS.includes(code) && FAMILY.includes(enrollment))
-  || (RULE_DIFFERS_PLANS.includes(code) && (FAMILY.includes(enrollment) || code in FUND_FIRST || code === '474')
+  || (RULE_DIFFERS_PLANS.includes(code) && (FAMILY.includes(enrollment) || code in FUND_FIRST)
     && scenarios.some((s) => ANY_CARE.includes(s)));
 const codes = Object.keys(BENEFITS).filter((c) => RATES[c]);
 const U = (name) => ({ ...SCENARIOS[name], custom: [] });
@@ -236,18 +236,17 @@ test('gapFirmness: the line under the total names what the gaps are', () => {
 // APWU Consumer Driven Option 474 (brochure 71-004 p28): the $2,400 Personal Care Account (Self Plus One / Self and
 // Family) is used first; one individual then meets a $1,000 net deductible and the other covered members an additional
 // $1,000 ($2,000 for the family). The app gives each person a $2,200
-// deductible and subtracts the account money afterwards. Not modeled (the brochure leaves open whether account payments
-// count toward the out-of-pocket limit): a cost-affecting note for Self Plus One and Self and Family.
+// deductible and subtracts the account money afterwards. Not modeled: a cost-affecting note for Self Plus One and Self
+// and Family. (Account payments count toward the out-of-pocket limit, p31-32, as the estimate counts them: no note.)
 test('474: the account-first deductible is a cost-affecting note for Self Plus One and Family only', () => {
   const g = BENEFITS['474'].known_gaps.find((x) => x.kind === 'rule_differs');
   assert.equal(g.affects_cost, true);
   assert.deepEqual(g.enrollments, FAMILY);
-  // Self gets only the out-of-pocket assumption note (see the rule_assumed test below), never the family rule
-  assert.deepEqual(costGaps(BENEFITS['474'], 'self').map((x) => x.kind), ['rule_assumed']);
+  assert.deepEqual(BENEFITS['474'].known_gaps.map((x) => x.kind), ['rule_differs']);
+  assert.deepEqual(costGaps(BENEFITS['474'], 'self'), []);
   for (const scenario of Object.keys(SCENARIOS)) {
     const self = run('474', BENEFITS['474'], { enrollment: 'self', usage: U(scenario) });
-    assert.equal(self.total, run('474', without(BENEFITS['474']), { enrollment: 'self', usage: U(scenario) }).total, scenario);
-    assert.ok(!(self.breakdown.gaps ?? []).some((x) => x.kind === 'rule_differs'), scenario);
+    assert.deepEqual(self, run('474', without(BENEFITS['474']), { enrollment: 'self', usage: U(scenario) }), scenario);
     for (const enrollment of FAMILY) {
       const t = run('474', BENEFITS['474'], { enrollment, usage: U(scenario) });
       const before = run('474', without(BENEFITS['474']), { enrollment, usage: U(scenario) });
@@ -298,7 +297,7 @@ test('N61 and the Aetna HealthFund CDHPs: fund-first note for every enrollment, 
         }
         assert.equal(t.firmness, 'estimated', `${code} ${scenario} ${enrollment}`);
         const note = gapNote(t.breakdown.gaps[0]);
-        assert.ok(note.startsWith(`The brochure says the plan’s Medical Fund (${f.fund[0]} for Self Only, ${f.fund[1]} for Self Plus One or Self and Family) is used first, and only then does the whole in-network deductible apply (${f.ded[0]} for Self Only, ${f.ded[1]} for Self Plus One or Self and Family; ${f.oon}`), `${code}: ${note}`);
+        assert.ok(note.startsWith(`The brochure says the plan’s Medical Fund (${f.fund[0]} for Self Only, ${f.fund[1]} for Self Plus One or Self and Family) is used first, and only then does the whole in-network deductible apply (${f.ded[0]} for Self Only, ${f.ded[1]} for Self Plus One or Self and Family; under Self Plus One or Self and Family, once one person meets the ${f.ded[0]} Self Only deductible coverage begins for that person; ${f.oon}); the fund does not reduce`), `${code}: ${note}`);
         assert.ok(note.includes(`once one person meets the ${f.ded[0]} Self Only deductible`), code);
         assert.ok(note.includes('it leaves out the deductible paid after the fund is used up and may be too low, by up to the fund amount'), code);
         assert.ok(note.includes('the fund does not reduce the deductible or the out-of-pocket maximum'), code);
@@ -307,38 +306,4 @@ test('N61 and the Aetna HealthFund CDHPs: fund-first note for every enrollment, 
       }
     }
   }
-});
-
-// 474 (brochure 71-004 p31): the brochure gives the out-of-pocket limit "if you have exceeded your Personal Care Account
-// and met your Deductible" and does not say whether the account's payments count toward it. The estimate caps all cost
-// sharing at the limit, account-paid costs included, then subtracts the account money (HRA offset): it assumes they
-// count. A cost-affecting note for every enrollment; the family net-deductible note stays for Self Plus One and Family.
-test('474: the out-of-pocket assumption is a note for every enrollment; totals unchanged', () => {
-  const b = BENEFITS['474'];
-  assert.deepEqual(b.known_gaps.map((g) => g.kind), ['rule_differs', 'rule_assumed']);
-  assert.deepEqual(costGaps(b, 'self').map((g) => g.kind), ['rule_assumed']);
-  assert.deepEqual(costGaps(b, 'family').map((g) => g.kind), ['rule_differs', 'rule_assumed']);
-  for (const scenario of Object.keys(SCENARIOS)) {
-    for (const enrollment of ['self', ...FAMILY]) {
-      const t = run('474', b, { enrollment, usage: U(scenario) });
-      assert.equal(t.total, run('474', without(b), { enrollment, usage: U(scenario) }).total);
-      if (scenario === 'nothing') { assert.equal(t.breakdown.gaps, undefined); continue; }
-      assert.equal(t.firmness, 'estimated');
-      const note = gapNote(t.breakdown.gaps.find((g) => g.kind === 'rule_assumed'));
-      assert.match(note, /^The brochure does not say whether payments from the Personal Care Account \(\$1,200 for Self Only, \$2,400 for Self Plus One or Self and Family\) count toward the in-network out-of-pocket limit \(\$6,500 for Self Only, \$13,000 for Self Plus One or Self and Family\)/);
-      assert.match(note, /The estimate assumes they do count/);
-      assert.match(note, /\(Brochure 71-004, page 31\.\)$/);
-    }
-  }
-  // what the estimate does, checked on the engine: the cap applies before the account money is subtracted
-  const worst = run('474', b, { enrollment: 'self', usage: U('worst') });
-  assert.equal(worst.oop, b.oop_max.self);
-  assert.equal(worst.hsaOffset, 0); // run() passes no account; with it the offset is the account (below)
-  const withAccount = planTotal({ rate: RATES['474'], benefits: b, account: b.account_contribution, accountType: 'HRA' },
-    { status: 'active', enrollment: 'self', usage: U('worst') });
-  assert.equal(withAccount.oop, b.oop_max.self);
-  assert.equal(withAccount.hsaOffset, b.account_contribution.self);
-  assert.equal(withAccount.total, Math.round((withAccount.premium + b.oop_max.self - b.account_contribution.self) * 100) / 100);
-  assert.match(gapFirmness([{ kind: 'rule_assumed' }]), /brochure does not state a rule this estimate has to assume/);
-  assert.match(estimatedTitle({ pricesMatter: false, gaps: [{ kind: 'rule_assumed' }] }), /brochure does not state a rule this estimate has to assume/);
 });

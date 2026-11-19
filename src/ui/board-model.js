@@ -16,6 +16,7 @@ import { YEAR_TEXT, coveredLines, householdCareText } from './assumptions.js';
 import { memberCount } from '../state.js';
 import { baseTotal, medsCost, anyMeds, anyDv, dvCost, dvLabel, basisOf, basisNote, medsRanked, rankTotal, anyMaternity, maternityRanked, anyMatEstimated } from './model.js';
 import { MATERNITY_UNPRICED } from '../engine/cost.js';
+import { noCareAssumed } from './math-family.js';
 
 const fin = (n) => typeof n === 'number' && Number.isFinite(n);
 const cents = (n) => Math.round(n * 100) / 100;
@@ -261,7 +262,7 @@ export const MEDICAL_SECTIONS = [
         key: 'total', label: 'Estimated total', strong: true, best: 'min',
         hint: 'Premium plus expected care costs, minus HSA or HRA money, for your scenario.',
         cell: (r, ctx) => money(rankTotal(r, ctx?.withMeds !== false, ctx?.withMat !== false), {
-          sub: `${r.cost.firmness === 'fixed' ? 'fixed copays' : 'estimated'}${dvCost(r) ? `, ${dvLabel(r)} ${usd(dvCost(r))}` : ''}${medsTotalNote(r, ctx)}${matTotalNote(r, ctx)}`,
+          sub: `${r.cost.firmness !== 'fixed' ? 'estimated' : noCareAssumed(r.cost.breakdown) ? 'no care assumed' : 'fixed copays'}${dvCost(r) ? `, ${dvLabel(r)} ${usd(dvCost(r))}` : ''}${medsTotalNote(r, ctx)}${matTotalNote(r, ctx)}`,
         }),
       },
       {

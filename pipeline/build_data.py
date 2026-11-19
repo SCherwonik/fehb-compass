@@ -771,11 +771,8 @@ ENROLLMENTS = ("self", "self_plus_one", "family")  # a gap's optional "enrollmen
 # Self and Family.
 # 'rule_differs': the brochure states a cost rule the estimate models differently and the right model is not clear
 # enough to build (e.g. 474's account-first deductible); the total stays as computed and is marked estimated.
-# 'rule_assumed': the brochure leaves a cost rule unstated and the estimate necessarily assumes one way; the text says
-# what the brochure leaves open and what the estimate assumes (e.g. 474: whether account payments count toward the
-# out-of-pocket limit). The total stays as computed and is marked estimated.
 GAP_KINDS = {"facility_deductible": (True,), "drug_deductible": (True,), "conflict": (True, False),
-             "cap_not_stated": (False,), "rule_differs": (True,), "rule_assumed": (True,)}
+             "cap_not_stated": (False,), "rule_differs": (True,)}
 # a gap's optional "applies_when": the care that can trigger it (the engine's TRIGGERS in src/engine/cost.js); without it
 # the gap applies to every year
 APPLIES_WHEN = ("hospital", "outpatient_surgery", "imaging", "brand_drugs", "medical_care", "any_care")
