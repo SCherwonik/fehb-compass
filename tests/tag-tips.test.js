@@ -34,50 +34,113 @@ test('no tip when a figure is missing or the flag is unknown (never an invented 
   assert.equal(flagTip('deductible_up', { ...r, facts: { ...r.facts, deductible: null } }), null);
 });
 
-// ---------- showing the explanation: click / tap / keyboard keeps it open; a mouse hover shows it too ----------
-import { toggleTip, hoverTip } from '../src/ui/tag-tips.js';
+// ---------- showing the explanation (tag-tips.js): fake elements and fake timers ----------
+import { createTipController, focusedTagKey, restoreTagFocus, LEAVE_GRACE_MS } from '../src/ui/tag-tips.js';
 
-const fakeTip = () => {
-  const cls = new Set();
-  return { hidden: true, classList: { toggle: (c, on) => (on ? cls.add(c) : cls.delete(c)), contains: (c) => cls.has(c) } };
-};
-const fakeBtn = (id) => {
-  const attrs = { 'aria-controls': id, 'aria-expanded': 'false' };
-  const btn = {
-    getAttribute: (k) => attrs[k], setAttribute: (k, v) => { attrs[k] = v; },
-    closest: (sel) => (sel === '.tag-btn' ? btn : null), contains: (n) => n === btn || n === btn.child,
-  };
-  btn.child = { closest: (sel) => (sel === '.tag-btn' ? btn : null) };
-  return btn;
-};
-const page = () => {
-  const tips = { a: fakeTip(), b: fakeTip() };
-  return { tips, doc: { getElementById: (id) => tips[id] ?? null }, a: fakeBtn('a'), b: fakeBtn('b') };
-};
+function fakeCard(code, keys) {
+  const els = new Map();
+  const doc = { getElementById: (id) => els.get(id) ?? null, focused: null };
+  const chips = { contains: (n) => tags.includes(n) };
+  const tags = keys.map((key) => {
+    const attrs = { id: `tag-${code}-${key}`, 'aria-controls': `tip-${code}-${key}`, 'aria-describedby': `tip-${code}-${key}`, 'aria-expanded': 'false', 'data-key': key };
+    const b = {
+      getAttribute: (k) => attrs[k] ?? null, setAttribute: (k, v) => { attrs[k] = String(v); }, removeAttribute: (k) => { delete attrs[k]; },
+      hasAttribute: (k) => k in attrs, classList: { contains: (c) => c === 'tag-btn' },
+      closest: (sel) => (sel === '.tag-btn' ? b : null), focus: () => { doc.focused = b; },
+    };
+    b.icon = { closest: (sel) => (sel === '.tag-btn' ? b : null) }; // an svg inside the button
+    const tip = { hidden: true, getAttribute: (k) => (k === 'data-tag' ? attrs.id : null), closest: (sel) => (sel === '.tag-tip' ? tip : null) };
+    b.tip = tip;
+    els.set(attrs.id, b); els.set(attrs['aria-controls'], tip);
+    return b;
+  });
+  return { doc, tags, chips };
+}
+function setup(keys = ['firm', 'flag-deductible_up']) {
+  const card = fakeCard('X1', keys);
+  let now = 0; const pending = [];
+  const timers = { setTimer: (fn, ms) => { const t = { fn, at: now + ms }; pending.push(t); return t; }, clearTimer: (t) => { const i = pending.indexOf(t); if (i >= 0) pending.splice(i, 1); } };
+  const tick = (ms) => { now += ms; for (const t of pending.filter((x) => x.at <= now)) { pending.splice(pending.indexOf(t), 1); t.fn(); } };
+  const c = createTipController({ doc: card.doc, group: () => card.tags, ...timers });
+  const shown = () => card.tags.map((b) => [b.getAttribute('aria-expanded') === 'true', !b.tip.hidden]);
+  return { ...card, c, tick, shown };
+}
+// aria-expanded and visibility always agree
+const agree = (s) => assert.ok(s.shown().every(([a, v]) => a === v), JSON.stringify(s.shown()));
 
-test('toggleTip: opens one tip, closes the others, closes it again', () => {
-  const { tips, doc, a, b } = page();
-  assert.equal(toggleTip([a, b], a, doc), true);
-  assert.equal(a.getAttribute('aria-expanded'), 'true');
-  assert.equal(tips.a.hidden, false);
-  assert.equal(tips.b.hidden, true);
-  toggleTip([a, b], b, doc);
-  assert.equal(tips.a.hidden, true);
-  assert.equal(a.getAttribute('aria-expanded'), 'false');
-  assert.equal(tips.b.hidden, false);
-  assert.equal(toggleTip([a, b], b, doc), false);
-  assert.equal(tips.b.hidden, true);
+test('click / keyboard: open, one per card, close again; aria-expanded matches the tip', () => {
+  const s = setup(); const [a, b] = s.tags;
+  assert.equal(s.c.click(a), true); assert.deepEqual(s.shown(), [[true, true], [false, false]]);
+  s.c.click(b, { keyboard: true }); assert.deepEqual(s.shown(), [[false, false], [true, true]]);
+  assert.equal(s.c.click(b, { keyboard: true }), false); assert.deepEqual(s.shown(), [[false, false], [false, false]]);
+  agree(s);
 });
 
-test('hoverTip: a mouse over the tag shows its tip, leaving hides it; moving inside the tag or touch does nothing', () => {
-  const { tips, doc, a } = page();
-  assert.equal(hoverTip({ pointerType: 'mouse', target: a.child }, true, doc), true);
-  assert.equal(tips.a.classList.contains('is-hover'), true);
-  assert.equal(hoverTip({ pointerType: 'mouse', target: a.child, relatedTarget: a }, false, doc), false);
-  assert.equal(tips.a.classList.contains('is-hover'), true);
-  hoverTip({ pointerType: 'mouse', target: a, relatedTarget: null }, false, doc);
-  assert.equal(tips.a.classList.contains('is-hover'), false);
-  assert.equal(hoverTip({ pointerType: 'touch', target: a }, true, doc), false);
-  assert.equal(tips.a.classList.contains('is-hover'), false);
-  assert.equal(hoverTip({ pointerType: 'mouse', target: { closest: () => null } }, true, doc), false);
+test('(a) Escape closes a keyboard-opened tip and returns focus to its tag; a hover-opened one too, without refocus', () => {
+  const s = setup(); const [a, b] = s.tags;
+  s.c.click(a, { keyboard: true });
+  s.doc.focused = null; // focus moved elsewhere (e.g. read the tip with a screen reader)
+  assert.equal(s.c.escape([a]), true);
+  assert.equal(a.tip.hidden, true); assert.equal(s.doc.focused, a); agree(s);
+  s.c.over(b, 'mouse'); assert.equal(b.tip.hidden, false);
+  s.doc.focused = null;
+  assert.equal(s.c.escape([b]), true);
+  assert.equal(b.tip.hidden, true); assert.equal(s.doc.focused, null); agree(s);
+  s.c.over(b.icon, 'mouse'); assert.equal(b.tip.hidden, true, 'Escape keeps hover from reopening until the pointer leaves');
+  s.c.out(b, null, 'mouse'); s.c.over(b, 'mouse'); assert.equal(b.tip.hidden, false);
+  assert.equal(s.c.escape([]), false);
+});
+
+test('(b) hover: the tip stays while the pointer moves from the tag onto the tip, and closes after the grace', () => {
+  const s = setup(); const [a] = s.tags;
+  s.c.over(a, 'mouse'); assert.equal(a.tip.hidden, false);
+  s.c.out(a.icon, a, 'mouse'); assert.equal(a.tip.hidden, false, 'moving inside the tag');
+  s.c.out(a, null, 'mouse'); s.tick(LEAVE_GRACE_MS - 50); assert.equal(a.tip.hidden, false, 'within the grace');
+  s.c.over(a.tip, 'mouse'); s.tick(1000); assert.equal(a.tip.hidden, false, 'on the tip: stays');
+  s.c.out(a.tip, null, 'mouse'); s.tick(LEAVE_GRACE_MS); assert.equal(a.tip.hidden, true, 'left both'); agree(s);
+  s.c.over(a, 'touch'); assert.equal(a.tip.hidden, true, 'touch is left to the click');
+});
+
+test('(b) crossing another tag on the way to the tip does not switch tips; staying on it does', () => {
+  const s = setup(); const [a, b] = s.tags;
+  s.c.over(a, 'mouse');
+  s.c.out(a, b, 'mouse'); s.c.over(b, 'mouse'); // the pointer passes over b
+  assert.deepEqual(s.shown(), [[true, true], [false, false]], 'a stays during the grace, b waits');
+  s.c.out(b, a.tip, 'mouse'); s.c.over(a.tip, 'mouse'); s.tick(1000);
+  assert.deepEqual(s.shown(), [[true, true], [false, false]], 'reached the tip of a: a stays, b never opened');
+  s.c.out(a.tip, b, 'mouse'); s.c.over(b, 'mouse'); s.tick(LEAVE_GRACE_MS);
+  assert.deepEqual(s.shown(), [[false, false], [true, true]], 'stayed on b: b opens, a closed');
+  agree(s);
+});
+
+test('(c) one tip per card across hover and click', () => {
+  const s = setup(); const [a, b] = s.tags;
+  s.c.click(a); s.c.over(b, 'mouse'); assert.deepEqual(s.shown(), [[false, false], [true, true]]);
+  s.c.click(a); assert.deepEqual(s.shown(), [[true, true], [false, false]]);
+  s.c.out(b, null, 'mouse'); s.tick(LEAVE_GRACE_MS); assert.deepEqual(s.shown(), [[true, true], [false, false]], 'a pinned tip is not closed by a hover timer');
+});
+
+test('(d) a click that closes an open tag closes it while the mouse is still on it; hover reopens only after leaving', () => {
+  const s = setup(); const [a] = s.tags;
+  s.c.over(a, 'mouse'); s.c.click(a); // pins what the hover showed
+  assert.equal(a.getAttribute('data-open-by'), 'click'); assert.equal(a.tip.hidden, false);
+  assert.equal(s.c.click(a), false); assert.equal(a.tip.hidden, true); agree(s);
+  s.c.over(a.icon, 'mouse'); s.c.out(a.icon, a, 'mouse'); s.c.over(a, 'mouse');
+  assert.equal(a.tip.hidden, true, 'still on the tag: stays closed'); agree(s);
+  s.c.out(a, null, 'mouse'); s.c.over(a, 'mouse'); assert.equal(a.tip.hidden, false, 'left and came back'); agree(s);
+});
+
+test('(e) a rebuild keeps focus on the equivalent tag by its key; new tips start closed', () => {
+  const s = setup(); const [, b] = s.tags;
+  s.c.click(b, { keyboard: true });
+  const key = focusedTagKey(s.chips, b);
+  assert.equal(key, 'flag-deductible_up');
+  assert.equal(focusedTagKey(s.chips, { classList: { contains: () => false } }), null);
+  s.c.forget(s.tags);
+  const fresh = setup(['vs', 'firm', 'flag-deductible_up']);
+  const back = restoreTagFocus(fresh.tags, key);
+  assert.equal(back, fresh.tags[2]); assert.equal(fresh.doc.focused, fresh.tags[2]);
+  assert.ok(fresh.tags.every((t) => t.tip.hidden && t.getAttribute('aria-expanded') === 'false'));
+  assert.equal(restoreTagFocus(fresh.tags, 'gone'), null);
+  assert.equal(restoreTagFocus(fresh.tags, null), null);
 });

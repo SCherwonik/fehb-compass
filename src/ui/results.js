@@ -20,7 +20,7 @@ import { badgeEl } from './rx-render.js';
 import { overrideBadge } from './matrix-model.js';
 import { mathContent, ICON_WARN } from './math.js';
 import { estimatedTitle, fixedTitle } from './math-family.js';
-import { toggleTip, hoverTip } from './tag-tips.js';
+import { createTipController, focusedTagKey, restoreTagFocus } from './tag-tips.js';
 
 const UI_KEY = 'fehb-compass:results-ui:v1';
 const ENROLLMENT_TEXT = { self: 'self only', self_plus_one: 'self plus one', family: 'family' };
@@ -132,6 +132,8 @@ export function createResults(main, { store, onRanked }) {
     else if (t === mineCtl.input) store.set({ includeMine: t.checked });
     else if (t === areaInput) store.set({ includeUnconfirmed: t.checked });
   });
+  // the card tags' explanations (tag-tips.js): click / tap / keyboard pins, a mouse hover shows, Escape closes
+  const tagTips = createTipController({ group: (b) => b.closest('.card-chips')?.querySelectorAll('.tag-btn') ?? [b] });
   list.addEventListener('click', (e) => {
     const btn = e.target.closest('button');
     if (!btn) return;
@@ -139,11 +141,15 @@ export function createResults(main, { store, onRanked }) {
     if (!rec) return;
     if (btn.classList.contains('math-toggle')) toggleMath(rec);
     else if (btn.classList.contains('cmp-toggle')) toggleCompare(rec, btn);
-    else if (btn.classList.contains('tag-btn')) toggleTip(rec.r.chips.querySelectorAll('.tag-btn'), btn);
+    else if (btn.classList.contains('tag-btn')) tagTips.click(btn, { keyboard: e.detail === 0 });
   });
-  // a mouse hover over a tag shows its explanation too, like a title tooltip (tag-tips.js)
-  list.addEventListener('pointerover', (e) => hoverTip(e, true));
-  list.addEventListener('pointerout', (e) => hoverTip(e, false));
+  list.addEventListener('pointerover', (e) => tagTips.over(e.target, e.pointerType));
+  list.addEventListener('pointerout', (e) => tagTips.out(e.target, e.relatedTarget, e.pointerType));
+  document.addEventListener('keydown', (e) => {
+    // an open dialog (the full-screen board) owns Escape
+    if (e.key !== 'Escape' || e.defaultPrevented || document.querySelector('dialog[open]')) return;
+    if (tagTips.escape(list.querySelectorAll('.tag-btn[aria-expanded="true"]'), document.activeElement)) e.preventDefault();
+  });
   trayOpen.addEventListener('click', () => openCompare());
   trayClear.addEventListener('click', () => store.set({ selectedPlans: [] }));
   empty.addEventListener('click', (e) => {
@@ -284,17 +290,19 @@ export function createResults(main, { store, onRanked }) {
   }
 
   /**
-   * A tag that explains itself: its label is a button that shows the explanation below the chips (click, tap or
-   * keyboard keeps it open; a mouse hover shows it while over the tag: tag-tips.js); the explanation is also the
-   * button's accessible description (no title: one source for the text). No
-   * `tip`: a plain tag. The tip paragraphs are collected in `tips` for the card's r.tips.
+   * A tag that explains itself: its label is a button that shows the explanation below the chips (tag-tips.js: click,
+   * tap or keyboard pins it, a mouse hover shows it, Escape closes it); the explanation is also the button's accessible
+   * description (no title: one source for the text). `key` names the tag within the card (ids tag-/tip-<code>-<key>,
+   * unique per card; a rebuild puts focus back on the tag with the same key). No `tip`: a plain tag. The tip paragraphs
+   * are collected in `tips` for the card's r.tips.
    */
-  function tipTag(rec, tips, cls, tip, ...kids) {
+  function tipTag(rec, tips, key, cls, tip, ...kids) {
     if (!tip) return h('li', { class: cls }, ...kids);
-    const id = `tip-${rec.code}-${tips.length}`;
-    tips.push(h('p', { class: 'tag-tip', id, hidden: true }, tip));
+    const id = `tag-${rec.code}-${key}`;
+    const tipId = `tip-${rec.code}-${key}`;
+    tips.push(h('p', { class: 'tag-tip', id: tipId, 'data-tag': id, hidden: true }, tip));
     return h('li', { class: `${cls} has-tip` },
-      h('button', { type: 'button', class: 'tag-btn', 'aria-expanded': 'false', 'aria-controls': id, 'aria-describedby': id }, ...kids));
+      h('button', { type: 'button', class: 'tag-btn', id, 'data-key': key, 'aria-expanded': 'false', 'aria-controls': tipId, 'aria-describedby': tipId }, ...kids));
   }
 
   function updateCard(rec, row, rank, scale, state, animateNums) {
@@ -388,8 +396,8 @@ export function createResults(main, { store, onRanked }) {
     const unpriced = (row.cost.breakdown.unpriced ?? []).length > 0;
     const gapText = row.maternity?.gap?.text ?? MATERNITY_UNPRICED;
     const tips = [];
-    const tag = (cls, tip, ...kids) => tipTag(rec, tips, cls, tip, ...kids);
-    const unpricedTag = () => unpriced && tag('tag tag-warn', `${gapText} See the math.`,
+    const tag = (key, cls, tip, ...kids) => tipTag(rec, tips, key, cls, tip, ...kids);
+    const unpricedTag = () => unpriced && tag('unpriced', 'tag tag-warn', `${gapText} See the math.`,
       svg(ICON_WARN), ended ? 'Maternity not priced for 2026 plans' : MATERNITY_UNPRICED);
     // a priced plan: what one pregnancy adds, in the headline total or shown apart from it
     // an estimated amount (MATERNITY_ASSUMPTIONS) says so on the tag, and its title says what is assumed and why
@@ -398,15 +406,15 @@ export function createResults(main, { store, onRanked }) {
     const matWhere = matInRank
       ? 'Included in this total: every shown plan is priced.'
       : 'Left out of the ranked total because some shown plans’ brochures give no maternity total.';
-    const matTag = () => matCost != null && tag(`tag${matEst ? ' tag-est' : ''}`,
+    const matTag = () => matCost != null && tag('maternity', `tag${matEst ? ' tag-est' : ''}`,
       matEst ? `${row.maternity.estimate} ${matWhere}` : `What one pregnancy adds on this plan, from its 2027 brochure’s maternity terms. ${matWhere}`,
       `${matCost > 0 ? '+ ' : ''}${usd(matCost)} maternity${matEst ? ' (estimated)' : ''}${matInRank ? ', in total' : ''}`);
     // the warning flags (2026 -> 2027) say why from the figures they were computed from; none when a figure is missing
     const flagTips = row.diff.flags.map((f) => flagTip(f, row));
     const firmTag = () => (row.cost.firmness === 'fixed'
-      ? tag('tag tag-fixed', fixedTitle(row.cost.breakdown), 'Fixed cost')
-      : tag('tag tag-est', estimatedTitle(row.cost.breakdown), 'Estimated'));
-    const oonTag = () => oon && tag('tag tag-warn', 'Out-of-network lines are counted at full cost: OPM publishes no out-of-network cost sharing. See the math.',
+      ? tag('firmness', 'tag tag-fixed', fixedTitle(row.cost.breakdown), 'Fixed cost')
+      : tag('firmness', 'tag tag-est', estimatedTitle(row.cost.breakdown), 'Estimated'));
+    const oonTag = () => oon && tag('oon', 'tag tag-warn', 'Out-of-network lines are counted at full cost: OPM publishes no out-of-network cost sharing. See the math.',
       svg(ICON_WARN), 'Out-of-network estimate');
     const st = state.location.state;
     const area = areaChip(row, st ? STATE_NAMES[st] ?? st : null, st ? state.location.zip : null, data.zipCounty ?? null);
@@ -416,26 +424,31 @@ export function createResults(main, { store, onRanked }) {
       const items = ended ? [
         h('li', { class: 'tag tag-ended' }, 'Your 2026 plan'),
         h('li', { class: 'tag tag-ended' }, 'Ended in 2027'),
-        tag('tag', 'Premium and benefits from OPM’s 2026 files: this plan has no 2027 version.', '2026 rates'),
+        tag('rates2026', 'tag', 'Premium and benefits from OPM’s 2026 files: this plan has no 2027 version.', '2026 rates'),
         firmTag(),
         oonTag(),
         unpricedTag(),
       ] : [
         row.isMine && h('li', { class: 'tag tag-mine' }, 'Your plan · 2027'),
         rankTag && h('li', { class: 'tag' }, rankTag),
-        area && tag('tag tag-warn tag-area', area.title, svg(ICON_WARN), area.text),
+        area && tag('area', 'tag tag-warn tag-area', area.title, svg(ICON_WARN), area.text),
         row.isMine && mineWhere && h('li', { class: 'tag' }, `Not listed for ${mineWhere}`),
-        vsMine != null && tag(`tag tag-vs tag-vs-${deltaTone(vsMine)}`, vsExcl ? `Estimated yearly totals compared ${vsExcl}: the same on both sides or not priced on every plan` : 'Estimated yearly total compared with your plan in 2027',
+        vsMine != null && tag('vs', `tag tag-vs tag-vs-${deltaTone(vsMine)}`, vsExcl ? `Estimated yearly totals compared ${vsExcl}: the same on both sides or not priced on every plan` : 'Estimated yearly total compared with your plan in 2027',
           deltaTone(vsMine) === 'flat' ? `Same as your plan${vsExcl ? ` (${vsExcl})` : ''}` : `${signedUsd(vsMine)} vs your plan${vsExcl ? ` (${vsExcl})` : ''}`),
         firmTag(),
         oonTag(),
         unpricedTag(),
         matTag(),
         row.diff.status === 'new' && h('li', { class: 'tag tag-new' }, 'New for 2027'),
-        ...row.diff.flags.map((f, i) => tag('tag tag-warn', flagTips[i], svg(ICON_WARN), FLAG_TEXT[f] ?? f)),
+        ...row.diff.flags.map((f, i) => tag(`flag-${f}`, 'tag tag-warn', flagTips[i], svg(ICON_WARN), FLAG_TEXT[f] ?? f)),
       ];
+      // a rebuild while a tag has focus (e.g. "vs your plan" after a medication price arrives): focus goes back to the
+      // tag with the same key; the old tips go with the old tags (the new ones start closed)
+      const focusKey = focusedTagKey(r.chips, document.activeElement);
+      tagTips.forget(r.chips.querySelectorAll('.tag-btn'));
       r.chips.replaceChildren(...items.filter(Boolean));
       r.tips.replaceChildren(...tips);
+      restoreTagFocus(r.chips.querySelectorAll('.tag-btn'), focusKey);
     }
 
     // compare and the brochure parts are about 2027 plans: the ended reference card has neither
