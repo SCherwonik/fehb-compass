@@ -4,7 +4,7 @@ import { h, svg } from './dom.js';
 import { effectiveUsage, describeUsage, overrideChanges, inNetworkAtMax } from './assumptions.js';
 import { personLimitsNote, rankTotal } from './model.js';
 import { memberLabel } from './members-model.js';
-import { memberBlockInput, familyInNetwork, assumedHeading, memberAssumed, householdDeductibleNote, labelledByMember, itemWho, familyDeductibleUse, sharedDeductible, oopNote, gapNote, deductibleHow, gapFirmness } from './math-family.js';
+import { memberBlockInput, familyInNetwork, assumedHeading, memberAssumed, householdDeductibleNote, labelledByMember, itemWho, familyDeductibleUse, sharedDeductible, oopNote, gapNote, deductibleHow, gapFirmness, fixedTitle } from './math-family.js';
 import { dvMathLines } from './dental-board.js';
 import { ASSUMED_PRICES, ASSUMPTIONS_NOTE } from '../engine/assumptions.js';
 import { UNCLEAR_FAMILY_DEDUCTIBLE, capNotes } from '../engine/cost.js';
@@ -284,10 +284,11 @@ export function mathContent(row, state, data, basis) {
         h('p', { class: 'mc-warn' }, svg(ICON_WARN), it.status === 'lookup' ? 'Not looked up for this plan yet.' : it.missing ? `Missing ${it.missing}.` : it.text)))),
   ];
 
-  // the card tags explain themselves in a hover title; this repeats it for touch and keyboard users
+  // the card tags explain themselves in their tips; this repeats it beside the math
   const gaps = b.gaps ?? [];
+  const fixed = fixedTitle(b);
   const firmness = cost.firmness === 'fixed'
-    ? 'Fixed cost: every service in this scenario is a flat copay, so this total does not depend on assumed prices.'
+    ? `Fixed cost: ${fixed[0].toLowerCase()}${fixed.slice(1)}`
     : gaps.length > 0
       ? gapFirmness(gaps)
       : 'Estimated: part of this total depends on the assumed prices listed below.';

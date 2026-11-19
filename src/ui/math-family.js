@@ -128,6 +128,17 @@ export function gapFirmness(gaps) {
 }
 
 /**
+ * The card's "Fixed cost" tag tip from planTotal's breakdown: a year with no care at all (no services, medications or own
+ * cost lines: "Start from nothing") has no cost sharing; otherwise every service is a flat copay. Unknown: the latter.
+ */
+export function fixedTitle(b) {
+  const none = (list) => Array.isArray(list) && list.every((x) => !(Number(x?.count ?? x?.fillsPerYear ?? 1) > 0));
+  return b && none(b.services) && none(b.drugs) && Array.isArray(b.custom) && b.custom.length === 0
+    ? 'No care is assumed in this scenario, so no cost sharing applies and this total does not depend on assumed prices.'
+    : 'Every service in this scenario is a flat copay, so this total does not depend on assumed prices.';
+}
+
+/**
  * The card's "Estimated" tag tooltip, naming the real reason(s) from planTotal's breakdown: a known gap (a brochure
  * cost the total leaves out), a brochure that contradicts itself, a brochure rule the estimate does not model, and
  * assumed prices (`pricesMatter`; absent counts as true). Assumed prices alone keep the plain sentence.

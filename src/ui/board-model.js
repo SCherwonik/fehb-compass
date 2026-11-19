@@ -470,10 +470,11 @@ export function flagTip(flag, row) {
 /**
  * 'per year, estimated' | 'per year' | 'per year, incl. dental/vision' | '..., excl. meds' | '..., excl. meds and maternity'
  * (the ranking basis, I3: medications and maternity are in the total only when priced on every plan). "estimated"
- * follows the total's firmness, like the card's tag: a 'fixed' total ("Fixed cost") is plain "per year".
+ * follows the total's firmness, like the card's tag: a 'fixed' total ("Fixed cost") is plain "per year"; the
+ * dental/vision label comes after it, never in its place.
  */
 export function totalLabelOf(row, withMeds = true, withMat = true, matEstimated = false) {
-  const parts = [dvCost(row) ? dvLabel(row) : row?.cost?.firmness === 'fixed' ? null : 'estimated'].filter(Boolean);
+  const parts = [row?.cost?.firmness === 'fixed' ? null : 'estimated', dvCost(row) ? dvLabel(row) : null].filter(Boolean);
   const incl = [];
   const excl = [];
   if (row?.meds?.entries?.length) (withMeds ? incl : excl).push('meds');

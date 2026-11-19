@@ -19,7 +19,7 @@ import { createRxCard, updateRxCard } from './rx-card.js';
 import { badgeEl } from './rx-render.js';
 import { overrideBadge } from './matrix-model.js';
 import { mathContent, ICON_WARN } from './math.js';
-import { estimatedTitle } from './math-family.js';
+import { estimatedTitle, fixedTitle } from './math-family.js';
 import { toggleTip, hoverTip } from './tag-tips.js';
 
 const UI_KEY = 'fehb-compass:results-ui:v1';
@@ -404,13 +404,13 @@ export function createResults(main, { store, onRanked }) {
     // the warning flags (2026 -> 2027) say why from the figures they were computed from; none when a figure is missing
     const flagTips = row.diff.flags.map((f) => flagTip(f, row));
     const firmTag = () => (row.cost.firmness === 'fixed'
-      ? tag('tag tag-fixed', 'Every service in this scenario is a flat copay, so this total does not depend on assumed prices.', 'Fixed cost')
+      ? tag('tag tag-fixed', fixedTitle(row.cost.breakdown), 'Fixed cost')
       : tag('tag tag-est', estimatedTitle(row.cost.breakdown), 'Estimated'));
     const oonTag = () => oon && tag('tag tag-warn', 'Out-of-network lines are counted at full cost: OPM publishes no out-of-network cost sharing. See the math.',
       svg(ICON_WARN), 'Out-of-network estimate');
     const st = state.location.state;
     const area = areaChip(row, st ? STATE_NAMES[st] ?? st : null, st ? state.location.zip : null, data.zipCounty ?? null);
-    const key = `${ended ? 'ended' : ''}${row.isMine ? `mine:${mineWhere}:${rankTag}` : ''}|${vsMine}:${vsExcl}|${row.cost.firmness}:${row.cost.firmness === 'fixed' ? '' : estimatedTitle(row.cost.breakdown)}|${row.diff.status}|${row.diff.flags.join(',')}:${flagTips.join('|')}|${oon}:${unpriced}:${gapText}:${matCost}:${matEst}:${matInRank}|${area?.title ?? ''}`;
+    const key = `${ended ? 'ended' : ''}${row.isMine ? `mine:${mineWhere}:${rankTag}` : ''}|${vsMine}:${vsExcl}|${row.cost.firmness}:${row.cost.firmness === 'fixed' ? fixedTitle(row.cost.breakdown) : estimatedTitle(row.cost.breakdown)}|${row.diff.status}|${row.diff.flags.join(',')}:${flagTips.join('|')}|${oon}:${unpriced}:${gapText}:${matCost}:${matEst}:${matInRank}|${area?.title ?? ''}`;
     if (key !== rec.chipsKey) {
       rec.chipsKey = key;
       const items = ended ? [
