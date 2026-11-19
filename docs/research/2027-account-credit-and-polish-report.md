@@ -93,7 +93,7 @@ The estimate does something different. It gives each person the deductible and t
 - The estimate does the same thing: a $2,200 deductible, then the $1,200 account subtracted. That gives the same order for Self, so the first $1,200 of care costs nothing and the next $1,000 is the member's.
 - The rule the estimate does not model is family-only, and p28 states it only for "Self Plus One or Self and Family coverage": one person meets $1,000, and the other members meet an additional $1,000.
 - So the 474 entry stays Self Plus One and Self and Family.
-- One question remains open, and it is unchanged from the earlier report. The brochure does not say whether account payments count toward the out-of-pocket limit (p31: "If you have exceeded your Personal Care Account and met your Deductible"). This affects Self too: in a worst-case year the Self estimate could be $1,200 low under one reading. That is an unstated rule, not the p28 rule, so I did not flag it. The owner may decide.
+- *Corrected after the final review:* this follow-up first said the brochure leaves open whether account payments count toward the out-of-pocket limit. It does not: p31-32 list "The Personal Care Account (PCA) of $1,200 for Self Only or $2,400 for Self Plus One or Self and Family" among the out-of-pocket expenses that count toward the limit. The estimate counts them the same way, for Self as well, so nothing is missing for Self.
 
 **2. Hover.**
 - Removing `title` had removed the mouse tooltip. A mouse pointer over a tag now shows the same tip paragraph (`hoverTip`, class `is-hover`, which beats the global `[hidden]` rule). Leaving the tag hides it, unless a click opened it.
@@ -157,7 +157,7 @@ Not checked: real touch hardware and a screen reader.
 
 **3b. Caption.** With the dental/vision add-on, the caption now reads "per year, estimated, incl. dental/vision". Before, the add-on label replaced "estimated".
 
-**4. 474 out-of-pocket assumption (owner decision).**
+**4. 474 out-of-pocket assumption (owner decision).** *Withdrawn after the scoped review; see the last section. The brochure does state the rule (p31-32), and the estimate follows it. The entry described below was removed.*
 - **What the brochure says.** 71-004 p31 gives the limit ($6,500 Self Only, $13,000 Self Plus One or Self and Family, in-network) "If you have exceeded your Personal Care Account and met your Deductible". It does not say whether the account's payments count toward the limit.
 - **What the engine does, read in `src/engine/cost.js`.**
   - `planTotal` and `familyTotal` cap all cost sharing at the out-of-pocket maximum, including the costs the account pays. Each person is capped at the Self Only maximum, and the family at the enrollment's.
@@ -181,3 +181,30 @@ Not checked: real touch hardware and a screen reader.
 - Regenerating the data changed only `known_gaps` on 474, N61, EP1, F51, G51, H41 and JS1.
 
 **Tests:** node 505 (was 497), pytest 305 (was 304). Both suites passed before each commit.
+
+## Scoped review: 474's out-of-pocket rule is stated, the assumption note was wrong
+
+**What the brochure says.** 71-004 p31 starts the list "Out-of-pocket expenses for the purposes of this benefit are:", and the list continues on p32 with "The Personal Care Account (PCA) of $1,200 for Self Only or $2,400 for Self Plus One or Self and Family". So the account's payments count toward the out-of-pocket limit ($6,500 Self Only, $13,000 Self Plus One or Self and Family, in-network). I missed the continuation on p32.
+
+**The estimate already does this.** `planTotal` and `familyTotal` cap the cost sharing, the account-paid part included, at the limit, and then subtract the account money. That is the brochure's rule, not an assumption.
+
+**What I changed.**
+- **474 note removed.** The `rule_assumed` entry for 474 is gone. No entry used that kind any more, so I removed the kind from the build check (`GAP_KINDS`), from the firmness and Estimated wording (`src/ui/math-family.js`), and from the tests.
+- **474 `reason` corrected.** It now says the worst case is $0, because the brochure counts the account toward the limit (p31-32), the same way the estimate does. Self Only matches the brochure's order.
+- **474 sentence on screen unchanged.** It never made the wrong claim. It still covers only the p28 rule (account first, then $1,000 per person) for Self Plus One and Self and Family.
+- **Other reports corrected.**
+  - `2027-batch-report.md`: the A/B column note, the Self line and the owner-decision line.
+  - `2027-uncovered-cap-plans.md`: one sentence added to the 474 section.
+  - This report: the 474 bullet in the follow-up section, and a note on section 4 above.
+  - The comment in `tests/engine/known-gaps.test.js`.
+- **The six fund-first notes reworded.** The per-person rule now names its enrollments ("under Self Plus One or Self and Family, once one person meets…"), and the out-of-network deductible closes the parenthesis, so "those two" can no longer be misread. The quotes are unchanged, and the build re-checked them on their pages.
+- **Board sub-caption.** The "Estimated total" sub-caption on the board now says "no care assumed" for a year with no care, using the same check as the card's Fixed cost tip (`noCareAssumed`). Otherwise it still says "fixed copays" or "estimated". Tested on real data.
+
+**Data.**
+- Regenerating changed only `known_gaps`. 474 is back to its single family `rule_differs` entry; compared with a4cf311, only its `reason` is different.
+- The six plans' notes differ from a4cf311 in their `text` only (the in-network wording and this rewording).
+
+**Totals.** Compared a4cf311 (`git archive` in the OS temp directory, deleted afterwards) with the final tree: every plan, 5 scenarios, active and retiree, 3 enrollments, households 1–3 (17,500 combinations). **0 totals changed and 0 firmness values changed.**
+
+**Tests:** node 505 and pytest 304. The `rule_assumed` tests are gone, and the board sub-caption test is new. Both suites passed before the commit.
+

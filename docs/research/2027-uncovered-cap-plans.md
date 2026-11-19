@@ -83,6 +83,7 @@ The 73-865 and 73-891 lines have exactly this layout. The previous pass found th
 - The app instead gives each person a $2,200 deductible and then applies the $2,400 HRA credit against costs.
 - For one heavy user on Self Plus One, the brochure has that person paying $1,000 of deductible after the $2,400 PCA is used up.
 - The app's HRA credit appears to absorb that person's whole $2,200 deductible, so 474 family totals may be understated. I did not run the engine to measure this.
+- The out-of-pocket limit is not in question: p31-32 list "The Personal Care Account (PCA) of $1,200 for Self Only or $2,400 for Self Plus One or Self and Family" among the out-of-pocket expenses that count toward the limit, and the app counts the account the same way (added after the final review).
 
 ## Task 3: recommendations
 

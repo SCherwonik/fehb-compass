@@ -24,7 +24,7 @@ Date: 2026-11-18. Base: ccc1996. All brochure quotes were re-read in `pipeline/r
 - The app gives each person the $2,200 deductible inside $4,400 and subtracts the HRA credit afterwards. The `Net deductible` raw fields are used only as a Board matrix row (`src/ui/matrix-model.js`), not by the engine.
 - Measured with a throwaway script (premium included, 2027, active). The brochure order was computed by hand: account first, then $1,000 per person (family $2,000), then 15%. Generic drugs were priced as the app prices them.
 
-| Enrollment, people (scenario) | App | Brochure order (A: account payments do not count toward the out-of-pocket max) | Brochure order (B: they count) |
+| Enrollment, people (scenario) | App | Brochure order, read as A: account payments do not count toward the out-of-pocket max (not what the brochure says; see below) | Brochure order, read as B: they count (what the brochure says, p31-32) |
 |---|---|---|---|
 | SP1, 1 (condition) | $6,529.56 | $7,549.56 (app −$1,020) | same |
 | SP1, 2 (typical) | $7,579.56 | $6,964.56 (app +$615) | same |
@@ -35,9 +35,9 @@ Date: 2026-11-18. Base: ccc1996. All brochure quotes were re-read in `pipeline/r
 | Family, 1 / 2 / 4 (worst) | $10,426.84 / $16,926.84 / $16,926.84 | app −$2,400 each | 0 |
 
 - The hand model does not let the account pay for drugs. That simplification alone moves a typical year by up to $180, so the small figures are approximate.
-- The right model depends on whether account payments count toward the out-of-pocket max. The brochure leaves this open: p31 says the max applies "if you have exceeded your Personal Care Account and met your Deductible". The difference is also up to $2,400, so I did not change the model.
+- *Corrected after the final review:* this report first said the brochure leaves open whether account payments count toward the out-of-pocket max. It does not leave it open: p31-32 list "The Personal Care Account (PCA) of $1,200 for Self Only or $2,400 for Self Plus One or Self and Family" among the out-of-pocket expenses that count toward the limit. So column B is the brochure's order, and the app counts the account that way too (it caps costs, the account-paid ones included, then subtracts the account). The worst-case difference is $0. The model was not changed: the remaining difference is the account-first, then $1,000-per-person deductible rule (p28).
 - Added a cost-affecting gap instead: new kind `rule_differs`, Self Plus One and Self and Family only. The total is unchanged, firmness is 'estimated', and "See the math" carries a plain sentence.
-- Self Only matches the brochure order except for the same out-of-pocket question (worst case: app $1,200 lower under reading A). Self is not flagged, because Self results must not change.
+- Self Only matches the brochure order: the account is used first, then the $1,000 net deductible (p28), and account payments count toward the limit (p31-32). Self is not flagged, because Self results must not change.
 - Same pattern, not fixed (from `account_type`): the plan deductible includes the account, and the app gives each person the Self Only share.
   - N61 (Aetna Direct CDHP): $900 / $1,800 account inside a $2,000 / $4,000 deductible.
   - EP1, F51, G51, H41 and JS1 (CDHPs): the account equals the whole deductible, with a $0 net deductible.
@@ -99,7 +99,7 @@ With assumed prices as the only reason, the old sentence stays. The card's chip 
 
 ## Decisions for the owner
 
-- **474.** Choose how account payments count toward the out-of-pocket max, then decide whether to model "account first, then $1,000 per person". The same question applies to N61, EP1, F51, G51, H41 and JS1.
+- **474.** Decide whether to model "account first, then $1,000 per person" (p28). Account payments count toward the out-of-pocket max (p31-32), which is what the app already does. The same question applies to N61, EP1, F51, G51, H41 and JS1.
 - **Triggers.** ER visits do not trigger the V31, 2G4 and B64 deductibles. Brochure medications always trigger B64's Tier 2-5 deductible, because their tier number is not known to the engine.
 
 ## Fixes after the final review
