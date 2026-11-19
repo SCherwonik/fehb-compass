@@ -108,3 +108,76 @@ The estimate does something different. It gives each person the deductible and t
 - Not checked: real touch hardware and a screen reader.
 
 **Tests:** node 497 (was 495; +2 tag-tips tests) and pytest 304 (the fund-first test was rewritten for every enrollment). Both suites passed before each commit.
+
+## Final review: Minor items and the 474 owner decision
+
+**The six account-first plans stay flagged, not modeled.**
+- Plans: N61, EP1, F51, G51, H41 and JS1.
+- The owner chose the safe default. The brochures do not fully state how the fund interacts with copays and with the out-of-pocket max.
+- The entries change no total, only the note and the firmness.
+
+**1. Tag tips** (`src/ui/tag-tips.js` `createTipController`, wired in `src/ui/results.js`).
+- **(a) Escape** closes the open tips.
+  - It returns focus to a tag whose tip the keyboard opened.
+  - A tip opened by hover stays closed until the pointer leaves the tag.
+  - When a dialog is open (the full-screen board), Escape belongs to the dialog.
+- **(b) Hover** keeps the tip open while the pointer is on the tag or on the tip.
+  - Leaving both closes the tip after 300 ms.
+  - On the way to the tip, the pointer may cross another tag of the same card. That tag opens only if the pointer is still on it when the 300 ms grace ends.
+- **(c) One tip per card**, whether it was opened by hover, click or keyboard.
+- **(d) Clicking a pinned tip closes it**, even with the mouse still on the tag, and hover does not reopen it until the pointer leaves and comes back.
+  - A click on a tip that hover opened pins it instead.
+  - `aria-expanded` always matches whether the tip shows.
+- **(e) Rebuilds keep focus.**
+  - Each tag has a stable key, with ids `tag-<code>-<key>` and `tip-<code>-<key>`.
+  - When a card's chips rebuild, focus returns to the tag with the same key, pending timers are dropped, and the new tips start closed.
+- **(f) Heights:** `.tag-btn` min-height is now 24 px (the tag's 26 px less its two 1 px borders). Tags with and without a tip both measure 26 px in the browser.
+- **Tests:** the controller is tested with fake elements and fake timers, one test each for (a) to (e), plus the crossing case for (b).
+
+**Browser check** (800 px; local server stopped afterwards):
+- all 76 tag ids and their tip ids are unique;
+- every `aria-describedby` points to its own tip;
+- hovering Estimated and then moving onto its tip, crossing the "Deductible went up" tag on the way, kept the Estimated tip open, and Escape closed it;
+- the keyboard opened the deductible tip; with focus moved to "See the math", Escape closed the tip and focus went back to its tag;
+- a click on a tip opened by hover pinned it, and a second click with the mouse still on the tag closed it (`aria-expanded` false);
+- changing the scenario rebuilt a focused "vs your plan" tag (+$404 became +$914): focus stayed on the new tag, and no tip was left open.
+
+Not checked: real touch hardware and a screen reader.
+
+**2. "In-network" in the six notes.**
+- The notes now say "the whole in-network deductible" and name the out-of-network deductible:
+  - 73-879 p15: $1,500 Self Only, $3,000 Self Plus One or Self and Family;
+  - 73-828 p17: "the same".
+- The build re-checked the quotes, which are unchanged and still on their pages.
+
+**3a. "Fixed cost" tip.**
+- `fixedTitle`: a year with no services, medications or own cost lines reads "No care is assumed in this scenario, so no cost sharing applies and this total does not depend on assumed prices."
+- Otherwise the tip keeps the flat-copay sentence.
+- The same text is used on the card tag and in "See the math". Checked in the browser for "Start from nothing".
+
+**3b. Caption.** With the dental/vision add-on, the caption now reads "per year, estimated, incl. dental/vision". Before, the add-on label replaced "estimated".
+
+**4. 474 out-of-pocket assumption (owner decision).**
+- **What the brochure says.** 71-004 p31 gives the limit ($6,500 Self Only, $13,000 Self Plus One or Self and Family, in-network) "If you have exceeded your Personal Care Account and met your Deductible". It does not say whether the account's payments count toward the limit.
+- **What the engine does, read in `src/engine/cost.js`.**
+  - `planTotal` and `familyTotal` cap all cost sharing at the out-of-pocket maximum, including the costs the account pays. Each person is capped at the Self Only maximum, and the family at the enrollment's.
+  - Then they subtract the account money as the HRA offset, capped at those costs.
+  - So the estimate counts the account's payments toward the limit. The behaviour is stable and defined.
+  - A test checks it: Self, worst year: costs equal $6,500 and the offset equals $1,200.
+- **New entry.** A second 474 entry with the new kind `rule_assumed`:
+  - affects cost; applies to every enrollment; `applies_when` any_care; page 31;
+  - quote: "If you have exceeded your Personal Care Account and met your Deductible";
+  - text: the brochure does not say whether account payments count; the estimate assumes they do; and how it applies that. It states only brochure amounts.
+- **Supporting changes.**
+  - The build accepts the new kind.
+  - The firmness line and the Estimated tip say "the plan's brochure does not state a rule this estimate has to assume".
+  - The family net-deductible entry (`rule_differs`) is unchanged and listed first.
+  - Self now shows only the new note.
+
+**Totals.**
+- Compared a4cf311 (`git archive` into the OS temp directory, deleted afterwards) with HEAD: every 2026 and 2027 plan, 5 scenarios, active and retiree, 3 enrollments, households 1–3 (17,500 combinations).
+- **0 totals changed and 0 firmness values changed.**
+- With the pharmacy-only year added (21,000 combinations), the result is also 0 and 0. 474's totals were already estimated in every year with care, because of its coinsurance.
+- Regenerating the data changed only `known_gaps` on 474, N61, EP1, F51, G51, H41 and JS1.
+
+**Tests:** node 505 (was 497), pytest 305 (was 304). Both suites passed before each commit.
